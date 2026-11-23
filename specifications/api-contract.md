@@ -42,15 +42,15 @@ and is scrubbed of the run's secret values (`workflow/WorkflowRunService.java:58
 **Artifacts.** A run's list holds its artifacts, expired ones and the workflow-scoped ones it uploaded included, but no task log or unfinished upload (`workflow/ArtifactService.java:476-483`). A download streams through `service-core`; an expired or replaced artifact is `410 ARTIFACT_EXPIRED` (`:651-662`), and with no artifact store `503 ARTIFACTS_NOT_CONFIGURED` (`:635-641`). The workspace list is largest first and takes `statuses` (default `available`), `scope` (`run`, `workflow`, or `log` for task logs, listed only when asked) and `workflow`, a name (`:508-550`).
 
 **Workflow templates** are the system workspace's workflows of `type` `template` or `starter`, authored through its ordinary workflow routes; that `type` on a body to any other workspace is `400
-WORKFLOW_TEMPLATE_SYSTEM_ONLY` (`workflow/WorkflowService.java:2507-2515`). There are no template routes: a workspace sees them through its own workflow routes. `GET …/workflow/query` lists, beside
-its workflows, the active templates and starters whose name none of its workflows carries and that none links, each with its `type`; `types=workflow|template|starter` narrows, a workflow stored with no type counting as `workflow` (`:379-386,1564,2365-2387`); one created without a type stores `workflow` (`:1656`).
-The reads by name (get, compose, changelog, export, available parameters) answer the template or starter of a name the workspace has no workflow of (`:295-306,2331-2340`); a workflow of the same name
-hides it. A starter is copied, its body with `type` `workflow` posted to `POST …/workflow`; its submit is `400 WORKFLOW_TEMPLATE_INVALID_REF` (`:2344-2353`). A template runs through a link, a workflow
+WORKFLOW_TEMPLATE_SYSTEM_ONLY` (`workflow/WorkflowService.java:2539-2547`). There are no template routes: a workspace sees them through its own workflow routes. `GET …/workflow/query` lists, beside
+its workflows, the active templates and starters whose name none of its workflows carries and that none links, each with its `type`; `types=workflow|template|starter` narrows, a workflow stored with no type counting as `workflow` (`:379-386,1596,2397-2419`); one created without a type stores `workflow` (`:1688`).
+The reads by name (get, compose, changelog, export, available parameters) answer the template or starter of a name the workspace has no workflow of (`:295-306,2363-2372`); a workflow of the same name
+hides it. A starter is copied, its body with `type` `workflow` posted to `POST …/workflow`; its submit is `400 WORKFLOW_TEMPLATE_INVALID_REF` (`:2376-2385`). A template runs through a link, a workflow
 of the workspace with `templateRef: {name, version}` that shows the template's tasks and params read-only under its own name, labels and triggers and runs the template's pinned or latest revision as
-its own run (`:2168-2169,2547-2561,2574`). The first use makes the link: `POST …/workflow/{template}/submit` creates it under the template's name and runs it (`:734-739,2415-2481`); `PUT …/workflow` naming a
+its own run (`:2200-2201,2579-2593,2606`). The first use makes the link: `POST …/workflow/{template}/submit` creates it under the template's name and runs it (`:734-739,2447-2513`); `PUT …/workflow` naming a
 template creates it and applies display name, description, icon, labels and triggers, tasks and params ignored (`:665-677`). A missing template or version is `400 WORKFLOW_TEMPLATE_INVALID_REF`;
-deleting a template a link names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:897-905`). `PATCH …/workflow/{name}` with `{type}` changes what a workflow is, its revision untouched: a shared kind is the system
-workspace's alone, a link is refused one, and a template that workspaces still link stays one, `409 WORKFLOW_TEMPLATE_IN_USE` (`:859-896`).
+deleting a template a link names is `409 WORKFLOW_TEMPLATE_IN_USE` (`:929-937`). `PATCH …/workflow/{name}` with `{type}` changes what a workflow is, its revision untouched: a shared kind is the system
+workspace's alone, a link is refused one, and a template that workspaces still link stays one, `409 WORKFLOW_TEMPLATE_IN_USE` (`:891-928`).
 
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
@@ -101,7 +101,7 @@ A `*_INVALID_REF*` reason answers `404`: the resource the path addresses does no
 it. Blank, missing or unusable input is `400` under the matching `*_INVALID_REQ` reason (`common/error/BoomerangError.java:14-16`).
 A reference inside a body that fails to resolve stays `400`, because the route exists and the payload is wrong: a node
 naming a missing task is `WORKFLOW_INVALID_TASK_REF`, one with none `WORKFLOW_MISSING_TASK_REF`, at save and at submit
-(`workflow/WorkflowService.java:1452-1515,2176`); one whose `type` is not its task's is `WORKFLOW_INVALID_TASK_TYPE` (1224) at save (`:1759-1767`). `TASK_INVALID_NAME` (1403) is a name that breaks the slug rules; a lookup,
+(`workflow/WorkflowService.java:1484-1547,2208`); one whose `type` is not its task's is `WORKFLOW_INVALID_TASK_TYPE` (1224) at save (`:1791-1799`). `TASK_INVALID_NAME` (1403) is a name that breaks the slug rules; a lookup,
 changelog or delete naming a task that does not exist or is out of reach is `TASK_INVALID_REFERENCE` (1401, `404`; `workflow/TaskService.java:175-185,541-547,573-586`).
 
 ## Pagination and filters
@@ -116,7 +116,7 @@ event outbox, 100 by default (`event/OutboxControllerV2.java:64-66`).
 | Runs, task runs | `creationDate` (task runs then `_id`, so pages stay stable) | `DESC` (`workflow/WorkflowRunService.java:308,359-361`) |
 | Tokens, actions | `sort=<field>`, default `creationDate` | `DESC` (`core/TokenService.java:607`, `workflow/WorkspaceActionControllerV2.java:159`) |
 | Workspaces, users | `sort=<field>`, default `name` | `ASC` (`workspace/WorkspaceService.java:500`, `core/UserService.java:422`) |
-| Workflows, tasks, schedules | `creationDate` | `ASC` (`workflow/WorkflowService.java:1557`, `workflow/TaskService.java:864`, `schedule/WorkspaceScheduleControllerV2.java:134`) |
+| Workflows, tasks, schedules | `creationDate` | `ASC` (`workflow/WorkflowService.java:1589`, `workflow/TaskService.java:864`, `schedule/WorkspaceScheduleControllerV2.java:134`) |
 | Workspace artifacts | `size` | `DESC` (`workflow/ArtifactService.java:542`) |
 | Audit trail | `time` | `DESC` (`core/audit/AuditControllerV2.java:136`) |
 
@@ -137,7 +137,7 @@ on every route that takes it, and no filter matches everything (`:119-123`):
 The task and workflow `/{name}/changelog` routes are not paged: they return every version in ascending order, so the
 last entry is the latest (`workflow/TaskControllerV2.java:233`, `workflow/WorkspaceTaskControllerV2.java:299`,
 `workflow/WorkspaceWorkflowControllerV2.java:214`; sorted by `workflow/repository/TaskRevisionRepository.java:13` and
-`workflow/repository/WorkflowRevisionRepository.java:16`). A version's `author` is the server's record of who made it, a user's display name or a token's name, never the request's (`workflow/TaskService.java:457`, `workflow/WorkflowService.java:1693-1696`).
+`workflow/repository/WorkflowRevisionRepository.java:16`). A version's `author` is the server's record of who made it, a user's display name or a token's name, never the request's (`workflow/TaskService.java:457`, `workflow/WorkflowService.java:1725-1728`).
 `GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once, and each of its `workspaces` carries the caller's `role` there (`workspace/ProfileControllerV2.java:69`, `workspace/WorkspaceService.java:890`). `PATCH /api/v2/profile` and `PATCH /api/v2/user/{userId}` leave a field the body omits as it is; a blank `displayName` clears it, so the user reads by `name` again (`core/UserService.java:485-489`).
 
 ## Public run models
@@ -146,14 +146,14 @@ last entry is the latest (`workflow/TaskControllerV2.java:233`, `workflow/Worksp
 entities are separate classes and MUST NOT be returned from a controller. The dispatcher wire has its own models,
 `DispatchWorkflowRun` and `DispatchTaskRun` (`dispatcher-contract.md`, "What a poll hands out"). Both public models are
 `@JsonInclude(NON_NULL)`: a null field is absent (`common/model/WorkflowRun.java:38`, `common/model/TaskRun.java:27`).
-In the contract, a run model's `required` list is what every response carries, and a property typed `[<type>, "null"]` may be sent as `null`: `RunResult.description` and every `TaskRunSpec` field but `timeout`, which those two classes write when unset. `TaskRunSpec` also passes undeclared properties through (`additionalProperties: true`). The lists apply to the `api-v2` group only (`core/config/OpenApiConfiguration.java:73-134,187-223`); `RunModelRequiredFieldsTest` checks them against a run just submitted, its task runs, both queried, and a superseded attempt. A task run's `name` and `type` and a run's `workflowVersion` are not required: saving a workflow does not refuse a task without a name or type, and a run upgraded from v3 carries a version only when the v3 record did (`workflow/WorkflowService.java:1723-1742`, `migration/_0012__V3MigrateRuns.java:211-214`).
+In the contract, a run model's `required` list is what every response carries, and a property typed `[<type>, "null"]` may be sent as `null`: `RunResult.description` and every `TaskRunSpec` field but `timeout`, which those two classes write when unset. `TaskRunSpec` also passes undeclared properties through (`additionalProperties: true`). The lists apply to the `api-v2` group only (`core/config/OpenApiConfiguration.java:73-134,187-223`); `RunModelRequiredFieldsTest` checks them against a run just submitted, its task runs, both queried, and a superseded attempt. A task run's `name` and `type` and a run's `workflowVersion` are not required: saving a workflow does not refuse a task without a name or type, and a run upgraded from 3.5 carries a version only when the 3.5 record did (`workflow/WorkflowService.java:1755-1774`, `migration/_0012__V3MigrateRuns.java:211-214`).
 
 | Rule | Where |
 | --- | --- |
 | No execution state is serialised. Entity-only on a workflow run: `claim`, `timeoutAt`, `pauseRequestedAt`, `waitingSince`, `retryCount`, `statusOverride`; on a task run: `claim`, `timeoutAt`, `retry`, `waitUntil`, `foreach`, `dependencies`, `preApprovedStatus`, `decisionValue` | `common/entity/WorkflowRunEntity.java:40,53,57,66,77,88`; `common/entity/TaskRunEntity.java:52-54,72,77,81,85,94`; pinned by `service-core/src/test/java/io/boomerang/common/PublicRunModelSerialisationTest.java:56-91` |
-| Lineage is public: `trigger` (on `POST …/workflow/{name}/submit` the caller's, never the body's: `manual` for a person signed in to the webapp, a `session` token, and `api` for any other token or the security-off admin, both refused `WORKFLOWRUN_TRIGGER_DISABLED` while the Manual switch is off, and a body naming any other trigger `400 WORKFLOWRUN_INVALID_TRIGGER`; schedules, webhooks, events, GitHub, child runs and retries stamp `schedule`, `webhook`, `event`, `github`, `task` and `retry`; `engine` is on runs stored before, and on an internal submit that names none), `initiatedByRef` (what started the run: the schedule, the origin run, the submitting task run, or the user or token that submitted it, stamped by the server), the derived `initiatedByWorkflowRunRef` and `initiatedByName` (a user's display name or a token's name, one lookup per page), and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run | `common/model/WorkflowRun.java:67-77`; `workflow/WorkflowService.java:697-714,1103-1133,2228-2240`; `workflow/WorkflowRunService.java:1367-1374,1381-1396`; `common/model/TaskRun.java:60-62` |
+| Lineage is public: `trigger` (on `POST …/workflow/{name}/submit` the caller's, never the body's: `manual` for a person signed in to the webapp, a `session` token, and `api` for any other token or the security-off admin, both refused `WORKFLOWRUN_TRIGGER_DISABLED` while the Manual switch is off, and a body naming any other trigger `400 WORKFLOWRUN_INVALID_TRIGGER`; schedules, webhooks, events, GitHub, child runs and retries stamp `schedule`, `webhook`, `event`, `github`, `task` and `retry`; `engine` is on runs stored before, and on an internal submit that names none), `initiatedByRef` (what started the run: the schedule, the origin run, the submitting task run, or the user or token that submitted it, stamped by the server), the derived `initiatedByWorkflowRunRef` and `initiatedByName` (a user's display name or a token's name, one lookup per page), and on a scoped retry `retryFrom{scope, nodes}` (workflow run) and `reusedFromRef` on each carried-over task run | `common/model/WorkflowRun.java:67-77`; `workflow/WorkflowService.java:697-714,1135-1165,2260-2272`; `workflow/WorkflowRunService.java:1367-1374,1381-1396`; `common/model/TaskRun.java:60-62` |
 | `PUT …/workflowrun/{id}/retry` takes an optional body `{scope: all \| failed \| nodes, nodes: [names], params: [...], labels: {...}}`; no body is `all` | `common/model/WorkflowRunRetryRequest.java:11-24`; `workflow/WorkspaceWorkflowRunControllerV2.java:423-448` |
-| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on task runs, workflow nodes, workflow template tasks, insight task rows and `full` status events, translated in one batch per response. A save naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`. The stored value is the task's id | `workflow/TaskService.java:620-657,665-693`; `workflow/WorkflowRunService.java:181-193`; `workflow/WorkflowService.java:1390-1403,1465-1487`; `workflow/WorkflowRunInsightService.java:341-347`; `event/EventSinkService.java:72-78` |
+| A task reference reads as the task's slug form, `<slug>` for a global task and `<workspace>/<slug>` for a workspace task: `taskRef` on task runs, workflow nodes, workflow template tasks, insight task rows and `full` status events, translated in one batch per response. A save naming another workspace's task is `WORKFLOW_INVALID_TASK_REF`. The stored value is the task's id | `workflow/TaskService.java:620-657,665-693`; `workflow/WorkflowRunService.java:181-193`; `workflow/WorkflowService.java:1422-1435,1497-1519`; `workflow/WorkflowRunInsightService.java:341-347`; `event/EventSinkService.java:72-78` |
 | A task a dispatcher has claimed shows `attempt`: 1, plus one per requeue for any cause, so a requeued task waiting out its backoff already shows the next one. An approval, a wait or a reused task has none. `attempts` lists the superseded attempts, oldest first, each with `number`, `claimedAt`, `endedAt`, `duration`, `status`, `statusReason`, `statusMessage` and `dispatcherRef`; the task run's own fields are the current attempt | `common/model/TaskRun.java:60-67`, `:75-80`; `common/model/RunAttempt.java:20-27` |
 | A workflow run carries `statusReason` beside `statusMessage`, as a task run does: `ConcurrencyLimit` on a run skipped over its workflow's limit, `WorkflowInvalid`, `DeadlineExceeded`, `FinallyFailed` on a succeeded run whose finally task failed; absent when the run ended for no cause of its own | `common/model/WorkflowRun.java:59`; `common/model/StatusReason.java:34-36` |
 | Pause is the derived boolean `paused`, never the timestamp | `common/model/WorkflowRun.java:53-55` |
@@ -224,24 +224,42 @@ Every route here needs `webhook/action` permission and accepts `session`, `user`
 
 | Route | Body | Workflow resolution |
 | --- | --- | --- |
-| `POST /api/v2/webhook` (`application/json`) | Raw JSON, passed to the run as its `data` param in plain maps and lists; GitHub (`X-GitHub-Event`, below) and Slack (`x-slack-signature`) payloads branch on their headers | `?ref=`, a workflow id, or with `?workspace=` the workflow's name in that workspace; a body with neither a known header nor `ref` is `400`, and a workflow the caller cannot reach `WORKFLOW_INVALID_REFERENCE` (`event/WebhookEventControllerV2.java:86-145`; `event/WebhookEventService.java:100-130,210-218`) |
-| `POST /api/v2/event` | CloudEvents 1.0 in structured mode (`application/cloudevents+json`, attributes in the body) or binary mode (attributes in `ce-*` headers, the body its data), as the `Content-Type` says; a request that is neither is `WORKFLOW_INVALID_REQ` | `?ref=`, a workflow id, or with `?workspace=` its name in that workspace; without `ref`, the first segment of the `subject`, so `/<workflow>/<topic>` names `<workflow>`; with neither, `WORKFLOW_INVALID_REQ`. By id, a caller with no relationship to the workflow gets `PERMISSION_DENIED`; by name, a workflow the caller cannot reach in that workspace is `WORKFLOW_INVALID_REFERENCE` (`event/WebhookEventControllerV2.java:246-285`; `event/WebhookEventService.java:76-98,220-229`) |
-| `POST\|GET /api/v2/callback?ref={workflowrun}&topic=&status=&eventId=` | Resumes the run's "Wait For Event" tasks on `topic`; a `POST` body becomes their `data` result | `ref` is the workflow run. `status` ends the tasks `succeeded` (the default) or `failed`, in any case; anything else is refused with `QUERY_INVALID_FILTERS`. An `eventId` makes a repeat of the same callback for that run a no-op for 7 days, the `events_inbox` expiry; without one, each delivery is applied (`event/WebhookEventService.java:186-208`; `workflow/WorkflowRunService.java:1422-1440`; `migration/_0021__Indexes.java:118-122`) |
+| `POST /api/v2/webhook` (`application/json`) | Raw JSON, passed to the run as its `data` param in plain maps and lists; GitHub (`X-GitHub-Event`, below) and Slack (`x-slack-signature`) payloads branch on their headers | `?ref=`, a workflow id, or with `?workspace=` the workflow's name in that workspace; a body with neither a known header nor `ref` is `400`, and a workflow the caller cannot reach `WORKFLOW_INVALID_REFERENCE` (`event/WebhookEventControllerV2.java:86-145`; `event/WebhookEventService.java:119-149,329-337`) |
+| `POST /api/v2/event` | CloudEvents 1.0 in structured mode (`application/cloudevents+json`, attributes in the body) or binary mode (attributes in `ce-*` headers, the body its data), as the `Content-Type` says; a request that is neither is `WORKFLOW_INVALID_REQ` | `?ref=`, a workflow id, or with `?workspace=` its name in that workspace; without `ref`, the first segment of the `subject`, so `/<workflow>/<topic>` names `<workflow>`; with neither, `WORKFLOW_INVALID_REQ`. By id, a caller with no relationship to the workflow gets `PERMISSION_DENIED`; by name, a workflow the caller cannot reach in that workspace is `WORKFLOW_INVALID_REFERENCE` (`event/WebhookEventControllerV2.java:246-285`; `event/WebhookEventService.java:91-117,339-348`) |
+| `POST\|GET /api/v2/callback?ref={workflowrun}&topic=&status=&eventId=` | Resumes the run's "Wait For Event" tasks on `topic`; a `POST` body becomes their `data` result | `ref` is the workflow run. `status` ends the tasks `succeeded` (the default) or `failed`, in any case; anything else is refused with `QUERY_INVALID_FILTERS`. An `eventId` makes a repeat of the same callback for that run a no-op for 7 days, the `events_inbox` expiry; without one, each delivery is applied (`event/WebhookEventService.java:298-327`; `workflow/WorkflowRunService.java:1422-1440`; `migration/_0021__Indexes.java:118-122`) |
 
 An event's run params are `event`, its attributes and extensions as CloudEvents JSON writes them, and `data`, its data
 (JSON as sent, `text/*` a string, else base64; absent with none), read as `$(params.data.tag)`
-(`event/WebhookEventService.java:231-277`). Conditions are JSON paths into the event as sent, data under `data`
-(`type`, `data.tag`); a missing field matches nothing (`workflow/WorkflowService.java:1135-1212`).
+(`event/WebhookEventService.java:350-396`). Conditions are JSON paths into the event as sent, data under `data`
+(`type`, `data.tag`); a missing field matches nothing (`workflow/WorkflowService.java:1167-1244`).
 
 A GitHub App delivery carries GitHub's `X-Hub-Signature-256` over the `github.webhookSecret` setting, or it is `401`
 and starts nothing; the installation in its body, not the caller, picks the workspace
-(`event/WebhookEventService.java:138-169`). GitHub's `ping` names no installation and is accepted; an `installation`
+(`event/WebhookEventService.java:171-200`). GitHub's `ping` names no installation and is accepted; an `installation`
 event links or unlinks the installation. Any other event is offered to every workflow in the linked workspace, each
-submitted on its own, so one that refuses never stops the rest (`workflow/WorkflowService.java:747-765`). A workflow
-runs when its `github` trigger is on and every condition holds: `events` is the `X-GitHub-Event` name, `repositories`
-the repository's name, and any other field a JSON path into the payload; a field with no value matches nothing
-(`workflow/WorkflowService.java:1154-1194`). The run's params are `data`, the payload, and `event`, `{type, id}` from
-`X-GitHub-Event` and `X-GitHub-Delivery` (`event/WebhookEventService.java:172-183`).
+submitted on its own, so one that refuses never stops the rest (`workflow/WorkflowService.java:747-790`). A workflow
+takes the event when its `github` trigger is on and every condition holds: `events` is the `X-GitHub-Event` name,
+`repositories` the repository's name, and any other field a JSON path into the payload; a field with no value matches
+nothing (`workflow/WorkflowService.java:1142-1165,1191-1226`). The run's params are `data`, the payload, and `event`,
+`{type, id}` from `X-GitHub-Event` and `X-GitHub-Delivery` (`event/WebhookEventService.java:284-296`).
+
+| Delivery | Answer |
+| --- | --- |
+| Signature missing or wrong | `401`, no body |
+| `ping`, an `installation` event, an installation linked to no workspace, or an event no workflow takes | `200`, no body |
+| Every workflow that took the event started its run | `200`, no body |
+| No run started and a workflow that took the event was refused (a quota, a workflow that cannot run) | The refusal's own status and `RestErrorResponse`, as on the plain webhook route: `429 QUOTA_EXCEEDED` (1020) for a quota. With several refused, the first refusal's code, reason and status, and a `message` that counts them: "No run started: all 2 workflows this delivery matched were refused. The first: …" (`event/WebhookEventService.java:201-244`) |
+| Some runs started and other workflows were refused | `200`, no body, and a warning in the log (`:210-219`) |
+
+A workflow whose trigger is off or whose conditions do not hold has not taken the event and is never a refusal. Each
+refused workflow is audited as a failed submit, when audit capture is on at `WRITE`: action `SUBMIT`, outcome `FAILED`,
+resource type `workflow`, `resourceId` the workflow's name, `payload.errorSummary` the reason and message, and
+`payload.detail` `{trigger, event, delivery}` (`event/WebhookEventService.java:246-282`). Deliveries are not
+deduplicated: nothing records an `X-GitHub-Delivery` id as seen, so the same delivery sent again starts every workflow
+that takes it again. GitHub never retries on its own; a delivery answered outside 2xx shows as failed in the App's
+recent deliveries and can be redelivered there or through GitHub's API, and it then starts its run once the quota
+allows. A delivery that started some runs is answered `200` for that reason: redelivering it would start those runs a
+second time.
 
 ### Events out
 
@@ -288,15 +306,15 @@ step with their own definitions MUST update in place and MUST NOT delete and rec
 
 | Call | Effect |
 | --- | --- |
-| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:624-631`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:2112-2126`). Not found: created (`:682-685`). Labels and annotations are merged (`:2066-2078`) |
-| `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:1816-1818`) and replaces labels and annotations. Runs already made from that version then show the new definition |
-| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`workflow/WorkflowService.java:897-927,2306-2318`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:271-311`). The monthly run quota still counts the old runs; Insights does not |
+| `PUT /api/v2/workspace/{workspace}/workflow` | Finds the workflow by `name` (`workflow/WorkflowService.java:624-631`). Found: same workflow, its runs, schedules and versions kept, and a new version added (`:2144-2158`). Not found: created (`:682-685`). Labels and annotations are merged (`:2098-2110`) |
+| `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:2140-2147`) and replaces labels and annotations. Runs already made from that version then show the new definition |
+| `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`workflow/WorkflowService.java:929-959,2338-2350`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:271-311`). The monthly run quota still counts the old runs; Insights does not |
 
 Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD skip the call when nothing changed, for example by storing a hash of the definition in its
 own annotation. A top-level field the workflow model does not carry is ignored, so the response shows exactly what was stored (`common/model/Workflow.java:23`).
 
-Triggers follow the labels' rule: a trigger the update leaves out, or a missing `triggers` block, keeps its stored value (`workflow/WorkflowService.java:642-647,1057-1072,2072-2088`). Turning `schedule` off moves
-the workflow's active schedules to `trigger_disabled`, and turning it on moves them back (`:908-940`). Every read fills a missing trigger with its default, manual on and the rest off, so responses
+Triggers follow the labels' rule: a trigger the update leaves out, or a missing `triggers` block, keeps its stored value (`workflow/WorkflowService.java:642-647,1089-1104,2104-2120`). Turning `schedule` off moves
+the workflow's active schedules to `trigger_disabled`, and turning it on moves them back (`:1109-1124`). Every read fills a missing trigger with its default, manual on and the rest off, so responses
 carry all five (`workflow/ConvertUtil.java:31,39-48`).
 
 ## Partial updates
@@ -322,9 +340,9 @@ by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/W
 
 | Aspect | Rule | Where |
 | --- | --- | --- |
-| Reserved annotations | `boomerang.io/generation` and `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is a task's canvas position; a run annotation under `boomerang.io/` that a submit or start sends is dropped | `workflow/WorkflowService.java:803-809,1318,1651-1652,2090-2091,2243-2244`; `workflow/TaskService.java:718-719,806-807`; `workflow/WorkflowRunService.java:906-913` |
+| Reserved annotations | `boomerang.io/generation` and `boomerang.io/kind` are overwritten on every save; `boomerang.io/position` is a task's canvas position; a run annotation under `boomerang.io/` that a submit or start sends is dropped | `workflow/WorkflowService.java:835-841,1350,1683-1684,2122-2123,2275-2276`; `workflow/TaskService.java:718-719,806-807`; `workflow/WorkflowRunService.java:906-913` |
 | Server labels | `boomerang.io/model` on an `ai` task run: its resolved `model` param, set at admission unless that param is a secret. `boomerang.io/item` on every item task run of a for-each, and on a child run a for-each run-workflow task started and so on its task runs: the item, when it is text that carries no secret. The engine never reads either; they exist to filter and group on | `common/model/ServerLabel.java:6-18`; `engine/TaskExecutionService.java:254-264,904-913,1385-1396`; `engine/ParameterManager.java:345` |
-| Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit, start and retry, from the workflow's labels when a run copies them, and from a node's or task's labels when a task run copies them | `workflow/WorkflowService.java:809,2186`; `workflow/WorkflowRunService.java:908-910,1095`; `engine/DAGUtility.java:288-291` |
+| Reserved labels | A label under `boomerang.io/` that a client sends is dropped: on submit, start and retry, from the workflow's labels when a run copies them, and from a node's or task's labels when a task run copies them | `workflow/WorkflowService.java:841,2218`; `workflow/WorkflowRunService.java:908-910,1095`; `engine/DAGUtility.java:288-291` |
 
 ## Parameter model
 
@@ -333,13 +351,13 @@ such as `text` or `password`, `label`, `default`, `options`, `required`, ...; `c
 runtime values are `RunParam` (`name`, `value`, `type`; `common/model/RunParam.java:12-18`). A `RunParam`'s `type` is
 `string`, `array`, `object` or `secret`, and absent means `string` (`common/enums/ParamType.java:5-16`); an unknown
 value is `400 PARAM_INVALID_TYPE` (1216) (`core/RestExceptionHandler.java:98-116`), and a `secret` whose value is not
-a string `400 PARAM_SECRET_NOT_STRING` (1217) (`workflow/WorkflowService.java:2255-2267`). A workflow param whose `type` names no field type is the same `400` at save (`:1699,1844-1863`), and one with no type, or one stored before that check, runs as `string` (`common/util/ParameterUtil.java:338-345`).
+a string `400 PARAM_SECRET_NOT_STRING` (1217) (`workflow/WorkflowService.java:2287-2299`). A workflow param whose `type` names no field type is the same `400` at save (`:1731,1876-1895`), and one with no type, or one stored before that check, runs as `string` (`common/util/ParameterUtil.java:338-345`).
 
 | Object | Field | Element type |
 | --- | --- | --- |
 | `Workflow.params`, `Task.spec.params`, `Workspace.parameters` | definitions | `AbstractParam` (`common/model/Workflow.java:60`, `common/model/TaskSpec.java:18`, `workspace/model/Workspace.java:26`) |
 | `WorkflowTask.params`, `WorkflowRun.params`, `TaskRun.params` | values | `RunParam` (`common/model/WorkflowTask.java:44`, `common/model/WorkflowRun.java:82`, `common/model/TaskRun.java:39`) |
-| `WorkflowCanvas.config` | the workflow's `params`, under the compose routes' name | `AbstractParam` (`workflow/model/WorkflowCanvas.java:32`; mapped at `workflow/WorkflowService.java:1228,1302`) |
+| `WorkflowCanvas.config` | the workflow's `params`, under the compose routes' name | `AbstractParam` (`workflow/model/WorkflowCanvas.java:32`; mapped at `workflow/WorkflowService.java:1260,1334`) |
 
 Every secret, on a run, a definition, a schedule, a global or workspace parameter or a secured setting, reads as
 `*****` when set and as nothing when unset; a value that is exactly one Flow reference reads as written
@@ -355,7 +373,7 @@ whole-value reference such as `"$(tasks.stage.results.batches)"` (`common/model/
 (`engine/TaskExecutionService.java:976-1021`). Save refuses with `WORKFLOW_INVALID_TASK_FOREACH` (1213) items neither an
 array nor one reference, a literal array over `max.foreach.items` (default 256), a task type other than those a
 dispatcher runs and `runworkflow`, and a task declaring `item` or `index`; and with `WORKFLOW_INVALID_TASK_NAME` (1214)
-a name ending in `[<digits>]`, the item form (`workflow/WorkflowService.java:144-158,1733-1742,1974-2010`; `engine/TaskExecutionService.java:92-99`).
+a name ending in `[<digits>]`, the item form (`workflow/WorkflowService.java:144-158,1765-1774,2006-2042`; `engine/TaskExecutionService.java:92-99`).
 
 ## How the webapp calls the API
 

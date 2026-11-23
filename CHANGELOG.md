@@ -27,6 +27,23 @@ tag's release notes.
   - In the webapp, an open run page refreshes only the run every 5 seconds instead of reloading the profile,
     features, navigation and starters with it, and Home's first load reads the profile once instead of twice.
 
+### Fixed
+
+- **A one-off schedule whose run is refused no longer stays Enabled forever.** In 5.0.0, when the run of a one-off
+  schedule could not be submitted (a quota, for example) on all three attempts, the schedule was left Enabled with no
+  next date: it never ran and was never marked. It now moves to Error after the third attempt, a minute or two after it
+  was due, and the log names the reason. Open the schedule and save it, with a new date or the same one, to arm it
+  again. A recurring schedule is unchanged: it waits for its next occurrence. A one-off schedule already stuck by
+  5.0.0 stays Enabled with no next date; save it again to arm it.
+- **A GitHub App delivery whose run is refused is no longer answered as delivered.** In 5.0.0 a delivery that matched
+  a workflow whose run was refused (a quota, for example) was answered `200`, so GitHub showed it as delivered and the
+  event was lost with only a warning in the server log. When no run starts, the delivery is now answered with the
+  refusal itself, `429 QUOTA_EXCEEDED` for a quota, in the standard error body, so it shows as failed in the App's
+  recent deliveries and can be redelivered once the quota allows. When a delivery starts some runs and others are
+  refused it is still answered `200`, because redelivering it would start the started runs a second time. Each
+  refused workflow is recorded in the audit trail as a failed submit that names the workflow, the event and the
+  delivery id.
+
 ## 5.0.0 (2026-11-17)
 
 5.0.0 is the first release since 3.5 (last 3.5.54): 4.x was never released for general use, so every entry below

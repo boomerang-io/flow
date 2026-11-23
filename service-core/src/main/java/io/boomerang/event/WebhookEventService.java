@@ -14,6 +14,10 @@ import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.AuditEventEmitter;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.AuditOutcome;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.security.enums.PermissionAction;
@@ -33,14 +37,17 @@ import io.cloudevents.rw.CloudEventRWException;
 import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Base64;
+import java.util.Collection;
 import java.util.LinkedHashMap;
 import java.util.LinkedList;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.beans.factory.annotation.Value;
+import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.stereotype.Service;
@@ -61,18 +68,24 @@ public class WebhookEventService {
   private final IntegrationService integrationService;
   private final GitHubService gitHubService;
   private final RelationshipService relationshipService;
+  private final AuditEventEmitter auditEventEmitter;
+  private final MessageSource messageSource;
 
   public WebhookEventService(
       WorkflowService workflowService,
       WorkflowRunService workflowRunService,
       IntegrationService integrationService,
       GitHubService gitHubService,
-      RelationshipService relationshipService) {
+      RelationshipService relationshipService,
+      AuditEventEmitter auditEventEmitter,
+      MessageSource messageSource) {
     this.workflowService = workflowService;
     this.workflowRunService = workflowRunService;
     this.integrationService = integrationService;
     this.gitHubService = gitHubService;
     this.relationshipService = relationshipService;
+    this.auditEventEmitter = auditEventEmitter;
+    this.messageSource = messageSource;
   }
 
   /*
@@ -149,6 +162,11 @@ public class WebhookEventService {
    * in the body decides whose workflows run, so an unsigned event could start another workspace's.
    * An installation event links or unlinks the installation; any other event is offered to every
    * workflow in the linked workspace, and each workflow's GitHub trigger decides.
+   *
+   * A workflow that took the event and whose run was refused (a quota) is audited as a failed
+   * submit. When no run started, the refusal is the answer, as on the plain webhook route, so GitHub
+   * records a failed delivery that can be redelivered. When some runs started the answer stays 200:
+   * deliveries are not deduplicated, so a redelivery would start those runs a second time.
    */
   public ResponseEntity<?> processGitHubWebhook(
       String eventType,
@@ -176,11 +194,91 @@ public class WebhookEventService {
       return ResponseEntity.ok().build();
     }
     String workspace = integrationService.getWorkspaceByRef(installation.get("id").asText());
-    if (workspace != null && !workspace.isBlank()) {
-      workflowService.internalSubmitForWorkspace(
-          workspace, () -> gitHubSubmitRequest(eventType, deliveryId, payload), autoStart);
+    if (workspace == null || workspace.isBlank()) {
+      return ResponseEntity.ok().build();
     }
-    return ResponseEntity.ok().build();
+    WorkflowService.WorkspaceSubmit submitted =
+        workflowService.internalSubmitForWorkspace(
+            workspace, () -> gitHubSubmitRequest(eventType, deliveryId, payload), autoStart);
+    Map<String, RuntimeException> refused = submitted.refused();
+    if (refused.isEmpty()) {
+      return ResponseEntity.ok().build();
+    }
+    refused.forEach(
+        (workflowId, refusal) ->
+            auditRefusedDelivery(workspace, workflowId, eventType, deliveryId, refusal));
+    if (submitted.started() > 0) {
+      LOGGER.warn(
+          "GitHub {} delivery ({}) started {} run(s) and {} were refused; answered 200, as a"
+              + " redelivery would start the started runs again.",
+          eventType,
+          deliveryId.orElse("no delivery id"),
+          submitted.started(),
+          refused.size());
+      return ResponseEntity.ok().build();
+    }
+    throw refusalOf(refused.values());
+  }
+
+  /*
+   * The answer for a delivery that started nothing: the one refusal itself, or for several the
+   * first one's code and status with a message that counts them.
+   */
+  private RuntimeException refusalOf(Collection<RuntimeException> refusals) {
+    RuntimeException first =
+        refusals.stream()
+            .filter(BoomerangException.class::isInstance)
+            .findFirst()
+            .orElseGet(() -> refusals.iterator().next());
+    if (refusals.size() == 1 || !(first instanceof BoomerangException refusal)) {
+      return first;
+    }
+    return new BoomerangException(
+        refusal.getCode(),
+        refusal.getReason(),
+        "No run started: all "
+            + refusals.size()
+            + " workflows this delivery matched were refused. The first: "
+            + messageOf(refusal),
+        refusal.getStatus());
+  }
+
+  // One audit event per refused workflow, shaped as the submit route's own failed submit.
+  private void auditRefusedDelivery(
+      String workspace,
+      String workflowId,
+      String eventType,
+      Optional<String> deliveryId,
+      RuntimeException refusal) {
+    try {
+      Map<String, Object> detail = new LinkedHashMap<>();
+      detail.put("trigger", TriggerEnum.github.getTrigger());
+      detail.put("event", eventType);
+      deliveryId.ifPresent(id -> detail.put("delivery", id));
+      auditEventEmitter.emit(
+          AuditAction.SUBMIT,
+          AuditLevel.WRITE,
+          "workflow",
+          relationshipService.getSlugByRefForType(RelationshipType.WORKFLOW, workflowId),
+          null,
+          relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspace),
+          AuditOutcome.FAILED,
+          refusal instanceof BoomerangException known
+              ? known.getReason() + ": " + messageOf(known)
+              : refusal.getClass().getSimpleName(),
+          detail);
+    } catch (RuntimeException e) {
+      // The answer is already decided; a refusal that cannot be audited is still logged above.
+      LOGGER.warn("Failed to audit the refused GitHub submit of Workflow {}: {}", workflowId, e.toString());
+    }
+  }
+
+  // A refusal's message as the error response would carry it.
+  private String messageOf(BoomerangException refusal) {
+    return refusal.getMessage() == null || refusal.getMessage().isBlank()
+        ? messageSource.getMessage(
+            refusal.getReason(), refusal.getArgs(), refusal.getReason(), Locale.ENGLISH)
+        : refusal.getMessage();
   }
 
   // The payload as the run's data param, and the event GitHub named in its headers as its event.

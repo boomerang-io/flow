@@ -23,6 +23,7 @@ import io.boomerang.workflow.WorkflowService;
 import io.cloudevents.CloudEvent;
 import io.cloudevents.core.builder.CloudEventBuilder;
 import java.net.URI;
+import io.boomerang.core.audit.AuditEventEmitter;
 import io.boomerang.integrations.GitHubService;
 import io.boomerang.integrations.IntegrationService;
 import java.util.Optional;
@@ -30,6 +31,7 @@ import java.util.UUID;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.springframework.context.MessageSource;
 import org.mockito.ArgumentCaptor;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
@@ -59,7 +61,9 @@ class WebhookEventEmptyDataTest {
             workflowRunService,
             mock(IntegrationService.class),
             mock(GitHubService.class),
-            relationshipService);
+            relationshipService,
+            mock(AuditEventEmitter.class),
+            mock(MessageSource.class));
     when(relationshipService.check(
             RelationshipType.WORKFLOW, WORKFLOW_REF, Optional.empty(), Optional.empty()))
         .thenReturn(true);

@@ -54,11 +54,11 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1519-1546,2574-2599`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1551-1578,2606-2631`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1658-1662,2577-2596`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1690-1694,2609-2628`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -105,11 +105,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1651,2090,2243`, `workflow/TaskService.java:718,806` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1318` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1683,2122,2275`, `workflow/TaskService.java:718,806` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1350` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:803-809`, `workflow/WorkflowRunService.java:906-913`). The engine
+it dropped (`workflow/WorkflowService.java:835-841`, `workflow/WorkflowRunService.java:906-913`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |

@@ -16,12 +16,23 @@ import static org.mockito.Mockito.when;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
+import io.boomerang.common.error.BoomerangError;
+import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.WorkflowSchedule;
 import io.boomerang.core.config.MongoConfiguration;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.TokenService;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import io.boomerang.workflow.WorkflowService;
 import java.time.ZonedDateTime;
 import java.util.Date;
+import java.util.List;
+import java.util.concurrent.CyclicBarrier;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
+import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -38,6 +49,7 @@ import org.springframework.data.mongodb.core.convert.DefaultDbRefResolver;
 import org.springframework.data.mongodb.core.convert.MappingMongoConverter;
 import org.springframework.data.mongodb.core.mapping.MongoMappingContext;
 import org.springframework.data.mongodb.repository.config.EnableMongoRepositories;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.test.context.ContextConfiguration;
 import org.springframework.test.context.TestPropertySource;
 import org.springframework.test.context.junit.jupiter.SpringExtension;
@@ -111,6 +123,7 @@ class ScheduleWatcherTest {
   @Autowired private MongoTemplate mongoTemplate;
 
   private ScheduleService service;
+  private WorkflowService workflowService;
   private ScheduleJob scheduleJob;
   private RelationshipService relationshipService;
   private ScheduleWatcher watcher;
@@ -119,15 +132,56 @@ class ScheduleWatcherTest {
   void setUp() {
     scheduleRepository.deleteAll();
     relationshipService = mock(RelationshipService.class);
+    workflowService = mock(WorkflowService.class);
     service =
         new ScheduleService(
             scheduleRepository,
-            mock(WorkflowService.class),
+            workflowService,
             relationshipService,
             mongoTemplate,
             new CronService());
     scheduleJob = mock(ScheduleJob.class);
     watcher = new ScheduleWatcher(scheduleRepository, service, scheduleJob, relationshipService);
+  }
+
+  @AfterEach
+  void clearSchedulerIdentity() {
+    // The real ScheduleJob leaves the scheduler's token on the thread.
+    SecurityContextHolder.clearContext();
+  }
+
+  private WorkflowScheduleEntity activeRunOnce(Date at) {
+    WorkflowScheduleEntity s = new WorkflowScheduleEntity();
+    s.setWorkflowRef("w1");
+    s.setType(WorkflowScheduleType.runOnce);
+    s.setStatus(WorkflowScheduleStatus.active);
+    s.setDateSchedule(at);
+    s.setTimezone("UTC");
+    s.setNextFireAt(at);
+    return scheduleRepository.save(s);
+  }
+
+  // The watcher with the real ScheduleJob, so an accepted run-once fire completes its schedule;
+  // only the submit itself is mocked.
+  private ScheduleWatcher watcherSubmittingThrough(ScheduleService scheduleService) {
+    when(relationshipService.getParentByLabel(any(), any(), eq("w1"))).thenReturn("t1");
+    return new ScheduleWatcher(
+        scheduleRepository,
+        scheduleService,
+        new ScheduleJob(
+            workflowService, scheduleService, mock(TokenService.class), relationshipService),
+        relationshipService);
+  }
+
+  // Both sweeps, as the scheduled sweep runs them; its switch is off in a hand-built watcher.
+  private static void sweep(ScheduleWatcher instance) {
+    instance.initializeSchedules();
+    instance.fireDueSchedules();
+  }
+
+  private void refuseEverySubmit() {
+    when(workflowService.submit(any(), any(), any(), eq(true), any()))
+        .thenThrow(new BoomerangException(BoomerangError.QUOTA_EXCEEDED, "Number of runs", 1, 1));
   }
 
   private WorkflowScheduleEntity activeCron(Date nextFireAt) {
@@ -290,6 +344,178 @@ class ScheduleWatcherTest {
         0,
         scheduleRepository.findById(s.getId()).orElseThrow().getRetryCount(),
         "a successful fire resets the attempt counter");
+  }
+
+  @Test
+  void aRunOnceRefusedOnEveryAttemptEndsInErrorAndNeverFiresAgain() {
+    WorkflowScheduleEntity s = activeRunOnce(new Date(System.currentTimeMillis() - 1000));
+    ScheduleWatcher refused = watcherSubmittingThrough(service);
+    refuseEverySubmit();
+
+    // Attempts 1 and 2 re-arm the schedule: still active, due again after the backoff.
+    for (int attempt = 1; attempt <= 2; attempt++) {
+      sweep(refused);
+      WorkflowScheduleEntity rearmed = scheduleRepository.findById(s.getId()).orElseThrow();
+      assertEquals(WorkflowScheduleStatus.active, rearmed.getStatus());
+      assertEquals(attempt, rearmed.getRetryCount());
+      assertTrue(rearmed.getNextFireAt().after(new Date()), "re-armed to a future retry time");
+      makeDue(s.getId());
+    }
+
+    // Attempt 3 is the last: nothing is left to fire, so the schedule is marked.
+    sweep(refused);
+    WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
+    assertEquals(WorkflowScheduleStatus.error, after.getStatus());
+    assertNull(after.getNextFireAt());
+    assertEquals(0, after.getRetryCount());
+
+    // Further sweeps, the initialise sweep included, leave it alone.
+    sweep(refused);
+    sweep(refused);
+    verify(workflowService, times(3)).submit(any(), any(), any(), eq(true), any());
+    assertEquals(
+        WorkflowScheduleStatus.error,
+        scheduleRepository.findById(s.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void aRunOnceRefusedOnceThenAcceptedEndsCompleted() {
+    WorkflowScheduleEntity s = activeRunOnce(new Date(System.currentTimeMillis() - 1000));
+    ScheduleWatcher accepting = watcherSubmittingThrough(service);
+    when(workflowService.submit(any(), any(), any(), eq(true), any()))
+        .thenThrow(new BoomerangException(BoomerangError.QUOTA_EXCEEDED, "Number of runs", 1, 1))
+        .thenReturn(null);
+
+    sweep(accepting);
+    assertEquals(
+        WorkflowScheduleStatus.active,
+        scheduleRepository.findById(s.getId()).orElseThrow().getStatus());
+    makeDue(s.getId());
+    sweep(accepting);
+
+    WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
+    assertEquals(WorkflowScheduleStatus.completed, after.getStatus());
+    assertEquals(0, after.getRetryCount());
+    sweep(accepting);
+    verify(workflowService, times(2)).submit(any(), any(), any(), eq(true), any());
+  }
+
+  @Test
+  void aRecurringScheduleRefusedOnEveryAttemptStaysActiveForItsNextOccurrence() {
+    WorkflowScheduleEntity s = activeCron(new Date(System.currentTimeMillis() - 1000));
+    ScheduleWatcher refused = watcherSubmittingThrough(service);
+    refuseEverySubmit();
+
+    sweep(refused);
+    makeDue(s.getId());
+    sweep(refused);
+    makeDue(s.getId());
+    sweep(refused);
+
+    WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
+    assertEquals(WorkflowScheduleStatus.active, after.getStatus());
+    assertEquals(0, after.getRetryCount());
+    assertTrue(
+        after.getNextFireAt().after(new Date(System.currentTimeMillis() + 45000)),
+        "past any retry backoff: the next hourly occurrence stands");
+    verify(workflowService, times(3)).submit(any(), any(), any(), eq(true), any());
+  }
+
+  @Test
+  void twoInstancesRacingTheLastAttemptSubmitOnceAndMarkOnce() throws Exception {
+    WorkflowScheduleEntity s = activeRunOnce(new Date(System.currentTimeMillis() - 1000));
+    s.setRetryCount(2);
+    scheduleRepository.save(s);
+    // Both instances have read the due page before either claims the fire.
+    CyclicBarrier bothRead = new CyclicBarrier(2);
+    ScheduleService racing =
+        new ScheduleService(
+            scheduleRepository, workflowService, relationshipService, mongoTemplate, new CronService()) {
+          @Override
+          public boolean tryClaimFire(String id, Date observed, Date next, Date now) {
+            try {
+              bothRead.await(10, TimeUnit.SECONDS);
+            } catch (Exception e) {
+              throw new IllegalStateException(e);
+            }
+            return super.tryClaimFire(id, observed, next, now);
+          }
+        };
+    ScheduleWatcher first = watcherSubmittingThrough(racing);
+    ScheduleWatcher second = watcherSubmittingThrough(racing);
+    refuseEverySubmit();
+
+    ExecutorService instances = Executors.newFixedThreadPool(2);
+    try {
+      List<Future<?>> sweeps =
+          List.of(
+              instances.submit(first::fireDueSchedules), instances.submit(second::fireDueSchedules));
+      for (Future<?> sweep : sweeps) {
+        sweep.get(30, TimeUnit.SECONDS);
+      }
+    } finally {
+      instances.shutdownNow();
+    }
+
+    verify(workflowService, times(1)).submit(any(), any(), any(), eq(true), any());
+    WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
+    assertEquals(WorkflowScheduleStatus.error, after.getStatus());
+    assertEquals(0, after.getRetryCount());
+    assertTrue(!service.failRunOnce(s.getId()), "already marked: a second mark changes nothing");
+  }
+
+  @Test
+  void aScheduleChangedSinceTheFireIsNotMarked() {
+    // Saved with a new date while the last attempt was in flight: the edit stands.
+    Date tomorrow = new Date(System.currentTimeMillis() + 86400000L);
+    WorkflowScheduleEntity rearmed = activeRunOnce(tomorrow);
+    WorkflowScheduleEntity disabled = activeRunOnce(null);
+    disabled.setStatus(WorkflowScheduleStatus.inactive);
+    scheduleRepository.save(disabled);
+    WorkflowScheduleEntity recurring = activeCron(null);
+
+    assertTrue(!service.failRunOnce(rearmed.getId()));
+    assertTrue(!service.failRunOnce(disabled.getId()));
+    assertTrue(!service.failRunOnce(recurring.getId()));
+
+    assertEquals(
+        WorkflowScheduleStatus.active,
+        scheduleRepository.findById(rearmed.getId()).orElseThrow().getStatus());
+    assertEquals(
+        WorkflowScheduleStatus.inactive,
+        scheduleRepository.findById(disabled.getId()).orElseThrow().getStatus());
+    assertEquals(
+        WorkflowScheduleStatus.active,
+        scheduleRepository.findById(recurring.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void aScheduleInErrorAfterARefusedFireIsReArmedBySavingItWithANewDate() {
+    WorkflowScheduleEntity s = activeRunOnce(null);
+    assertTrue(service.failRunOnce(s.getId()));
+    when(relationshipService.hasNodes(any(), any(), any(), any(), any(), any())).thenReturn(true);
+
+    // What the schedule editor sends: the new date and no status, which reads as active.
+    Date tomorrow = new Date(System.currentTimeMillis() + 86400000L);
+    WorkflowSchedule edit = new WorkflowSchedule();
+    edit.setId(s.getId());
+    edit.setName("run once");
+    edit.setType(WorkflowScheduleType.runOnce);
+    edit.setTimezone("UTC");
+    edit.setDateSchedule(tomorrow);
+    edit.setWorkflowRef("w1");
+    service.apply("t1", edit);
+
+    WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
+    assertEquals(WorkflowScheduleStatus.active, after.getStatus());
+    assertEquals(tomorrow, after.getNextFireAt());
+
+    // And it fires at the new date like any other run-once schedule.
+    makeDue(s.getId());
+    sweep(watcherSubmittingThrough(service));
+    assertEquals(
+        WorkflowScheduleStatus.completed,
+        scheduleRepository.findById(s.getId()).orElseThrow().getStatus());
   }
 
   // Force a schedule due again (a re-arm sets nextFireAt to the near future), preserving its state.
