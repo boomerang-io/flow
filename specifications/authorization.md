@@ -189,7 +189,7 @@ IDPZero (`docker-compose.yml`, `application-local.properties`).
 stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR` (400): `global` takes none, `SERVICE` or `AGENT`, `key` any, `user`
 none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
 workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
-token of that principal (`workflow/WorkflowService.java:904`), and deleting a workspace revokes every token whose principal is the workspace's name,
+token of that principal (`workflow/WorkflowService.java:936`), and deleting a workspace revokes every token whose principal is the workspace's name,
 its reference everywhere (`workspace/WorkspaceService.java:402`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:226-227,472-480`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
@@ -272,7 +272,7 @@ step 5; a route with no workspace in its path matches any grant there, and appli
 | --- | --- | --- |
 | Every route under `/api/v2/workspace/{workspace}` | a `global` grant, one made to every principal (`**`), or a `workspace` grant for that workspace by id or name, which for a workflow's `key` token is its workflow's; never a self-service grant. Without one the answer is `403`, whether the workspace exists or not | `core/security/AuthCriteriaAuthorizationManager.java:155-162,179-188`, `RelationshipService.grantsIn` (`core/RelationshipService.java:541-602`) |
 | `POST /api/v2/token`, `DELETE /api/v2/token/{id}`, `GET /api/v2/token/query` | a `global` grant; for a `key` token, a `token/<action>` grant counting in its workspace (its workflow's, for a workflow's token); a personal or session token is its own user's. A refused mint is `TOKEN_ADMIN_REQUIRED` (403), a refused revoke answers as a missing token, the query lists only what the caller may manage | `core/TokenService.java:167-170,417-453,568-589,608-617` |
-| `POST /api/v2/webhook`, `/event`, `GET`/`POST /api/v2/callback` | `webhook/action` counting in the workflow's or the run's workspace, else the not-found answer | `event/WebhookEventService.java:81-136,206-212` |
+| `POST /api/v2/webhook`, `/event`, `GET`/`POST /api/v2/callback` | `webhook/action` counting in the workflow's or the run's workspace, else the not-found answer | `event/WebhookEventService.java:94-149,304-310` |
 | `POST /api/v2/integration/{github,slack}/unlink`, `/{integration}/share`; the GitHub and Slack install callbacks | `integration/write` counting in the body's `workspace`; for a callback, held by the user its signed state names, resolved from their memberships now (`TokenService.userGrantsIn`, `core/TokenService.java:684-694`) | `integrations/GitHubService.java:398-404`, `SlackService.java:662-667`, `IntegrationService.java:150-155` |
 | `PATCH /api/v2/settings`, the global parameters' and task catalogue's writes, audit, the platform-wide Insights, another user's account or any user's `type`, the caller's own included | a `global` grant (`IdentityService.requireGlobalGrant`, `core/security/IdentityService.java:60-70`), else `403 PERMISSION_DENIED` | `core/SystemControllerV2.java:103`, `workflow/ParameterControllerV2.java:72,98,120`, `workflow/TaskControllerV2.java:170-310`, `core/audit/AuditControllerV2.java:219-234`, `core/UserService.java:492-496,566-584` |
 | Reads that span workspaces: `GET /api/v2/workspace/query`, the profile, `/api/v2/user/{userId}/workspaces`, `/api/v2/context`, `/features`, `/navigation`, the template and task catalogues, `GET /api/v2/taskrun/{id}/log` | any grant; layer 2 narrows what is returned, and every workspace role reads | |
@@ -321,7 +321,7 @@ for `TASK` always anchors at `root` — the task catalogue is global (`core/Rela
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
-workspace contains the workflow (`workflow/WorkflowService.java:721-730,819-829`); retries — including the
+workspace contains the workflow (`workflow/WorkflowService.java:721-730,851-861`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
 parent (`workflow/WorkflowRunService.java:682-735,1045-1048,1112-1122`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).

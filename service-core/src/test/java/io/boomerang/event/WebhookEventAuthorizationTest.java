@@ -28,12 +28,14 @@ import io.cloudevents.core.builder.CloudEventBuilder;
 import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
+import io.boomerang.core.audit.AuditEventEmitter;
 import io.boomerang.integrations.GitHubService;
 import io.boomerang.integrations.IntegrationService;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.Test;
+import org.springframework.context.MessageSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -148,7 +150,9 @@ class WebhookEventAuthorizationTest extends AbstractEngineIntegrationTest {
             workflowRunService,
             mock(IntegrationService.class),
             mock(GitHubService.class),
-            realRelationshipService);
+            realRelationshipService,
+            mock(AuditEventEmitter.class),
+            mock(MessageSource.class));
   }
 
   private static CloudEvent eventFor(String subjectWorkflowRef) {

@@ -516,6 +516,28 @@ public class ScheduleService {
   }
 
   /**
+   * A run-once schedule whose fire failed on its last attempt has nothing left to fire: it moves to
+   * {@code error}, which an edit that saves it active re-arms. Fenced on what the fire-claim wrote,
+   * {@code active} with no {@code nextFireAt}, so a schedule edited, disabled or re-armed since is
+   * left as it is. Returns whether this call moved it.
+   */
+  public boolean failRunOnce(String id) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("type")
+                .is(WorkflowScheduleType.runOnce)
+                .and("status")
+                .is(WorkflowScheduleStatus.active)
+                .and("nextFireAt")
+                .is(null));
+    Update update = new Update().set("status", WorkflowScheduleStatus.error).set("retryCount", 0);
+    return mongoTemplate.updateFirst(query, update, WorkflowScheduleEntity.class).getModifiedCount()
+        > 0;
+  }
+
+  /**
    * Bootstrap a legacy schedule that carries no next fire time: set {@code nextFireAt} without
    * firing. Guarded on {@code nextFireAt} still absent so concurrent sweeps do not double-initialise.
    */

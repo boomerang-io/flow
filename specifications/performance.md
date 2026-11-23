@@ -42,7 +42,7 @@ revision admitted within 10 s share those five. A workflow's owning workspace is
 with no time limit, because a workflow never changes workspace (`core/ParamLayerCache.java:38-39,88-94`). Every
 global parameter, workspace, setting, workflow and revision write calls `evictAll`
 (`workflow/ParameterService.java:104,157,172`, `workspace/WorkspaceService.java:244,357,730`,
-`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1652,2101`); token writes do not, because the
+`core/SettingsService.java:199,221`, `workflow/WorkflowService.java:1684,2133`); token writes do not, because the
 scheduler mints a token on every fire, so a new workflow token reaches the context within 10 s. Redaction reads
 secured values uncached (`workflow/ParamLayerService.java:194-207`).
 
@@ -134,7 +134,7 @@ the rest (`engine/WorkflowWatcher.java:178-198`).
 | `WorkflowWatcher.sweep` (16 sweeps, `engine/WorkflowWatcher.java:172-198`) | `flow.watcher.interval-ms` (30000); `flow.watcher.enabled` (true); `flow.watcher.provision-claim-grace-ms` (300000) | up to 30 s (`:168-171`) | 50 (`engine/EngineConstants.java:19`) | Stall grace 60 s (`WorkflowWatcher.java:59`); dispatcher declared gone after 60 s without a poll (`:87`) and its registration deleted after 7 days (`:93`, `:534`); a provisioning claim released after the grace, the run failed on its third (`:75,117-120`). The stalled-run, for-each and stray-action sweeps resume after the last row they read, so rows they leave alone do not hide the ones behind (`engine/SweepCursor.java:35-60`); the gone-dispatcher reap reads the live dispatchers once and pages only the other dispatchers' claims (`WorkflowWatcher.java:504-527`); `pruneDeletedWorkflows` hard-deletes a deleted workflow's documents once its runs finish (`workflow/WorkflowRetentionService.java:278-311`) |
 | `WorkflowWatcher.purgeExpiredRunsOnSchedule` (`engine/WorkflowWatcher.java:218-223`) | `flow.watcher.retention-interval-ms` (3600000); same `flow.watcher.enabled` switch | up to 60 s | 50, at most 20 pages a pass (`workflow/WorkflowRetentionService.java:64`) so the single scheduler thread returns to the recovery sweeps; a backlog drains over several passes | Finished runs past the `workflowrun`/`retention.days` setting (365, floored at 60, `WorkflowRetentionService.java:56-60`) are purged with their task runs, actions, artifacts (stored logs included) and relationship node (`WorkflowRetentionService.java:229-269,335-343`); two lineage checks per candidate, `existsByInitiatedByRef` on the run id and `existsByInitiatedByRefIn` on its task-run ids (read by id only on `run_tasks`), both on the `initiated_by_phase` index |
 | `AuditRetentionService.reapplyOnChange` (`core/audit/AuditRetentionService.java:56-65`) | `flow.audit.retention-interval-ms` (60000) | none | none | Reads the `audit` settings document and runs `collMod` on the `createdAt_ttl` index only when the floored `retentionDays` differs from what this instance last applied, so a change made through the settings API reaches every instance within one interval without a restart; a failed apply is retried on the next tick. One indexed read a minute per instance |
-| `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:65-67`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:37`) |
+| `ScheduleWatcher.sweep` | `flow.schedule.watcher.interval-ms` (30000); `flow.schedule.watcher.enabled` (true) | up to 30 s (`schedule/ScheduleWatcher.java:66-68`) | 50 | Cron fires by a `nextFireAt` CAS; 3 retries per failed fire (`:38`) |
 | `OutboxDispatcher.drain` | `flow.events.outbox.interval-ms` (5000); bean exists only when `flow.events.sink.enabled=true` (`event/OutboxDispatcher.java:34-37`) | up to 5 s (`:64-66`) | 50 | 3 delivery attempts, then the row is marked dead (`:43`) |
 | Dispatcher poll termination pages (`dispatcher/PollWakeups.java:146-174`) | `flow.dispatcher.poll.residue-ms` (30000), never under `flow.dispatcher.poll.recheck-ms` | none | 20 a page, two pages | Per dispatcher and poll filter, taken on the first look that finds the turn due; a termination on the same instance runs them at once. Two `claim_page` finds per pool per interval, independent of the re-check |
 | `GitHubService.refreshSharedTokens` (`integrations/GitHubService.java:195-232`) | none: every 45 minutes, inside the hour an installation token lives | up to 60 s | all GitHub installations | Each workspace sharing the token gets one GitHub call and one targeted write. Instances do not coordinate, so N instances mint N tokens per workspace per 45 minutes; any of them is valid |
@@ -249,7 +249,7 @@ equivalent behaviour. A run's timeout MUST be at least the transport timeout of 
 run submit and retry, and artifact upload; nothing in the engine path re-checks them. The workflow count is checked
 before the create, so a workspace at its limit takes no more (`QuotaService.java:328-343`). With quotas on, a submit
 saves the run before queueing it, recounts, and removes a run that pushed a count over; one admitted is then queued and
-started as with quotas off (`workflow/WorkflowService.java:801-831`). The stored
+started as with quotas off (`workflow/WorkflowService.java:833-863`). The stored
 `features.workspaceQuotas` setting switches every check but one (`QuotaService.java:100-105`): the run-duration
 ceiling holds with it off, since a run is always bounded by the workspace's own limit or the platform default
 (`QuotaService.java:198-208`, pinned by `SubmitRunTimeoutPolicyTest`). A stored quota of `0` is
@@ -269,9 +269,9 @@ workspace quota and passes the run checks (`QuotaService.java:353-381,388-409`).
 | Quota (settings key, `QuotaService.java:63-68`) | Enforced at | Code |
 | --- | --- | --- |
 | `max.workflow.count` | Workflow create | `workflow/WorkflowService.java:492`, `QuotaService.java:328-346` |
-| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:782,809`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:353-381,388-409` |
+| `max.workflowrun.concurrent`, `max.workflowrun.monthly` | Run submit and retry, before the run is created; a submit again once it is created (below) | `workflow/WorkflowService.java:814,841`, `workflow/WorkflowRunService.java:1061-1064`, `QuotaService.java:353-381,388-409` |
 | `max.workspace.storage` | Workflow save, create and update, and run submit and retry, against the saving workspace's quota (size in Gi, else `QUOTA_EXCEEDED`); a blank size at save takes the platform default, lowered to the saving workspace's quota when enforced | `workflow/WorkflowService.java:589-608`, `QuotaService.java:132-142,417-427` |
-| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2181-2186`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:201-212` |
+| `max.workflowrun.duration` | Run submit and retry, as the ceiling on the requested timeout; a workspace quota of `0` sets no ceiling, and a run that declares no timeout still takes the platform default (`workflow/RunTimeoutPolicy.java:161-172`) | `workflow/WorkflowService.java:2213-2218`, `workflow/WorkflowRunService.java:1064-1070`, `QuotaService.java:201-212` |
 | `max.artifact.storage` | Artifact upload, at hand-out and at completion, against the workspace's quota; a stored `0` is unlimited | `workflow/ArtifactService.java:263-272,333-344,694-705`, `QuotaService.java:310-323` |
 
 The two run counters come from different sources, both counted in `QuotaService.current` (`:228-303`).
@@ -286,7 +286,7 @@ live run documents (the `workflow_ref_creation` index). The max is deliberate â€
 async best-effort, so a just-admitted run may not be audited yet (the live count covers that
 race), while a deleted Workflow's runs leave the live count (the audit count covers deletion).
 Submit re-checks the same counters once the run is saved and before it is queued, so a burst cannot over-fill a
-limit (`QuotaService.assertAdmittedRunWithinQuotas` `:388-409`, called from `workflow/WorkflowService.java:804-816`,
+limit (`QuotaService.assertAdmittedRunWithinQuotas` `:388-409`, called from `workflow/WorkflowService.java:836-848`,
 which removes the run on any failure of the re-check, so no un-queued run is left without an owner). A removed run
 never left `notstarted`, so it published no transition and has no `CREATE` audit event: a refused submit uses no
 monthly quota. Racers that each count the others may all be refused, leaving the slot free for the next submit; the
@@ -324,7 +324,7 @@ lookup's cost depends on the run count: a run is found from its own incoming edg
 | A run check, `check(WORKFLOWRUN, â€¦)` from a member or workspace token | 5 documents in 5 queries: the caller's node, the run node, the edge into it, the caller's edge to that run's workspace and that workspace's node | `core/RelationshipService.java:1036-1084` |
 | A global task lookup by name | 3 documents: the task nodes of the name and their edge from the root, not every user, workspace and run in the install | `core/RelationshipService.java:1086-1116` |
 | Dispatcher poll, filter resolved | 1 node read for any number of bare task slugs, 2 for workspace tasks; a filter resolves once per poll and is cached 30 s per filter text, so the re-checks inside a poll and the polls after read none | `dispatcher/ClaimFilterService.java:60-73,91-199`, `dispatcher/DispatcherService.java:381-382` |
-| Schedule fire | 6 node reads: the schedule's workflow name, the submit walk (2), the owner's name for the quota, the admission audit, the workspace the run's node hangs from; no request, so no memo | `schedule/ScheduleService.java:253-268`, `workflow/WorkflowService.java:714-829` |
+| Schedule fire | 6 node reads: the schedule's workflow name, the submit walk (2), the owner's name for the quota, the admission audit, the workspace the run's node hangs from; no request, so no memo | `schedule/ScheduleService.java:253-268`, `workflow/WorkflowService.java:714-861` |
 | Run completion; watcher and schedule sweeps with nothing due | 1 node read, the audit event's workflow and workspace names in one read; 0 | `core/audit/WorkflowRunAuditBridge.java:80-89`, `engine/WorkflowWatcher.java:168-200` |
 
 ## Payload caps

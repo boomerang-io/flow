@@ -4,6 +4,7 @@ import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.engine.EngineConstants;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
+import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
@@ -128,8 +129,9 @@ public class ScheduleWatcher {
   /**
    * Submit the fired schedule's run; on failure retry with backoff up to {@code MAX_RETRY_ATTEMPTS}
    * (restoring the JobRunr 3-retry behaviour). The re-arm brings nextFireAt back to the sooner
-   * retry time, ahead of the occurrence tryClaimFire already advanced to; once exhausted the
-   * counter clears and the skipped-to occurrence stands.
+   * retry time, ahead of the occurrence tryClaimFire already advanced to. Once exhausted, a
+   * recurring schedule's counter clears and the skipped-to occurrence stands; a run-once schedule
+   * has no other occurrence, so it moves to error rather than staying active with nothing to fire.
    */
   private void fireWithRetry(WorkflowScheduleEntity schedule) {
     try {
@@ -145,16 +147,32 @@ public class ScheduleWatcher {
             "[{}] Schedule fire failed (attempt {}), retrying: {}",
             schedule.getId(),
             attempts,
-            ex.getMessage());
+            reason(ex));
+      } else if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
+        boolean marked = scheduleService.failRunOnce(schedule.getId());
+        if (!marked) {
+          scheduleService.clearRetryCount(schedule.getId());
+        }
+        LOGGER.error(
+            "[{}] Run-once schedule fire failed after {} attempts, {}: {}",
+            schedule.getId(),
+            attempts,
+            marked ? "marked error" : "left as changed since the fire",
+            reason(ex));
       } else {
         scheduleService.clearRetryCount(schedule.getId());
         LOGGER.error(
             "[{}] Schedule fire failed after {} attempts, skipping to next occurrence: {}",
             schedule.getId(),
             attempts,
-            ex.getMessage());
+            reason(ex));
       }
     }
+  }
+
+  // A refusal carries its reason (QUOTA_EXCEEDED) and no message of its own.
+  private static String reason(Exception ex) {
+    return ex instanceof BoomerangException refusal ? refusal.getReason() : ex.getMessage();
   }
 
   // The owning team is the workflow's parent in the relationship graph - the source of truth,

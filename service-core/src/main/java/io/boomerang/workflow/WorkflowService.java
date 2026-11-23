@@ -736,23 +736,48 @@ public class WorkflowService {
 
   /*
    * Submit a fresh request to every workflow in the workspace. Each workflow's trigger decides for
-   * itself: a workflow that refuses the trigger, or fails to submit, never stops the rest.
+   * itself, and a workflow that is not offered the request, or fails to submit, never stops the
+   * rest. A workflow whose trigger took the request and whose submit was then refused (a quota, a
+   * workflow that cannot run) is returned with its refusal, so the caller can answer for it.
    */
-  public void internalSubmitForWorkspace(
+  public WorkspaceSubmit internalSubmitForWorkspace(
       String workspace, Supplier<WorkflowSubmitRequest> request, boolean start) {
+    int started = 0;
+    Map<String, RuntimeException> refused = new LinkedHashMap<>();
     for (String workflowId :
         relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty())) {
+      WorkflowSubmitRequest fresh = request.get();
       try {
-        internalSubmit(workspace, workflowId, request.get(), start);
+        Workflow workflow = get(workflowId, Optional.empty(), false).getBody();
+        canRunWithTrigger(workflow.getTriggers(), fresh.getTrigger(), fresh.getParams());
       } catch (BoomerangException e) {
         if (!BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED.getReason().equals(e.getReason())) {
           LOGGER.warn("Workflow {} not submitted: {}", workflowId, e.getReason());
         }
+        continue;
       } catch (RuntimeException e) {
         LOGGER.warn("Workflow {} not submitted", workflowId, e);
+        continue;
+      }
+      try {
+        admit(workspace, workflowId, fresh, start, null);
+        started++;
+      } catch (BoomerangException e) {
+        LOGGER.warn("Workflow {} not submitted: {}", workflowId, e.getReason());
+        refused.put(workflowId, e);
+      } catch (RuntimeException e) {
+        LOGGER.warn("Workflow {} not submitted", workflowId, e);
+        refused.put(workflowId, e);
       }
     }
+    return new WorkspaceSubmit(started, refused);
   }
+
+  /*
+   * What a submit to every workflow in a workspace did: how many runs it started, and the refusal
+   * of each workflow, by id, whose trigger took the request but whose run was not admitted.
+   */
+  public record WorkspaceSubmit(int started, Map<String, RuntimeException> refused) {}
 
   /*
    * Submit WorkflowRun Internally
@@ -778,6 +803,13 @@ public class WorkflowService {
     // Check Triggers - Throws Exception - Check first, as if trigger not enabled, no point in
     // checking quotas
     canRunWithTrigger(workflow.getTriggers(), request.getTrigger(), request.getParams());
+    return admit(workspace, workflowId, request, start, initiatedByRef);
+  }
+
+  // Admits a run of a workflow whose trigger has taken the request: quotas, then the run itself.
+  private WorkflowRun admit(
+      String workspace, String workflowId, WorkflowSubmitRequest request, boolean start,
+      String initiatedByRef) {
     // Check Quotas - Throws Exception
     quotaService.assertRunQuotas(workspace, Optional.ofNullable(request.getWorkspace()));
     // Set Workflow & Task Debug
