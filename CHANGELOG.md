@@ -33,6 +33,11 @@ tag's release notes.
   it with `status: waiting`. `429` still means the month's runs are spent, the requested workspace is too large or,
   new, the queue is full.
 
+- **Only an administrator or a global token can set a workspace's quotas.** A create or patch of a workspace that
+  carries `quotas`, and `DELETE …/workspace/{workspace}/quotas`, answer `403 PERMISSION_DENIED` for anyone else, a
+  workspace's owners and editors included, and change nothing. A patch without `quotas` is unchanged. An automation
+  that sets quotas with a workspace or personal token needs a global token.
+
 ### Added
 
 - **A workspace queues the runs over its concurrent limit instead of refusing them.** A submit that would exceed
@@ -110,6 +115,8 @@ tag's release notes.
 
 ### Fixed
 
+- **Only an administrator or a global token can set a workspace's quotas.** The webapp has only ever offered the
+  quota editor to administrators; the API now holds every caller to the same rule.
 - **The average run duration counts only the runs that ended.** A workspace's **Current average execution time**
   divided the month's total by every run of the month, the ones still running included, so it read low while runs
   were going. It is now the total over the runs that ended.

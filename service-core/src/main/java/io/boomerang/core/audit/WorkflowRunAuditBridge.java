@@ -101,8 +101,7 @@ public class WorkflowRunAuditBridge {
             transition.id(),
             transition.workflowRef());
       }
-      boolean unmetered =
-          unmeteredWorkflows.test(workspace, workflowName, transition.workflowRef());
+      boolean unmetered = unmetered(transition, workspace, workflowName);
       if (created) {
         Map<String, Object> payload = payload(transition, workflowName, null);
         if (unmetered) {
@@ -171,6 +170,23 @@ public class WorkflowRunAuditBridge {
       payload.put("duration", duration);
     }
     return payload;
+  }
+
+  /**
+   * Whether the run's workflow is unmetered. A failed read of the setting, the workflow or its
+   * template counts the run as metered, so its events are still written and it still counts.
+   */
+  private boolean unmetered(
+      WorkflowRunTransition transition, String workspace, String workflowName) {
+    try {
+      return unmeteredWorkflows.test(workspace, workflowName, transition.workflowRef());
+    } catch (RuntimeException e) {
+      LOGGER.warn(
+          "[{}] Could not tell whether the run is unmetered; it is counted: {}",
+          transition.id(),
+          e.toString());
+      return false;
+    }
   }
 
   /**

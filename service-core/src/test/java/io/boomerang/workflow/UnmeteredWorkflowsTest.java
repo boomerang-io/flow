@@ -171,6 +171,53 @@ class UnmeteredWorkflowsTest extends AbstractEngineIntegrationTest {
     }
   }
 
+  // The Workflows page reads each workflow's flag off the list: a link to a listed template and a
+  // listed template shown beside the workspace's own are unmetered; the workspace's own workflow of
+  // a listed system name, and a template not listed, are not.
+  @Test
+  void theWorkflowListMarksEachWorkflowByItsOwnWorkspace() {
+    Workflow shown = runnableWorkflow("unmetered-test-shown-" + System.nanoTime(), TASK_SLUG);
+    shown.setType(WorkflowType.template);
+    String shownTemplate = workflowService.create(SYSTEM, shown).getName();
+    Workflow unlisted = runnableWorkflow("unmetered-test-unlisted-" + System.nanoTime(), TASK_SLUG);
+    unlisted.setType(WorkflowType.template);
+    String unlistedTemplate = workflowService.create(SYSTEM, unlisted).getName();
+    setSettingValue(
+        "quotas", "unmetered.workflows", template + ", " + systemWorkflow + ", " + shownTemplate);
+    String workspace = workspace("unmetered-list", 0, 0);
+    workflowService.create(workspace, runnableWorkflow(systemWorkflow, TASK_SLUG));
+    submit(workspace, template);
+
+    java.util.Map<String, Boolean> listed = flags(workspace);
+
+    assertThat(listed)
+        .containsEntry(template, true)
+        .containsEntry(shownTemplate, true)
+        .containsEntry(systemWorkflow, false)
+        .containsEntry(unlistedTemplate, false)
+        .containsEntry(METERED, false);
+    assertThat(flags(SYSTEM))
+        .containsEntry(systemWorkflow, true)
+        .containsEntry(template, true)
+        .containsEntry(unlistedTemplate, false);
+  }
+
+  private java.util.Map<String, Boolean> flags(String workspace) {
+    java.util.Map<String, Boolean> flags = new java.util.HashMap<>();
+    workflowService
+        .query(
+            workspace,
+            java.util.Optional.empty(),
+            java.util.Optional.of(0),
+            java.util.Optional.empty(),
+            java.util.Optional.empty(),
+            java.util.Optional.empty(),
+            java.util.Optional.empty())
+        .getContent()
+        .forEach(workflow -> flags.put(workflow.getName(), workflow.getUnmetered()));
+    return flags;
+  }
+
   // A workspace whose month's runs and minutes are both spent by a metered workflow of its own.
   private String spentWorkspace(String name) {
     String workspace = workspace(name, 1, 1);

@@ -117,6 +117,20 @@ class QuotaMonthWindowTest extends AbstractEngineIntegrationTest {
     assertEquals(6, usage.cumulativeMinutes());
   }
 
+  // Only a run's completion carries its minutes: a figure on any other run event is not summed.
+  @Test
+  void onlyTheCompletionsMinutesAreSummed() {
+    String workspace = "quota-window-update-only-ws";
+    event(workspace, "quota-window-update-only", "CREATE", "2026-06-10T10:00:00Z", Map.of("cumulativeDuration", 600_000L));
+    event(workspace, "quota-window-update-only", "UPDATE", "2026-06-10T10:01:00Z", Map.of("cumulativeDuration", 60_000L));
+    QuotaService.MonthWindow june = QuotaService.MonthWindow.of(LocalDate.of(2026, 6, 10));
+
+    AuditQueryService.MonthlyUsage usage = usage(workspace, june);
+
+    assertEquals(1, usage.runs());
+    assertEquals(1, usage.cumulativeMinutes(), "the CREATE's figure is not the run's minutes");
+  }
+
   // The mean run duration is over the runs that ended: a run still going has no duration yet.
   @Test
   void theRunTotalsCountTheRunsThatEnded() {

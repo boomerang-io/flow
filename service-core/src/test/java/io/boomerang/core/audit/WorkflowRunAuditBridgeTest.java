@@ -315,8 +315,10 @@ class WorkflowRunAuditBridgeTest extends AbstractEngineIntegrationTest {
       awaitEngine("metered run events")
           .untilAsserted(
               () -> {
+                // The minutes are the completion's alone: a CREATE carries none.
                 assertThat(onlyEvent(run.getId(), "CREATE").getPayload())
-                    .doesNotContainKey("unmetered");
+                    .doesNotContainKey("unmetered")
+                    .doesNotContainKey("cumulativeDuration");
                 assertThat(onlyEvent(run.getId(), "UPDATE").getPayload())
                     .doesNotContainKey("unmetered")
                     .containsEntry("cumulativeDuration", 1_000L);

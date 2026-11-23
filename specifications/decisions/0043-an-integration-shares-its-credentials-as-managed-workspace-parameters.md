@@ -23,7 +23,7 @@ scope. An integration template's `fields` name the parameters it writes (`integr
 its `kind` says whether Flow installs it and fills them (`app`) or the workspace enters every field, which is the link
 (`form`, `integrations/enums/IntegrationKind.java:3-10`, `integrations/IntegrationParameterService.java:107-145`); an app's
 sharing is a choice made after linking (`integrations/IntegrationService.java:139-191`); a managed parameter is stored
-read-only and refused to workspace writes and deletes (`workspace/WorkspaceService.java:665-675,693-702`); the GitHub
+read-only and refused to workspace writes and deletes (`workspace/WorkspaceService.java:672-682,700-709`); the GitHub
 token is replaced every 45 minutes by a targeted write (`integrations/GitHubService.java:196-234`,
 `integrations/IntegrationParameterService.java:222-243`); Slack's bot token does not expire and is shared as stored
 (`integrations/SlackService.java:694-711`).

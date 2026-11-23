@@ -182,6 +182,9 @@ public class WorkspaceService {
     if (!userService.isCurrentUserAdmin() && !settingsService.workspaceCreationAllowed()) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
+    if (request.getQuotas() != null) {
+      requireQuotaAuthority();
+    }
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
       // An embedding product's own id is carried once: a create retried after a crash, or for a
       // record that already has its mirror, is answered with the workspace that holds it. Checked
@@ -294,6 +297,10 @@ public class WorkspaceService {
         throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
       }
       WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
+      // Checked before anything is written, so a refused patch changes nothing.
+      if (request.getQuotas() != null) {
+        requireQuotaAuthority();
+      }
       if (request.getMembers() != null && !request.getMembers().isEmpty()) {
         requireMemberManager(workspace);
         Map<String, String> before = relationshipService.membersAndRoles(workspace);
@@ -847,12 +854,22 @@ public class WorkspaceService {
   }
 
   /*
+   * A workspace's quotas are the platform's to set, not its members': setting or resetting them
+   * takes a global grant to write workspaces, which an administrator's session and a global token
+   * carry. The route admits any caller with write access to the workspace, so the check is here.
+   */
+  private void requireQuotaAuthority() {
+    identityService.requireGlobalGrant(PermissionResource.WORKSPACE, PermissionAction.WRITE);
+  }
+
+  /*
    * Delete custom quotas on the team and reset back to default
    */
   public void deleteCustomQuotas(String workspace) {
     if (workspace == null || workspace.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
+    requireQuotaAuthority();
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);

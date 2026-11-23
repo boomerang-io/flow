@@ -85,7 +85,7 @@ no claim is configured, has none, and a verdict of none never changes a user's t
 | empty | on | yes, with a verdict | first sign-in | the claim decides, no code is used: admin on `true`, otherwise a user (being first grants nothing) |
 | empty | off | yes, with a verdict | first sign-in | admin on `true`, otherwise refused; no code is used |
 
-"Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates (`workspace/WorkspaceService.java:1074-1079`); `getAndRegisterUser` activates it on the person's first sign-in and finds it again, without activating, when they are added to a second workspace (`core/UserService.java:145-155`). Removing such a member, or deleting the workspace, deletes the record once it belongs to no workspace and is still `inactive` (the delete matches on the status, so a sign-in that lands first keeps it), and a mistyped address leaves nothing behind (`core/UserService.java:543-552`, `workspace/WorkspaceService.java:431,558-563`). A record in any other non-active status is not revived. There is no route that creates a user outside a workspace.
+"Added by an admin" is a user stored `inactive`, which is what adding a member to a workspace by email creates (`workspace/WorkspaceService.java:1091-1096`); `getAndRegisterUser` activates it on the person's first sign-in and finds it again, without activating, when they are added to a second workspace (`core/UserService.java:145-155`). Removing such a member, or deleting the workspace, deletes the record once it belongs to no workspace and is still `inactive` (the delete matches on the status, so a sign-in that lands first keeps it), and a mistyped address leaves nothing behind (`core/UserService.java:543-552`, `workspace/WorkspaceService.java:438,565-570`). A record in any other non-active status is not revived. There is no route that creates a user outside a workspace.
 
 **The activation code.** Unless the claim was read on that sign-in (a verdict of `true` or `false`), the first admin of an
 empty install is made only by the code in `flow.activation-code` (`FLOW_ACTIVATION_CODE`), compared in constant time
@@ -190,7 +190,7 @@ stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR
 none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
 workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
 token of that principal (`workflow/WorkflowService.java:1111`), and deleting a workspace revokes every token whose principal is the workspace's name,
-its reference everywhere (`workspace/WorkspaceService.java:397`). Only the SHA-256 hash of a raw token is stored
+its reference everywhere (`workspace/WorkspaceService.java:404`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:226-227,472-480`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
 (`core/security/AuthenticationFilter.java:325`) and `DispatcherAuthFilter` (`dispatcher/DispatcherAuthFilter.java:80`) — so a retired `bft_`/`bfw_` bearer never reaches MongoDB.
@@ -207,9 +207,9 @@ that key on a `global` grant never count it; `WorkspaceService.create` refuses a
 upgrade from v3 gives each user `owner` on their personal workspace and `editor` on their teams
 (`migration/_0050__V3MembershipRoles.java:59-115`). Members and their roles are changed by an owner of the workspace
 (`workspace/delete` counting there), an admin or a `global` token, else `403 WORKSPACE_OWNER_REQUIRED`; a `PATCH` without `members` keeps `workspace/write`
-(`workspace/WorkspaceService.java:297-306,610-617`). A workspace that has an owner keeps one: a removal, a demotion or the last owner leaving is `400
-WORKSPACE_LAST_OWNER` (`:619-625`); deleting the workspace is unaffected. A member removed or leaving is taken out of the
-workspace's approver groups (`:557,588,592-608`), and a group approval also needs a current membership
+(`workspace/WorkspaceService.java:304-313,617-624`). A workspace that has an owner keeps one: a removal, a demotion or the last owner leaving is `400
+WORKSPACE_LAST_OWNER` (`:626-632`); deleting the workspace is unaffected. A member removed or leaving is taken out of the
+workspace's approver groups (`:564,595,599-615`), and a group approval also needs a current membership
 (`workflow/ActionService.java:155-158`); deleting a user takes them out of every group (`core/UserService.java:530-533`).
 
 ## Authorization: two layers
@@ -274,7 +274,7 @@ step 5; a route with no workspace in its path matches any grant there, and appli
 | `POST /api/v2/token`, `DELETE /api/v2/token/{id}`, `GET /api/v2/token/query` | a `global` grant; for a `key` token, a `token/<action>` grant counting in its workspace (its workflow's, for a workflow's token); a personal or session token is its own user's. A refused mint is `TOKEN_ADMIN_REQUIRED` (403), a refused revoke answers as a missing token, the query lists only what the caller may manage | `core/TokenService.java:167-170,417-453,568-589,608-617` |
 | `POST /api/v2/webhook`, `/event`, `GET`/`POST /api/v2/callback` | `webhook/action` counting in the workflow's or the run's workspace, else the not-found answer | `event/WebhookEventService.java:91-146,302-309` |
 | `POST /api/v2/integration/{github,slack}/unlink`, `/{integration}/share`; the GitHub and Slack install callbacks | `integration/write` counting in the body's `workspace`; for a callback, held by the user its signed state names, resolved from their memberships now (`TokenService.userGrantsIn`, `core/TokenService.java:684-694`) | `integrations/GitHubService.java:398-404`, `SlackService.java:662-667`, `IntegrationService.java:150-155` |
-| `PATCH /api/v2/settings`, the global parameters' and task catalogue's writes, audit, the platform-wide Insights, another user's account or any user's `type`, the caller's own included | a `global` grant (`IdentityService.requireGlobalGrant`, `core/security/IdentityService.java:60-70`), else `403 PERMISSION_DENIED` | `core/SystemControllerV2.java:103`, `workflow/ParameterControllerV2.java:72,98,120`, `workflow/TaskControllerV2.java:170-310`, `core/audit/AuditControllerV2.java:219-234`, `core/UserService.java:492-496,566-584` |
+| `PATCH /api/v2/settings`, the global parameters' and task catalogue's writes, audit, the platform-wide Insights, another user's account or any user's `type`, the caller's own included; a workspace's quotas, set on its create or patch or reset by `DELETE …/{workspace}/quotas`, which only an administrator or a global token can do, so an owner or editor patches the rest of the workspace but not its quotas | a `global` grant (`IdentityService.requireGlobalGrant`, `core/security/IdentityService.java:60-70`; for quotas `workspace/write`), else `403 PERMISSION_DENIED` | `workspace/WorkspaceService.java:185-187,301-303,861-863,872`, `core/SystemControllerV2.java:103`, `workflow/ParameterControllerV2.java:72,98,120`, `workflow/TaskControllerV2.java:170-310`, `core/audit/AuditControllerV2.java:219-234`, `core/UserService.java:492-496,566-584` |
 | Reads that span workspaces: `GET /api/v2/workspace/query`, the profile, `/api/v2/user/{userId}/workspaces`, `/api/v2/context`, `/features`, `/navigation`, the template and task catalogues, `GET /api/v2/taskrun/{id}/log` | any grant; layer 2 narrows what is returned, and every workspace role reads | |
 
 ### Layer 2 — `RelationshipService` on the data
@@ -349,7 +349,7 @@ that has no identity yet (`core/security/UnauthenticatedGlobalAuthenticationFilt
 `UnauthenticatedGlobalToken.java:82-90`). Neither the token nor the user is ever written to MongoDB, and the user cannot
 be activated by an identity-provider email match. Audit records carry `actor.principal=system`.
 
-With `flow.workspace.single=true` `SingleWorkspaceInterceptor` also rejects any `/api/v2/workspace/{workspace}` or `/api/v2/workspace/{workspace}/**` request whose segment is not `system` (`core/security/SingleWorkspaceInterceptor.java:32-45`, `SingleWorkspaceInterceptorConfiguration.java:22-27`), and `WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:177-179,376-378`).
+With `flow.workspace.single=true` `SingleWorkspaceInterceptor` also rejects any `/api/v2/workspace/{workspace}` or `/api/v2/workspace/{workspace}/**` request whose segment is not `system` (`core/security/SingleWorkspaceInterceptor.java:32-45`, `SingleWorkspaceInterceptorConfiguration.java:22-27`), and `WorkspaceService.create`/`delete` refuse (`workspace/WorkspaceService.java:177-179,383-385`).
 
 ## Dispatcher endpoints
 
