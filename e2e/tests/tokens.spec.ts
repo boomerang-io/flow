@@ -18,7 +18,7 @@ import { setWorkflowTriggers, type WorkflowRunView } from "../support/dispatcher
  * answer to the workflow's Manual switch, and a body may name only those two (in any case). The
  * token holds one grant, workflow/action, so anything else it asks for is a 403 in the platform's
  * error shape. Every test owns its workspace, workflow and token; the token is deleted when the
- * test ends. Submits use start=false, so no dispatcher is needed.
+ * test ends. The workflow's one task is a sleep the engine runs itself, so no dispatcher is needed.
  */
 
 type TokenFixtures = {
@@ -50,7 +50,7 @@ const test = workspaceTest("e2e-tokens").extend<TokenFixtures>({
 });
 
 const submitUrl = (workspace: string, workflow: string) =>
-  `${API_ORIGIN}/api/v2/workspace/${workspace}/workflow/${workflow}/submit?start=false`;
+  `${API_ORIGIN}/api/v2/workspace/${workspace}/workflow/${workflow}/submit`;
 
 test("a token's submit records the api trigger, shown as API in Activity", async ({
   page,

@@ -74,6 +74,60 @@ class RetryRunQuotaTest extends AbstractEngineIntegrationTest {
         "Waiting for a slot: the workspace's limit of 1 concurrent run is reached.",
         retried.getStatusMessage());
     assertEquals(2, runsOf(source.getWorkflowRef()).size(), "the source and its queued retry");
+    // Nobody starts a queued retry: a caller's start is refused, and the slot freeing starts it.
+    BoomerangException refused =
+        assertThrows(
+            BoomerangException.class,
+            () -> workflowRunService.start(retried.getId(), java.util.Optional.empty()));
+    assertEquals("WORKFLOWRUN_INVALID_PHASE", refused.getReason());
+
+    workflowRunService.cancel(source.getId());
+
+    awaitEngine("the queued retry to start once the slot frees")
+        .untilAsserted(
+            () ->
+                assertEquals(
+                    RunStatus.running,
+                    workflowRunRepository.findById(retried.getId()).get().getStatus()));
+    workflowRunService.cancel(retried.getId());
+  }
+
+  // A retry is a run of its own: what ended its origin, and the marks of the origin's execution,
+  // are not the retry's.
+  @Test
+  void aRetryInheritsNeitherTheOriginsStatusReasonNorItsExecutionMarks() {
+    String workspace = createWorkspace("retry-clone-reset", quotasWithConcurrentRuns(5));
+    workflowService.create(workspace, workflow("retry-clone-reset-workflow"));
+    WorkflowRun source =
+        workflowService.submit(workspace, "retry-clone-reset-workflow", request(), false);
+    WorkflowRunEntity ended = workflowRunRepository.findById(source.getId()).get();
+    ended.setStatus(RunStatus.cancelled);
+    ended.setPhase(RunPhase.completed);
+    ended.setStatusReason(io.boomerang.common.model.StatusReason.QUEUE_EXPIRED);
+    ended.setStatusMessage("Cancelled after waiting 24 h 3 min for a slot. The limit is 24 hours.");
+    ended.setGraphEndedAt(new java.util.Date());
+    ended.setWaitingSince(new java.util.Date());
+    ended.setPauseRequestedAt(new java.util.Date());
+    ended.setPurgeRequestedAt(new java.util.Date());
+    workflowRunRepository.save(ended);
+
+    WorkflowRun retried = workflowRunService.retry(workspace, source.getId()).getBody();
+
+    // A retry starts like any submit; started, the clone has run its own start and nothing else.
+    awaitEngine("the retry to start")
+        .untilAsserted(
+            () ->
+                assertEquals(
+                    RunStatus.running,
+                    workflowRunRepository.findById(retried.getId()).get().getStatus()));
+    WorkflowRunEntity clone = workflowRunRepository.findById(retried.getId()).get();
+    assertEquals(null, clone.getStatusReason(), "the queue cancelled the origin, not the retry");
+    assertEquals(null, retried.getStatusReason(), "nor on the answer");
+    assertEquals(null, clone.getStatusMessage());
+    assertEquals(null, clone.getGraphEndedAt());
+    assertEquals(null, clone.getWaitingSince());
+    assertEquals(null, clone.getPauseRequestedAt());
+    assertEquals(null, clone.getPurgeRequestedAt());
     workflowRunService.cancel(retried.getId());
   }
 

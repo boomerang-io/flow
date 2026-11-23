@@ -27,7 +27,7 @@ workspace and time (`migration/_0021__Indexes.java:175-179`), expiring after `re
 (`core/audit/AuditRetentionService.java:29,51-83,85-103`). The engine's transition event writes one CREATE per admitted run and one
 UPDATE at completion (`core/audit/WorkflowRunAuditBridge.java:62-124`); task runs are not audited, for volume. `QuotaService` counts
 the month's runs as the larger of CREATE events and live run documents, less the entries dropped schedule fires left, which were
-never runs, and concurrent and queued runs live (`workflow/QuotaService.java:252-326`). A stored quota overlays the `quotas` group's
+never runs, and concurrent and queued runs live (`workflow/QuotaService.java:252-325`). A stored quota overlays the `quotas` group's
 default only where present (`:174-202`), and its checks enforce it only when positive (`workspace/model/Quotas.java:10-13`). What
 decided it: counts written at event time survive deletion, and `0` already means "no limit" to Tekton and Temporal users.
 

@@ -4,6 +4,7 @@ import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.common.LogCapture;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
@@ -16,6 +17,7 @@ import io.boomerang.core.security.enums.AuthScope;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.model.ResolvedPermissions;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.engine.WorkflowExecutionService;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
@@ -28,6 +30,7 @@ import java.util.concurrent.Future;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.IntStream;
+import org.apache.logging.log4j.Level;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
@@ -47,12 +50,14 @@ class WorkspaceRunQueueBurstTest extends AbstractEngineIntegrationTest {
   private static final String QUOTA_FEATURE = "workspaceQuotas";
   private static final String TASK_SLUG = "run-queue-burst-test-task";
   private static final int BURST = 50;
+  private static final int LIMIT = 4;
 
   private static final Set<RunStatus> IN_FLIGHT = Set.of(RunStatus.ready, RunStatus.running);
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private WorkflowExecutionService workflowExecutionService;
 
   @BeforeEach
   void seedFixtures() {
@@ -68,38 +73,74 @@ class WorkspaceRunQueueBurstTest extends AbstractEngineIntegrationTest {
     setFeatureSetting(QUOTA_FEATURE, false);
   }
 
+  // Racers admitted together each pass the first count; the recount after admission steps the
+  // younger ones back, so a burst ends with the limit in flight. A racer that recounts before an
+  // older one is admitted keeps its slot, so one burst may end a little over: of three bursts at
+  // least one ends exactly at the limit, which none does once the recount is gone.
   @Test
   void aBurstOverTheConcurrentQuotaQueuesWithNothingRefusedOrLostAndDrainsToTheLastRun()
       throws Exception {
-    String workspace = workspace("run-queue-burst-open", 4, 0);
-    String workflow = "run-queue-burst-open-workflow";
-    workflowService.create(workspace, runnableWorkflow(workflow, TASK_SLUG));
-    String workflowRef = submit(workspace, workflow).getWorkflowRef();
+    long fewestInFlight = Long.MAX_VALUE;
+    for (int round = 0; round < 3; round++) {
+      String workspace = workspace("run-queue-burst-open-" + round, LIMIT, 0);
+      String workflow = "run-queue-burst-open-workflow-" + round;
+      workflowService.create(workspace, runnableWorkflow(workflow, TASK_SLUG));
+      String workflowRef = submit(workspace, workflow).getWorkflowRef();
 
-    int refused = submitBurst(workspace, workflow);
+      int refused = submitBurst(workspace, workflow);
 
-    assertEquals(0, refused, "an unlimited queue refuses nothing");
-    List<WorkflowRunEntity> runs = runsOf(workflowRef);
-    assertEquals(BURST + 1, runs.size(), "every submit left its run");
-    long inFlight = runs.stream().filter(r -> IN_FLIGHT.contains(r.getStatus())).count();
-    long parked = runs.stream().filter(r -> RunStatus.waiting.equals(r.getStatus())).count();
-    assertEquals(BURST + 1, inFlight + parked, "every run is in flight or parked");
-    // Racers admitted together may each recount before the others are in flight, so more than the
-    // limit can hold a slot; the bound is the burst.
-    assertTrue(inFlight >= 4, "at least the limit is in flight, was " + inFlight);
+      assertEquals(0, refused, "an unlimited queue refuses nothing");
+      List<WorkflowRunEntity> runs = runsOf(workflowRef);
+      assertEquals(BURST + 1, runs.size(), "every submit left its run");
+      long inFlight = inFlight(workflowRef);
+      assertEquals(BURST + 1, inFlight + parked(workflowRef), "every run is in flight or parked");
+      assertTrue(inFlight >= LIMIT, "at least the limit is in flight, was " + inFlight);
+      assertTrue(inFlight <= BURST + 1, "at most the limit and its racers, was " + inFlight);
+      fewestInFlight = Math.min(fewestInFlight, inFlight);
 
-    // Ending the runs in flight, over and over, drains the queue: no run is left waiting.
-    awaitEngine("the queue to drain to the last run")
-        .untilAsserted(
-            () -> {
-              List<WorkflowRunEntity> now = runsOf(workflowRef);
-              now.stream()
+      // Settled: each run that ends lets exactly one in, and the limit holds from then on.
+      if (inFlight == LIMIT) {
+        for (int ended = 1; ended <= 3; ended++) {
+          WorkflowRunEntity one =
+              runsOf(workflowRef).stream()
                   .filter(r -> IN_FLIGHT.contains(r.getStatus()))
-                  .forEach(r -> workflowRunService.cancel(r.getId()));
-              assertEquals(
-                  BURST + 1,
-                  now.stream().filter(r -> RunPhase.completed.equals(r.getPhase())).count());
-            });
+                  .findFirst()
+                  .orElseThrow();
+          workflowRunService.cancel(one.getId());
+          long expectedParked = BURST + 1 - LIMIT - ended;
+          awaitEngine("one queued run to take the freed slot")
+              .untilAsserted(
+                  () -> {
+                    assertEquals(LIMIT, inFlight(workflowRef), "exactly the limit in flight");
+                    assertEquals(expectedParked, parked(workflowRef));
+                  });
+        }
+      }
+
+      // Ending the runs in flight, over and over, drains the queue: no run is left waiting.
+      awaitEngine("the queue to drain to the last run")
+          .untilAsserted(
+              () -> {
+                List<WorkflowRunEntity> now = runsOf(workflowRef);
+                now.stream()
+                    .filter(r -> IN_FLIGHT.contains(r.getStatus()))
+                    .forEach(r -> workflowRunService.cancel(r.getId()));
+                assertEquals(
+                    BURST + 1,
+                    now.stream().filter(r -> RunPhase.completed.equals(r.getPhase())).count());
+              });
+    }
+    assertEquals(LIMIT, fewestInFlight, "a burst ends with the limit in flight");
+  }
+
+  private long inFlight(String workflowRef) {
+    return runsOf(workflowRef).stream().filter(r -> IN_FLIGHT.contains(r.getStatus())).count();
+  }
+
+  private long parked(String workflowRef) {
+    return runsOf(workflowRef).stream()
+        .filter(r -> RunStatus.waiting.equals(r.getStatus()))
+        .count();
   }
 
   @Test
@@ -132,6 +173,61 @@ class WorkspaceRunQueueBurstTest extends AbstractEngineIntegrationTest {
         .filter(r -> RunStatus.waiting.equals(r.getStatus()))
         .forEach(r -> workflowRunService.cancel(r.getId()));
     workflowRunService.cancel(holder.getId());
+  }
+
+  // A completion on every instance, and the sweep, may all drain one queue for one free slot. One
+  // run takes it; the callers that lose the race are not failures and log none.
+  @Test
+  void drainsRacingForOneFreeSlotAdmitOneRunAndLogNoFailure() throws Exception {
+    String workspace = workspace("run-queue-burst-drains", 1, 0);
+    String workflow = "run-queue-burst-drains-workflow";
+    workflowService.create(workspace, runnableWorkflow(workflow, TASK_SLUG));
+    WorkflowRun holder = submit(workspace, workflow);
+    String workflowRef = holder.getWorkflowRef();
+    for (int i = 0; i < 6; i++) {
+      assertEquals(RunStatus.waiting, submit(workspace, workflow).getStatus());
+    }
+    // The holder ends with no transition published, so only the racing drains below admit.
+    WorkflowRunEntity ended = workflowRunRepository.findById(holder.getId()).orElseThrow();
+    ended.setStatus(RunStatus.cancelled);
+    ended.setPhase(RunPhase.completed);
+    workflowRunRepository.save(ended);
+
+    int drains = 8;
+    ExecutorService pool = Executors.newFixedThreadPool(drains);
+    CountDownLatch release = new CountDownLatch(1);
+    try (LogCapture logs = LogCapture.start(Level.INFO, "io.boomerang.engine.WorkflowExecutionService")) {
+      List<Future<?>> racing =
+          IntStream.range(0, drains)
+              .<Future<?>>mapToObj(
+                  i ->
+                      pool.submit(
+                          () -> {
+                            release.await();
+                            workflowExecutionService.drain(workflowRef);
+                            return null;
+                          }))
+              .toList();
+      release.countDown();
+      for (Future<?> drain : racing) {
+        drain.get(60, TimeUnit.SECONDS);
+      }
+      assertTrue(
+          logs.lines().stream().noneMatch(line -> line.contains("Unable to re-admit")),
+          "a lost race is not a failed re-admission");
+    } finally {
+      pool.shutdownNow();
+    }
+
+    List<WorkflowRunEntity> runs = runsOf(workflowRef);
+    assertEquals(1, runs.stream().filter(r -> IN_FLIGHT.contains(r.getStatus())).count());
+    assertEquals(5, runs.stream().filter(r -> RunStatus.waiting.equals(r.getStatus())).count());
+    runs.stream()
+        .filter(r -> RunStatus.waiting.equals(r.getStatus()))
+        .forEach(r -> workflowRunService.cancel(r.getId()));
+    runsOf(workflowRef).stream()
+        .filter(r -> IN_FLIGHT.contains(r.getStatus()))
+        .forEach(r -> workflowRunService.cancel(r.getId()));
   }
 
   /** Fires {@code BURST} submits released together and returns how many the queue refused. */

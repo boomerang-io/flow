@@ -24,6 +24,7 @@ import java.util.Arrays;
 import java.util.Collection;
 import java.util.Date;
 import java.util.EnumSet;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
@@ -191,6 +192,7 @@ public class WorkflowExecutionService {
     }
     if (workflowRunStateHelper.tryPark(
             wfRunEntity.getId(),
+            StatusReason.CONCURRENCY_LIMIT,
             "Waiting for a slot: the workflow's concurrency limit of "
                 + inFlightRuns(concurrency)
                 + " is reached.")
@@ -208,6 +210,7 @@ public class WorkflowExecutionService {
   private void parkForWorkspace(String wfRunId, int limit) {
     if (workflowRunStateHelper.tryPark(
             wfRunId,
+            StatusReason.WORKSPACE_CONCURRENCY_LIMIT,
             "Waiting for a slot: the workspace's limit of "
                 + limit
                 + (limit == 1 ? " concurrent run" : " concurrent runs")
@@ -228,20 +231,54 @@ public class WorkflowExecutionService {
   /**
    * Re-drive a parked run through admission: when a run ends, and on the sweep. Admitted with
    * nothing to provision it starts here; with a workspace it is claimable for provisioning like
-   * any submit. Still over a limit, it stays parked. Returns whether it was admitted.
+   * any submit. Still over a limit, it stays parked. Returns whether it is admitted and waiting
+   * to start; a run another caller admitted and started first is neither parked nor counted.
    */
   public boolean readmit(String wfRunId) {
     queue(wfRunId);
     WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElse(null);
-    if (run == null || !RunStatus.ready.equals(run.getStatus())) {
+    if (run == null
+        || !RunStatus.ready.equals(run.getStatus())
+        || !RunPhase.pending.equals(run.getPhase())) {
       return false;
     }
-    if (run.getWorkspace() == null) {
-      start(wfRunId);
-    } else {
+    if (run.getWorkspace() != null) {
       pollWakeups.runProvisionable();
+      return true;
+    }
+    try {
+      start(wfRunId);
+    } catch (BoomerangException lostRace) {
+      // Several drains may race for one run: another started it between the read and this start.
+      if (!BoomerangError.WORKFLOWRUN_INVALID_PHASE.getReason().equals(lostRace.getReason())) {
+        throw lostRace;
+      }
+      LOGGER.debug("[{}] WorkflowRun already started by another caller. Nothing to do.", wfRunId);
     }
     return true;
+  }
+
+  /**
+   * Start a run admitted with nothing to provision whose start was lost, if it still waits for
+   * one. A caller that started it first wins, and this does nothing.
+   */
+  public void startAdmitted(String wfRunId) {
+    WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElse(null);
+    if (run == null
+        || !RunStatus.ready.equals(run.getStatus())
+        || !RunPhase.pending.equals(run.getPhase())
+        || run.getWorkspace() != null) {
+      return;
+    }
+    LOGGER.info("[{}] Admitted WorkflowRun never started. Starting it.", wfRunId);
+    try {
+      start(wfRunId);
+    } catch (BoomerangException lostRace) {
+      if (!BoomerangError.WORKFLOWRUN_INVALID_PHASE.getReason().equals(lostRace.getReason())) {
+        throw lostRace;
+      }
+      LOGGER.debug("[{}] WorkflowRun already started by another caller. Nothing to do.", wfRunId);
+    }
   }
 
   /**
@@ -249,48 +286,52 @@ public class WorkflowExecutionService {
    * free: the queue of its workspace's workflows, or the workflow's own when no workspace limit
    * applies to it. A run its own workflow's limit still holds stays parked, and its workflow is
    * passed over for the rest of the call, so a backlog on one workflow never hides another
-   * workflow's run behind it. Returns the workflows whose queue this was.
+   * workflow's run behind it. With every slot of the workspace taken the child runs go on being
+   * admitted: the workspace's limit never holds one, only its own workflow's does. A run whose
+   * re-admission fails is passed over for the rest of the call and tried again on the next, so
+   * the runs behind it are not kept waiting on it. Returns the workflows whose queue this was.
    */
   public Collection<String> drain(String workflowRef) {
     QuotaService.RunSlots slots = quotaService.runSlots(workflowRef);
     List<String> queue = (slots != null) ? slots.workflowRefs() : List.of(workflowRef);
     List<String> candidates = new ArrayList<>(queue);
-    for (int admissions = 0; admissions < MAX_DRAIN_ADMISSIONS && !candidates.isEmpty(); ) {
-      if (slots != null && workflowRunStateHelper.countInFlight(queue) >= slots.limit()) {
-        break;
-      }
-      WorkflowRunEntity parked = workflowRunStateHelper.findOldestParked(candidates);
+    Set<String> failed = new HashSet<>();
+    int admissions = 0;
+    while (admissions < MAX_DRAIN_ADMISSIONS
+        && failed.size() < MAX_DRAIN_ADMISSIONS
+        && !candidates.isEmpty()) {
+      boolean full = slots != null && workflowRunStateHelper.countInFlight(queue) >= slots.limit();
+      WorkflowRunEntity parked = workflowRunStateHelper.findOldestParked(candidates, failed, full);
       if (parked == null) {
         break;
       }
-      boolean admitted = false;
-      // Isolated: one run that cannot be re-admitted never stops the runs behind it.
       try {
-        LOGGER.info("[{}] A slot is free. Re-admitting the run parked longest.", parked.getId());
-        admitted = readmit(parked.getId());
+        LOGGER.info("[{}] Re-admitting the run parked longest for a slot.", parked.getId());
+        if (readmit(parked.getId())) {
+          admissions++;
+        } else if (workflowRunStateHelper.isParked(parked.getId())) {
+          // Still held, by its own workflow's limit: nothing behind it in that workflow can go.
+          candidates.remove(parked.getWorkflowRef());
+        }
       } catch (RuntimeException ex) {
         LOGGER.error("[{}] Unable to re-admit the parked run.", parked.getId(), ex);
-      }
-      if (admitted) {
-        admissions++;
-      } else {
-        candidates.remove(parked.getWorkflowRef());
+        failed.add(parked.getId());
       }
     }
     return queue;
   }
 
   /**
-   * End a run that has waited for a slot longer than the queue's age limit: cancelled, with the
-   * reason and the wait in its message. A run admitted, or ended, since it was read is left alone.
+   * End a run that has waited for a slot longer than the queue's age limit, one created at or
+   * before the cutoff: cancelled, with the reason and the wait in its message. A run admitted, or
+   * ended, since it was read is left alone.
    */
-  public void expire(String wfRunId, long maxAgeHours) {
+  public void expire(String wfRunId, Date cutoff, long maxAgeHours) {
     WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElse(null);
     if (run == null) {
       return;
     }
-    Date now = new Date();
-    long waitedMinutes = (now.getTime() - run.getCreationDate().getTime()) / 60000;
+    long waitedMinutes = (System.currentTimeMillis() - run.getCreationDate().getTime()) / 60000;
     String statusMessage =
         "Cancelled after waiting "
             + (waitedMinutes / 60)
@@ -299,7 +340,6 @@ public class WorkflowExecutionService {
             + " min for a slot. The limit is "
             + maxAgeHours
             + (maxAgeHours == 1 ? " hour." : " hours.");
-    Date cutoff = new Date(now.getTime() - maxAgeHours * 3600000L);
     if (workflowRunStateHelper.tryExpireParked(
             wfRunId, cutoff, StatusReason.QUEUE_EXPIRED, statusMessage)
         == null) {

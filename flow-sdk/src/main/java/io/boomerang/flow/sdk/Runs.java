@@ -27,20 +27,16 @@ public final class Runs {
     this.workspace = workspace;
   }
 
-  /** {@code POST /workflow/{name}/submit}: queue a run of the workflow and start it. */
-  public WorkflowRun submit(String workflow, SubmitRequest request) {
-    return submit(workflow, request, true);
-  }
-
   /**
-   * {@code POST /workflow/{name}/submit?start=}: queue a run of the workflow. With {@code start}
-   * false the run parks at {@code ready} for a later start.
+   * {@code POST /workflow/{name}/submit}: run the workflow. The run starts, or waits for a slot
+   * ({@code status} {@code waiting}) when a concurrency limit is reached and starts when it is
+   * admitted.
    */
-  public WorkflowRun submit(String workflow, SubmitRequest request, boolean start) {
+  public WorkflowRun submit(String workflow, SubmitRequest request) {
     return api.post(
         "/workspace/{workspace}/workflow/{workflow}/submit",
         Map.of("workspace", workspace, "workflow", workflow),
-        Params.none().add("start", start),
+        Params.none(),
         request,
         RUN);
   }
@@ -56,17 +52,6 @@ public final class Runs {
         "/workspace/{workspace}/workflowrun/{id}",
         Map.of("workspace", workspace, "id", id),
         Params.none().add("withTasks", withTasks),
-        RUN);
-  }
-
-  /**
-   * {@code PUT /workflowrun/{id}/start}: start a run parked at {@code ready}, submitted with
-   * {@code start} false or created by a retry; the answer is its state after.
-   */
-  public WorkflowRun start(String id) {
-    return api.put(
-        "/workspace/{workspace}/workflowrun/{id}/start",
-        Map.of("workspace", workspace, "id", id),
         RUN);
   }
 

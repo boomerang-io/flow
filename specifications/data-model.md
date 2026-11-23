@@ -44,7 +44,7 @@ A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflow
 `maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`, `maxQueuedRuns`, `maxArtifactStorage`,
 `artifactRetentionDays`; `workspace/model/Quotas.java:15-26`) each have three stored states. Absent inherits
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
-(`workflow/QuotaService.java:119-132,205-209`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
+(`workflow/QuotaService.java:117-130,203-207`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
 request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:229,340`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
@@ -54,11 +54,11 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1690-1717,2745-2770`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1695-1722,2750-2775`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1829-1833,2748-2767`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1834-1838,2753-2772`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -87,7 +87,7 @@ carry control state.
 | Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retry points at the run it retries, a child at its parent); `retryFrom{scope, nodes}` on a run a scoped retry created; `reusedFromRef` on a task run that retry carried over from the origin instead of executing | `common/entity/WorkflowRunEntity.java:83-92`, `common/entity/TaskRunEntity.java:69` |
 | For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `common/entity/TaskRunEntity.java:63-64` |
 | For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `common/entity/TaskRunEntity.java:72`, `common/model/WorkflowTaskForeach.java:19` |
-| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkflowInvalid`, `FinallyFailed`, `QueueExpired`, `SubmitRefused`, `DeadlineExceeded`), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:46-50`, `common/model/StatusReason.java:34-40` |
+| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkspaceConcurrencyLimit`, `WorkflowInvalid`, `FinallyFailed`, `QueueExpired`, `SubmitRefused`, `DeadlineExceeded`; on a run waiting for a slot, the limit that holds it), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:46-50`, `common/model/StatusReason.java:34-43` |
 | Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `common/entity/TaskRunEntity.java:52`, `engine/TaskRunService.java:406-414` |
 | Labels | `labels: Map<String,String>`, keyed `<prefix>/<name>` and queryable on every v2 list endpoint. A task run stacks its task's, its node's and its run's labels (`engine/DAGUtility.java:286-292`). Keys under `boomerang.io/` are the server's (`common/model/ServerLabel.java:12-18`): `boomerang.io/model` on an `ai` task run (its resolved `model` param, at admission, `engine/TaskExecutionService.java:254-264`) and `boomerang.io/item` on every item task run of a for-each and on a for-each Run workflow child (its text item, `engine/TaskExecutionService.java:904-913,1385-1396`), which the child's task runs inherit; a client's keys under that prefix are dropped. The engine decides from none of them | `common/entity/WorkflowRunEntity.java:30`, `common/entity/TaskRunEntity.java:36` |
 | Annotations | `annotations: Map<String,Object>`: user metadata and the `boomerang.io/*` keys below; the engine decides from none of them | `common/entity/WorkflowRunEntity.java:31`, `common/entity/TaskRunEntity.java:37` |
@@ -105,11 +105,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1822,2261,2414`, `workflow/TaskService.java:718,806` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1489` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1827,2266,2419`, `workflow/TaskService.java:718,806` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1494` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:845-851`, `workflow/WorkflowRunService.java:902-909`). The engine
+it dropped (`workflow/WorkflowService.java:842-848`, `workflow/WorkflowRunService.java:891-898`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -223,7 +223,7 @@ run's retention purge. Finished runs are kept for the `retention.days` key of th
 document (365; `service-core/src/main/resources/seed/settings.json:488`), read at each pass and floored at 60
 so a month's quota counts stay whole; a document without the key reads as 365
 (`workflow/WorkflowRetentionService.java:313-324`). An hourly pass (`flow.watcher.retention-interval-ms`,
-`engine/WorkflowWatcher.java:227-237`) pages runs in phase `completed` created before the cutoff, oldest first,
+`engine/WorkflowWatcher.java:235-245`) pages runs in phase `completed` created before the cutoff, oldest first,
 on the `phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first),
 actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:229-269,335-343`).
 A run another run still names in `initiatedByRef`, by the run's id (a retry's origin) or by one of its task runs'

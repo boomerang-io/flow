@@ -223,7 +223,8 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
     String workflow = "concurrency-sweep-workflow";
     createWorkflow(workspace, workflow, null, null);
     WorkflowRun submitted = submit(workspace, workflow, false);
-    assertNotNull(workflowRunStateHelper.tryPark(submitted.getId(), "Waiting for a slot: test"));
+    assertNotNull(workflowRunStateHelper.tryPark(
+            submitted.getId(), StatusReason.CONCURRENCY_LIMIT, "Waiting for a slot: test"));
     assertEquals(RunStatus.waiting, run(submitted.getId()).getStatus());
 
     workflowWatcher.readmitParkedRuns();

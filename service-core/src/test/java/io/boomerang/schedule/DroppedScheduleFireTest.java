@@ -178,6 +178,49 @@ class DroppedScheduleFireTest extends AbstractEngineIntegrationTest {
             });
   }
 
+  // Retrying the entry runs what the fire asked for. The retry is a real run: it carries no
+  // SubmitRefused reason, so it is a run of the month, where the entry it came from is not.
+  @Test
+  void aRetryOfADroppedFireEntryIsARunOfTheMonthWithoutTheEntrysReason() {
+    String workspace = workspace("dropped-fire-retry", 1);
+    String workflowRef = workflow(workspace, "dropped-fire-retry-workflow", true);
+    WorkflowSubmitRequest manual = new WorkflowSubmitRequest();
+    manual.setTrigger(TriggerEnum.manual);
+    WorkflowRun spent =
+        workflowService.submit(workspace, "dropped-fire-retry-workflow", manual, false);
+    setFeatureSetting(QUOTA_FEATURE, true);
+    WorkflowScheduleEntity schedule = recurring(workflowRef, "nightly");
+    fireUntilDropped(schedule.getId());
+    WorkflowRunEntity entry = entries(workflowRef).get(0);
+    assertThat(quotaService.current(workspace).getCurrentRuns()).isEqualTo(1);
+    // Room for the retry: the month's limit is raised from 1 to 2.
+    Quotas raised = new Quotas();
+    raised.setMaxWorkflowRunMonthly(2);
+    WorkspaceRequest patch = new WorkspaceRequest();
+    patch.setQuotas(raised);
+    workspaceService.patch(workspace, patch);
+
+    WorkflowRun retried = workflowRunService.retry(workspace, entry.getId()).getBody();
+
+    // The retry starts its run, as a submit does.
+    awaitEngine("the retry to start")
+        .untilAsserted(
+            () ->
+                assertThat(workflowRunRepository.findById(retried.getId()).orElseThrow().getStatus())
+                    .isEqualTo(RunStatus.running));
+    WorkflowRunEntity clone = workflowRunRepository.findById(retried.getId()).orElseThrow();
+    assertThat(clone.getStatusReason()).isNull();
+    assertThat(clone.getStatusMessage()).isNull();
+    assertThat(clone.getTrigger()).isEqualTo("retry");
+    assertThat(clone.getInitiatedByRef()).isEqualTo(entry.getId());
+    assertThat(entries(workflowRef)).as("the entry alone carries the reason").hasSize(1);
+    assertThat(quotaService.current(workspace).getCurrentRuns())
+        .as("the spent run and the retry; the entry is not a run")
+        .isEqualTo(2);
+    workflowRunService.cancel(retried.getId());
+    workflowRunService.cancel(spent.getId());
+  }
+
   // The fire and its two retries; the schedule watcher's own background sweep may take one.
   private void fireUntilDropped(String scheduleId) {
     for (int attempt = 0; attempt < 6 && droppedEntries(scheduleId) == 0; attempt++) {

@@ -1,5 +1,6 @@
 package io.boomerang.migration;
 
+import com.mongodb.client.MongoCollection;
 import com.mongodb.client.MongoDatabase;
 import com.mongodb.client.model.Filters;
 import com.mongodb.client.model.Updates;
@@ -39,16 +40,20 @@ public class _0051__SeedRunQueueSettings {
     CollectionNames names = CollectionNames.from(env);
     KEYS.forEach(
         (group, key) -> {
+          MongoCollection<Document> settings = db.getCollection(names.resolve("settings"));
           long added =
-              db.getCollection(names.resolve("settings"))
+              settings
                   .updateOne(
                       Filters.and(Filters.eq("key", group), Filters.ne("config.key", key)),
                       Updates.push("config", seedEntry(group, key)))
                   .getModifiedCount();
-          LOG.info(
-              added > 0 ? "Added the {} setting {}" : "The {} setting {} is already present",
-              group,
-              key);
+          if (added > 0) {
+            LOG.info("Added the {} setting {}", group, key);
+          } else if (settings.countDocuments(Filters.eq("key", group)) > 0) {
+            LOG.info("The {} setting {} is already present", group, key);
+          } else {
+            LOG.warn("No {} settings document to add {} to; the setting reads as its default", group, key);
+          }
         });
   }
 

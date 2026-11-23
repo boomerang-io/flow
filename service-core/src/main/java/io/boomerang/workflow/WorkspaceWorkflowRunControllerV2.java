@@ -3,7 +3,6 @@ package io.boomerang.workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunCount;
 import io.boomerang.common.model.WorkflowRunPurge;
-import io.boomerang.common.model.WorkflowRunRequest;
 import io.boomerang.common.model.WorkflowRunRetryRequest;
 import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.audit.AuditLevel;
@@ -227,37 +226,6 @@ public class WorkspaceWorkflowRunControllerV2 {
           @RequestParam(defaultValue = "true")
           boolean withTasks) {
     return workflowRunService.get(workspace, workflowRunId, withTasks);
-  }
-
-  @PutMapping(value = "/{workflowRunId}/start")
-  @AuthCriteria(
-      action = PermissionAction.ACTION,
-      resource = PermissionResource.WORKFLOWRUN,
-      assignableScopes = {AuthScope.global, AuthScope.key, AuthScope.user, AuthScope.session})
-  @Operation(
-      operationId = "startWorkflowRun",
-      summary = "Start WorkflowRun execution. The WorkflowRun has to already have been queued.")
-  @ApiResponses(
-      value = {
-        @ApiResponse(responseCode = "200", description = "OK"),
-        @ApiResponse(responseCode = "400", description = "Bad Request")
-      })
-  public ResponseEntity<WorkflowRun> start(
-      @Parameter(
-              name = "workspace",
-              description = "Owning workspace name.",
-              example = "my-amazing-workspace",
-              required = true)
-          @PathVariable
-          String workspace,
-      @Parameter(
-              name = "workflowRunId",
-              description = "ID of WorkflowRun to Start",
-              required = true)
-          @PathVariable(required = true)
-          String workflowRunId,
-      @RequestBody Optional<WorkflowRunRequest> runRequest) {
-    return workflowRunService.start(workspace, workflowRunId, runRequest);
   }
 
   @DeleteMapping(value = "/{workflowRunId}/cancel")

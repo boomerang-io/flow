@@ -339,7 +339,9 @@ public class WorkspaceWorkflowControllerV2 {
       resourceName = "#result?.getId()",
       workspaceId = "#workspace")
   @Operation(
-      summary = "Submit a Workflow to be run. Will queue the WorkflowRun ready for execution.")
+      summary =
+          "Submit a Workflow to be run. The run starts, or waits for a slot when a concurrency"
+              + " limit is reached and starts when it is admitted.")
   @ApiResponses(
       value = {
         @ApiResponse(responseCode = "200", description = "OK"),
@@ -360,15 +362,8 @@ public class WorkspaceWorkflowControllerV2 {
               required = true)
           @PathVariable
           String name,
-      @Parameter(
-              name = "start",
-              description =
-                  "Start the WorkflowRun after submission (default). Pass start=false to park the run at ready for a later PUT /workflowrun/{id}/start.",
-              required = false)
-          @RequestParam(required = false, defaultValue = "true")
-          boolean start,
       @RequestBody WorkflowSubmitRequest request) {
-    return workflowService.submitOnDemand(workspace, name, request, start);
+    return workflowService.submitOnDemand(workspace, name, request);
   }
 
   @GetMapping(value = "/{name}/export", produces = "application/json")

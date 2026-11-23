@@ -20,13 +20,13 @@ once. A whole-document `save()` is last-writer-wins and silently rolls back a co
 
 C, with no lock library and no `@Version`. Execution-state writes are guarded field updates, and every run transition
 goes through one CAS primitive that publishes only when it wins (`service-core/src/main/java/io/boomerang/engine/TaskRunService.java:972-1002`,
-`engine/WorkflowRunStateHelper.java:666-677`); a null pre-image means another caller won, and the handler returns
-without side effects (`engine/TaskExecutionService.java:270-275`, `:622-627`, `engine/WorkflowExecutionService.java:135-138`).
+`engine/WorkflowRunStateHelper.java:720-731`); a null pre-image means another caller won, and the handler returns
+without side effects (`engine/TaskExecutionService.java:270-275`, `:622-627`, `engine/WorkflowExecutionService.java:136-139`).
 A claim is the same write: `findClaimable` pages eligible ids oldest first (`TaskRunService.java:121-154`), and
 `tryClaim` takes each by id, re-checking status, phase, the absence of `claim.by` and the retry backoff, and setting
 `claim.by`, `claim.at`, the first lease, `$inc claim.seq` and `timeoutAt` together (`:327-365`); only what the poll won
 is handed out (`dispatcher/DispatcherService.java:428-440`). A workflow run's provisioning claim has the same shape
-(`WorkflowRunStateHelper.java:57-103`). A CAS names the state a side effect depends on, which is exactly the property a
+(`WorkflowRunStateHelper.java:58-104`). A CAS names the state a side effect depends on, which is exactly the property a
 winner-only action needs; paging first lets a claimant skip what it cannot take.
 
 ## Consequences
@@ -34,7 +34,7 @@ winner-only action needs; paging first lets a claimant skip what it cannot take.
 - The claim block is the only ownership record: a dispatcher's start and end are fenced on `claim.by` (`claim.seq` is
   not on the wire, `TaskRunService.java:1301-1322`), every requeue and abandon on `claim.seq` (`:963-967`).
 - Whole-document `save()` remains for creating a document and for merging a caller's request into a workflow run before
-  its handler runs (`workflow/WorkflowRunService.java:869`, `:922`, `:1098`); a dispatcher's start and end merges are
+  its handler runs (`workflow/WorkflowRunService.java:858`, `:911`, `:1099`); a dispatcher's start and end merges are
   field-scoped updates (`TaskRunService.java:1064-1068,1152-1157`).
 - Editing definitions (workflows, tasks) is outside this decision and MAY adopt `@Version` for edit conflicts.
 - A dead claimant's work is recovered by the deadline and lease sweeps, not by a lock expiry (decisions 0007, 0023).

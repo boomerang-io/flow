@@ -129,7 +129,7 @@ class RunAdmissionDatabaseCommandsTest extends AbstractEngineIntegrationTest {
   }
 
   private Object check(String workspace) {
-    quotaService.assertRunQuotas(workspace, Optional.empty());
+    quotaService.assertRunQuotas(workspace, Optional.empty(), null, null);
     return null;
   }
 

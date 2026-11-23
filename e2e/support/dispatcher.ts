@@ -2,7 +2,7 @@ import type { APIRequestContext } from "@playwright/test";
 
 /*
  * Helpers for the dispatcher-backed scenarios (tests/dispatcher-kube.spec.ts): create a workflow
- * from an explicit task graph, submit it with start=true so the engine admits it immediately, and
+ * from an explicit task graph, submit it (a submit always starts its run), and
  * poll the run until it reaches a terminal status. Everything goes straight to service-core's
  * REST API on API_ORIGIN, authenticated by the flow_session cookie the auth.setup project saved.
  */
@@ -91,7 +91,7 @@ export async function submitAndStart(
   params: { name: string; value: unknown }[] = [],
 ): Promise<WorkflowRunView> {
   const res = await request.post(
-    `${API_ORIGIN}/api/v2/workspace/${workspace}/workflow/${workflowName}/submit?start=true`,
+    `${API_ORIGIN}/api/v2/workspace/${workspace}/workflow/${workflowName}/submit`,
     { data: { params } },
   );
   if (!res.ok()) {

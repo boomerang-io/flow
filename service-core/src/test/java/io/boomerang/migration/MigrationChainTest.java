@@ -1818,6 +1818,28 @@ class MigrationChainTest {
         .isEqualTo(1);
   }
 
+  // An install with no Run limits settings document has nothing to add the age limit to: the unit
+  // adds the quota's entry, leaves the rest alone and creates no document.
+  @Test
+  void theRunQueueSettingsUnitToleratesAMissingSettingsGroup() {
+    MongoDatabase db = migrate("run-queue-settings-missing-group");
+    MongoCollection<Document> settings = collection(db, "settings");
+    settings.deleteOne(Filters.eq("key", "workflowrun"));
+    settings.updateOne(
+        Filters.eq("key", "quotas"),
+        Updates.pull("config", new Document("key", "max.workflowrun.queued")));
+    long documents = settings.countDocuments();
+
+    assertThatCode(
+            () -> new _0051__SeedRunQueueSettings().execute(db, MigrationRunner.environment(PREFIX)))
+        .doesNotThrowAnyException();
+
+    assertThat(settings.countDocuments()).isEqualTo(documents);
+    assertThat(settings.find(Filters.eq("key", "workflowrun")).first()).isNull();
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.queued").getString("value"))
+        .isEqualTo("20");
+  }
+
   private static Document settingEntry(MongoCollection<Document> settings, String group, String key) {
     return settings.find(Filters.eq("key", group)).first().getList("config", Document.class).stream()
         .filter(entry -> key.equals(entry.getString("key")))

@@ -7,15 +7,22 @@ tag's release notes.
 
 ### Upgrading
 
+- **`start` on submit is removed: a submit always starts its run, or queues it.** `POST …/workflow/{name}/submit`
+  takes no `start` query parameter, and `PUT …/workflowrun/{id}/start` and the Java SDK's `Runs.start` and
+  `Runs.submit(…, boolean)` are gone: nothing stages a run for later. A retry starts the run it creates as well, so
+  the webapp's Retry and the API's retry route need no second call. The `flow.workflowrun.auto-start-on-submit`
+  property is gone with them: webhook, event and GitHub triggers always start their runs. The dispatcher's own
+  `PUT /dispatcher/v1/workflowrun/{id}/start` is unchanged. A client that sent `?start=false` to create a run it
+  started later now has the run started at once.
 - **The default monthly run quota moves from 20 to 100.** On the first start, an install whose **Settings > Quotas >
   Max WorkflowRuns per month** still holds the 20 that 5.0.0 shipped has it set to 100. A value an administrator
   chose, 50 say, is left as it is, and so is every quota a workspace stores for itself: only workspaces that inherit
   the platform default see their monthly limit change. Set it back to 20 in Settings to keep the 5.0.0 limit.
 - **A run that has waited more than 24 hours for a slot is cancelled.** A run parked by its workflow's own
   concurrency limit could wait without end in 5.0.0. The first sweep after the upgrade, which runs as the server
-  starts, cancels the runs that have been parked for longer than **Settings > Run limits > Maximum Queue Wait
-  (hours)** with the reason `QueueExpired`, 50 runs a sweep. The upgrade adds the setting at 24; set it to `0` to
-  keep the 5.0.0 behaviour of no limit. Runs already parked for more than 24 hours are cancelled before the value
+  starts, first admits every parked run whose slot is free and then cancels the ones still parked for longer than
+  **Settings > Run limits > Maximum Queue Wait (hours)** with the reason `QueueExpired`, 50 runs a sweep. The
+  upgrade adds the setting at 24; set it to `0` to keep the 5.0.0 behaviour of no limit. Runs already parked for more than 24 hours are cancelled before the value
   can be changed; retry any of them you still need.
 - **"Concurrent runs" now counts running runs only.** A workspace's concurrent usage, in the webapp and in
   `currentConcurrentRuns` on the workspace API, is the runs holding a slot: admitted, running or in their finally
@@ -34,17 +41,22 @@ tag's release notes.
   one queue: it holds the runs its own limit holds back and the ones a workflow's own `concurrency` limit holds back,
   and a waiting run takes no slot of either. Time spent waiting does not count against the run's timeout. Child runs
   (a run-workflow task, a for-each fan-out) are never held by the workspace's limit, since their parent already holds
-  a slot; they start at once and count toward the total. A run submitted with `?start=false` passes the same check,
-  and one that waited is started when it is admitted. With quotas switched off, or the concurrent limit set to `0`,
+  a slot; they start at once and count toward the total, and one waiting on its own workflow's limit is admitted
+  even while every slot of the workspace is taken. A waiting run says which limit holds it in `statusReason`:
+  `WorkspaceConcurrencyLimit` for the workspace's, `ConcurrencyLimit` for its workflow's own. With quotas switched off, or the concurrent limit set to `0`,
   nothing is held and the next sweep admits whatever was waiting.
 - **The queue has a limit of its own: the Queued Runs quota.** `max.workflowrun.queued` in **Settings > Quotas**,
   20 by default, with a per-workspace override on the workspace's Quotas tab (`maxQueuedRuns`) like the other
-  quotas; `0` is unlimited. A submit that finds every slot taken and the queue full is refused with
-  `429 QUOTA_EXCEEDED`, "Queued runs". Five times the concurrent limit is a good starting point. The workspace API
-  and the Quotas tab show `currentQueuedRuns` beside it.
+  quotas; `0` is unlimited. It counts the runs waiting for a slot of the workspace: a submit that finds every slot
+  taken and that many waiting is refused with `429 QUOTA_EXCEEDED`, "Queued runs". A run its own workflow's
+  `concurrency` limit holds is never refused and never counted, so that queue stays unbounded, as in 5.0.0, and
+  one workflow's backlog cannot make the workspace refuse another workflow's runs. Five times the concurrent limit
+  is a good starting point. The workspace API and the Quotas tab show `currentQueuedRuns` beside it.
 - **A run cannot wait for a slot for ever.** **Settings > Run limits > Maximum Queue Wait (hours)**
   (`workflowrun`/`queue.max.age`), 24 by default, `0` for no limit. A run that waits longer ends `cancelled` with the
-  reason `QueueExpired` and a message that says how long it waited and what the limit is.
+  reason `QueueExpired` and a message that says how long it waited and what the limit is. A run whose slot has
+  come free is admitted rather than cancelled, however long it waited. The value is whole hours: anything else
+  (`1.5`, a blank, text) is read as 24 and said once in the server log.
 - **A schedule's dropped fire shows on the Activity list.** When a schedule's run cannot be submitted on any of its
   three attempts, the workflow gets a `cancelled` run with the reason `SubmitRefused`, triggered by the schedule,
   whose message reads, for example, `Schedule "nightly" fired at 02:00 UTC and no run started after 3 attempts.
@@ -53,6 +65,8 @@ tag's release notes.
 - **The webapp says when a run will wait.** The Run button stays enabled with every slot busy and says the run will
   wait its turn; it is disabled only when the queue is full or the month's runs are spent. A queued run's page shows
   what it is waiting on beside its status, and a run the queue cancelled explains why instead of showing a run error.
+  Retrying a run with every slot busy says the retry is in the queue. The run page has no Start button: nothing
+  waits to be started.
 
 ### Changed
 
@@ -90,6 +104,12 @@ tag's release notes.
   past its deadline, so a parked run that had waited longer than its timeout ended `timedout` without ever running.
   It now leaves parked runs alone, including the ones 5.0.0 already stored with a deadline, which take a fresh one
   when they are admitted.
+- **A run whose start was lost is started.** A run with nothing to provision that was admitted when the server
+  stopped, before it started the run, waited in `ready` with no deadline and no sweep. A sweep now starts any such
+  run it finds on two passes in a row.
+- **A retried run no longer carries the reason its original ended with.** In 5.0.0 a retry kept the original run's
+  status reason, so a retry of a run that had timed out showed `DeadlineExceeded` from its first moment and still
+  showed it after succeeding. A retry now starts with no reason of its own.
 - **An automatic retry that had to wait is no longer logged as refused.** In 5.0.0 a timed-out run whose automatic
   retry was parked by its workflow's concurrency limit logged "Retry refused" although the retry had been created
   and ran later. The log now says the retry is queued.

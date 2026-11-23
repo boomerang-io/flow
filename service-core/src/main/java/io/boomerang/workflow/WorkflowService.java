@@ -707,8 +707,7 @@ public class WorkflowService {
    * to the webapp (a session token) runs manual; any other caller, a token or the security-off
    * synthetic admin, runs api. Both answer to the Manual switch, and a body may send only those two.
    */
-  public WorkflowRun submitOnDemand(
-      String workspace, String name, WorkflowSubmitRequest request, boolean start) {
+  public WorkflowRun submitOnDemand(String workspace, String name, WorkflowSubmitRequest request) {
     TriggerEnum sent = request.getTrigger();
     if (sent != null && !TriggerEnum.manual.equals(sent) && !TriggerEnum.api.equals(sent)) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_TRIGGER, sent.getTrigger());
@@ -718,7 +717,7 @@ public class WorkflowService {
         (identity != null && AuthScope.session.equals(identity.getType()))
             ? TriggerEnum.manual
             : TriggerEnum.api);
-    return submit(workspace, name, request, start);
+    return submit(workspace, name, request, true);
   }
 
   /*
@@ -830,8 +829,6 @@ public class WorkflowService {
   private WorkflowRun admit(
       String workspace, String workflowId, WorkflowSubmitRequest request, boolean start,
       String initiatedByRef) {
-    // Check Quotas - Throws Exception
-    quotaService.assertRunQuotas(workspace, Optional.ofNullable(request.getWorkspace()));
     // Set Workflow & Task Debug
     if (Objects.isNull(request.getDebug())) {
       boolean enableDebug = false;
@@ -856,10 +853,18 @@ public class WorkflowService {
     // above. A removed run never left notstarted, so no transition was published and it is never
     // audited as created.
     WorkflowRunEntity newRun = newRun(workflowId, request, initiatedByRef);
+    // Check Quotas - Throws Exception. The run is built first, nothing written: the queue's cap
+    // depends on whether the run's own workflow would hold it.
+    quotaService.assertRunQuotas(
+        workspace,
+        Optional.ofNullable(request.getWorkspace()),
+        newRun.getWorkflowRef(),
+        newRun.getWorkflowRevisionRef());
     if (quotaService.enforced()) {
       mongoTemplate.insert(newRun);
       try {
-        quotaService.assertAdmittedRunWithinQuotas(workspace);
+        quotaService.assertAdmittedRunWithinQuotas(
+            workspace, newRun.getWorkflowRef(), newRun.getWorkflowRevisionRef());
       } catch (RuntimeException refused) {
         // The run pushed a count over its limit, or the recheck itself failed: it removes itself,
         // so it uses no quota and no un-queued run is left without an owner.

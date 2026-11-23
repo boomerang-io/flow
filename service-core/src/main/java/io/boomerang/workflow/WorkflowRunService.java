@@ -447,17 +447,6 @@ public class WorkflowRunService {
   }
 
   /*
-   * Start WorkflowRun
-   *
-   * TODO: do we expose this one?
-   */
-  public ResponseEntity<WorkflowRun> start(
-      String workspace, String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
-    requireWorkspaceRelationship(workspace, workflowRunId);
-    return ResponseEntity.ok(redactSecrets(start(workflowRunId, optRunRequest)));
-  }
-
-  /*
    * Cancel WorkflowRun
    */
   public ResponseEntity<WorkflowRun> cancel(String workspace, String workflowRunId) {
@@ -562,7 +551,7 @@ public class WorkflowRunService {
 
     return ResponseEntity.ok(
         redactSecrets(
-            retry(workflowRunId, false, 1, retryRequest.orElseGet(WorkflowRunRetryRequest::new))));
+            retry(workflowRunId, true, 1, retryRequest.orElseGet(WorkflowRunRetryRequest::new))));
   }
 
   /**
@@ -1056,7 +1045,11 @@ public class WorkflowRunService {
       // no workspace owns has no quotas to check and no ceiling to clamp to.
       String ownerName = workspaceNameOrNull(owner);
       if (ownerName != null) {
-        quotaService.assertRunQuotas(ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
+        quotaService.assertRunQuotas(
+            ownerName,
+            Optional.ofNullable(wfRunEntity.getWorkspace()),
+            wfRunEntity.getWorkflowRef(),
+            wfRunEntity.getWorkflowRevisionRef());
         long ceiling = quotaService.maxRunDuration(ownerName);
         if (ceiling > 0
             && (wfRunEntity.getTimeout() == null
@@ -1070,13 +1063,21 @@ public class WorkflowRunService {
       wfRunEntity.setPhase(RunPhase.pending);
       wfRunEntity.setId(null);
       wfRunEntity.setStatusMessage(null);
+      // The reason is the origin's: a retry of a run the queue cancelled, or of the entry a
+      // refused submit left, is a run of its own and not one of those.
+      wfRunEntity.setStatusReason(null);
       wfRunEntity.setDuration(0);
       wfRunEntity.setStartTime(null);
       wfRunEntity.setRetryCount(retryCount);
       // The clone is a fresh execution: it must not inherit the source run's claim ownership,
-      // baked deadline, approval gate, status override or produced results.
+      // baked deadline, ended graph, pause, wait or purge request, approval gate, status override
+      // or produced results.
       wfRunEntity.setClaim(null);
       wfRunEntity.setTimeoutAt(null);
+      wfRunEntity.setGraphEndedAt(null);
+      wfRunEntity.setPauseRequestedAt(null);
+      wfRunEntity.setWaitingSince(null);
+      wfRunEntity.setPurgeRequestedAt(null);
       wfRunEntity.setAwaitingApproval(false);
       wfRunEntity.setStatusOverride(null);
       // A scoped retry keeps the run results its carried-over tasks produced; a fresh run has none.
@@ -1139,11 +1140,16 @@ public class WorkflowRunService {
         workflowExecutionService.cancel(workflowRunId);
       }
 
-      // Only an admitted clone is started: one parked for a slot is returned as it stands, and
-      // its admission starts it.
+      // Only an admitted clone is started, as a submit starts its run: one with nothing to provision
+      // here, one with a workspace by the dispatcher that provisions it. One parked for a slot is
+      // returned as it stands, and its admission starts it.
       WorkflowRunEntity queued = workflowRunRepository.findById(wfRunEntity.getId()).get();
-      if (start && RunStatus.ready.equals(queued.getStatus())) {
+      boolean admitted = RunStatus.ready.equals(queued.getStatus());
+      if (start && admitted && queued.getWorkspace() == null) {
         return this.start(wfRunEntity.getId(), Optional.empty());
+      }
+      if (start && admitted) {
+        pollWakeups.runProvisionable();
       }
       return ConvertUtil.entityToModel(queued, WorkflowRun.class);
     } else {

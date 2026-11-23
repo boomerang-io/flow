@@ -185,12 +185,12 @@ export async function loader({
   return { workflowRun, workflow, tasks, workspaceTasks, actions, artifacts, errorLoading };
 }
 
-export type RunActionIntent = "retry" | "cancel" | "start" | "pause" | "resume" | "action" | "deleteArtifact";
+export type RunActionIntent = "retry" | "cancel" | "pause" | "resume" | "action" | "deleteArtifact";
 
-// A retry answers with the run it created, so the page can move to it - even when that run then
-// failed to start, since its page carries the Start button.
+// A retry answers with the run it created, so the page can move to it. `queued` says the new run is
+// waiting for a slot: nobody starts it, it starts when it is admitted.
 export type ActionResult =
-  | { intent: RunActionIntent; workflowRunRef?: string }
+  | { intent: RunActionIntent; workflowRunRef?: string; queued?: boolean }
   | ({ intent: RunActionIntent; workflowRunRef?: string } & ActionError);
 
 const RUN_INTENT_REQUESTS: Record<
@@ -199,9 +199,6 @@ const RUN_INTENT_REQUESTS: Record<
 > = {
   retry: { url: serviceUrl.workspace.workflowrun.putRetryWorkflow, method: HttpMethod.Put },
   cancel: { url: serviceUrl.workspace.workflowrun.deleteCancelWorkflow, method: HttpMethod.Delete },
-  // The start route takes an optional JSON body, and a bodiless PUT goes out as a form, which it
-  // refuses with 415, so the start sends an empty JSON object.
-  start: { url: serviceUrl.workspace.workflowrun.putStartWorkflow, method: HttpMethod.Put, data: {} },
   pause: { url: serviceUrl.workspace.workflowrun.putPauseWorkflow, method: HttpMethod.Put },
   resume: { url: serviceUrl.workspace.workflowrun.putResumeWorkflow, method: HttpMethod.Put },
 };
@@ -275,20 +272,11 @@ export async function action({
         data: { scope, nodes },
       });
       const workflowRunRef: string | undefined = created?.data?.id;
-      // The retry only creates the new run; it is started the way the Start button starts a run.
-      if (workflowRunRef) {
-        const start = RUN_INTENT_REQUESTS.start;
-        try {
-          await api({ url: start.url({ workspace, id: workflowRunRef }), method: start.method, data: start.data });
-        } catch (error) {
-          return actionError({
-            intent,
-            workflowRunRef,
-            error: formatErrorMessage({ error, defaultMessage: "The retry was created but failed to start" }),
-          });
-        }
-      }
-      return { intent, workflowRunRef };
+      // The retry starts its run, or queues it when a concurrency limit is reached: it then starts by
+      // itself when a slot frees.
+      return created?.data?.status === RunStatus.Waiting
+        ? { intent, workflowRunRef, queued: true }
+        : { intent, workflowRunRef };
     }
     await api({ url: requestConfig.url({ workspace, id }), method: requestConfig.method, data: requestConfig.data });
     return { intent };

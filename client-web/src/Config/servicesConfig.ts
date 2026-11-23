@@ -175,11 +175,10 @@ export const serviceUrl = {
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}`,
       postDuplicateWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/duplicate`,
+      // A submit always starts its run, or queues it for a slot: a run without a workspace starts at
+      // once, one with a workspace waits for the dispatcher to provision and start it.
       postSubmitWorkflow: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
-        // start=true: submit alone parks the run at ready (the engine's default is start=false),
-        // and nothing starts a parked run any more - a run without workspaces starts at once,
-        // one with workspaces waits for the dispatcher to provision and start it.
-        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/submit?start=true`,
+        `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/submit`,
       getAvailableParameters: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
         `${BASE_URL}/workspace/${workspace}/workflow/${workflow}/available-parameters`,
       putApplyWorkflowCompose: ({ workspace, workflow }: WorkspaceArg & WorkflowArg) =>
@@ -209,8 +208,6 @@ export const serviceUrl = {
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/cancel`,
       putRetryWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/retry`,
-      putStartWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
-        `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/start`,
       putPauseWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>
         `${BASE_URL}/workspace/${workspace}/workflowrun/${id}/pause`,
       putResumeWorkflow: ({ workspace, id }: WorkspaceArg & IdArg) =>

@@ -4,6 +4,7 @@ import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.RunResult;
 import io.boomerang.common.model.WorkflowRunTransition;
@@ -182,7 +183,8 @@ public class WorkflowRunStateHelper {
         new Update()
             .set("status", RunStatus.ready)
             .set("params", secretValues.sealRunParams(resolvedParams))
-            .unset("statusMessage");
+            .unset("statusMessage")
+            .unset("statusReason");
     if (timeoutAt != null) {
       update.set("timeoutAt", timeoutAt);
     } else {
@@ -193,26 +195,38 @@ public class WorkflowRunStateHelper {
 
   // Park Compare-And-Set: a run over its workflow's concurrency limit, or its workspace's, waits
   // for a slot as waiting/pending - neither claimable nor started - with the message saying so,
-  // and with no deadline: time parked is not the run's. Guarded on the unadmitted and the
-  // just-admitted shapes alike, so the post-admission recount can step a run back; a run a
-  // dispatcher has claimed or started is past parking.
-  public WorkflowRunEntity tryPark(String id, String statusMessage) {
-    Query query =
-        Query.query(
-            Criteria.where("_id")
-                .is(id)
-                .and("status")
-                .in(RunStatus.notstarted, RunStatus.ready)
-                .and("phase")
-                .is(RunPhase.pending)
-                .and("claim.by")
-                .exists(false));
+  // the limit that holds it as its reason, and no deadline: time parked is not the run's. Guarded
+  // on the unadmitted and the just-admitted shapes alike, so the post-admission recount can step a
+  // run back; a run a dispatcher has claimed or started is past parking. A run already parked that
+  // another limit now holds takes that one's reason and message, with no transition to publish.
+  public WorkflowRunEntity tryPark(String id, String statusReason, String statusMessage) {
     Update update =
         new Update()
             .set("status", RunStatus.waiting)
+            .set("statusReason", statusReason)
             .set("statusMessage", statusMessage)
             .unset("timeoutAt");
-    return cas(query, update, RunStatus.waiting, null);
+    WorkflowRunEntity parked =
+        cas(
+            Query.query(
+                Criteria.where("_id")
+                    .is(id)
+                    .and("status")
+                    .in(RunStatus.notstarted, RunStatus.ready)
+                    .and("phase")
+                    .is(RunPhase.pending)
+                    .and("claim.by")
+                    .exists(false)),
+            update,
+            RunStatus.waiting,
+            null);
+    return (parked != null)
+        ? parked
+        : mongoTemplate.findAndModify(
+            Query.query(parked().and("_id").is(id)),
+            update,
+            FindAndModifyOptions.options().returnNew(false),
+            WorkflowRunEntity.class);
   }
 
   // The runs of a workflow holding a slot: admitted and not terminal. A parked run holds none.
@@ -257,15 +271,51 @@ public class WorkflowRunStateHelper {
                     Criteria.where("phase").is(RunPhase.running).and("graphEndedAt").exists(true)));
   }
 
-  // The parked run among the given workflows that has waited longest for a slot, if any; the id
-  // breaks a tie on creationDate as it does for the runs in flight.
-  public WorkflowRunEntity findOldestParked(Collection<String> workflowRefs) {
+  // The parked run among the given workflows that has waited longest for a slot, if any, leaving
+  // out the given runs; the id breaks a tie on creationDate as it does for the runs in flight.
+  // With childrenOnly, only a run a task submitted: the one kind a full workspace still admits.
+  public WorkflowRunEntity findOldestParked(
+      Collection<String> workflowRefs, Collection<String> exceptIds, boolean childrenOnly) {
+    Criteria criteria = parked().and("workflowRef").in(workflowRefs);
+    if (!exceptIds.isEmpty()) {
+      criteria = criteria.and("_id").nin(exceptIds);
+    }
+    if (childrenOnly) {
+      criteria = criteria.and("trigger").is(TriggerEnum.task.getTrigger());
+    }
     Query query =
-        Query.query(parked().and("workflowRef").in(workflowRefs))
+        Query.query(criteria)
             .with(Sort.by(Sort.Direction.ASC, "creationDate").and(Sort.by(Sort.Direction.ASC, "_id")))
             .limit(1);
     query.fields().include("_id").include("workflowRef");
     return mongoTemplate.findOne(query, WorkflowRunEntity.class);
+  }
+
+  // The page of admitted runs with nothing to provision that have not started, oldest first: the
+  // start their admission owed was lost with the instance that owed it. A run with a workspace
+  // is the dispatcher's to start, and a claimed one is a dispatcher's already. Served by
+  // claim_page.
+  public List<WorkflowRunEntity> findAdmittedNotStarted(int limit) {
+    Query query =
+        Query.query(
+                Criteria.where("status")
+                    .is(RunStatus.ready)
+                    .and("phase")
+                    .is(RunPhase.pending)
+                    .and("workspace")
+                    .exists(false)
+                    .and("claim.by")
+                    .exists(false))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
+            .limit(limit)
+            .maxTimeMsec(5000);
+    query.fields().include("_id");
+    return mongoTemplate.find(query, WorkflowRunEntity.class);
+  }
+
+  // Whether the run is parked for a slot now.
+  public boolean isParked(String id) {
+    return mongoTemplate.exists(Query.query(parked().and("_id").is(id)), WorkflowRunEntity.class);
   }
 
   // Whether any run is parked: the one read a completion makes before it looks for a run to
@@ -381,6 +431,10 @@ public class WorkflowRunStateHelper {
             .unset("waitingSince");
     if (statusReason != null) {
       update.set("statusReason", statusReason);
+    } else if (!fromPhases.contains(RunPhase.running)) {
+      // A run ended before it ran carries no reason of its own: the limit that held it parked
+      // is not why it ended. A running run keeps the reason its graph ended with.
+      update.unset("statusReason");
     }
     if (statusMessage != null) {
       update.set("statusMessage", statusMessage);

@@ -3,14 +3,17 @@ package io.boomerang.workflow;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.common.LogCapture;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.model.StatusReason;
+import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.core.audit.AuditEventRepository;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.model.SettingConfig;
@@ -24,7 +27,10 @@ import java.util.Date;
 import java.util.List;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
+import org.apache.logging.log4j.Level;
 import org.junit.jupiter.api.Test;
+import org.junit.jupiter.params.ParameterizedTest;
+import org.junit.jupiter.params.provider.ValueSource;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.data.mongodb.core.query.Criteria;
@@ -118,7 +124,7 @@ class QueueExpiryTest extends AbstractEngineIntegrationTest {
     workflowWatcher.expireQueuedRuns();
     // A second sweep, and a second instance's, find nothing left to expire.
     workflowWatcher.expireQueuedRuns();
-    workflowExecutionService.expire(parked.getId(), 24);
+    expireAtTwentyFourHours(parked.getId());
 
     List<WorkflowRunTransition> completions =
         events.stream(WorkflowRunTransition.class)
@@ -133,19 +139,47 @@ class QueueExpiryTest extends AbstractEngineIntegrationTest {
     assertEquals(1, auditUpdates(parked.getId()));
   }
 
+  // The slot frees and the run is admitted between the sweep's read and its write. Its workflow
+  // declares a workspace, so it waits ready and pending for a dispatcher: a pending run, created
+  // before the cutoff, that only the status tells apart from a parked one.
   @Test
   void aRunAdmittedSinceItWasReadIsNotExpired() {
-    WorkflowRun parked = parkedRun("queue-expiry-admitted");
+    String workspace = workspace("queue-expiry-admitted", true);
+    holder = submit(workspace, "queue-expiry-admitted-workflow", true).getId();
+    WorkflowRun parked = submit(workspace, "queue-expiry-admitted-workflow", true);
+    assertEquals(RunStatus.waiting, parked.getStatus());
     backdate(parked.getId(), 30 * HOUR);
-    // The slot frees and the run is admitted between the sweep's read and its write.
     workflowRunService.cancel(holder);
-    awaitEngine("the parked run to be admitted")
-        .untilAsserted(() -> assertEquals(RunStatus.running, run(parked.getId()).getStatus()));
+    holder = parked.getId();
+    WorkflowRunEntity admitted = run(parked.getId());
+    assertEquals(RunStatus.ready, admitted.getStatus(), "admitted when the slot freed");
+    assertEquals(RunPhase.pending, admitted.getPhase());
+
+    expireAtTwentyFourHours(parked.getId());
+
+    WorkflowRunEntity after = run(parked.getId());
+    assertEquals(RunStatus.ready, after.getStatus());
+    assertEquals(RunPhase.pending, after.getPhase());
+  }
+
+  // The sweep re-admits before it expires: a run past the age limit whose slot is free, its
+  // completion's drain lost with the instance that owed it, runs instead of being cancelled.
+  @Test
+  void aRunPastTheAgeLimitWhoseSlotIsFreeIsAdmittedNotExpired() {
+    WorkflowRun parked = parkedRun("queue-expiry-free-slot");
+    backdate(parked.getId(), 25 * HOUR);
+    // The holder ends with no transition published, so nothing drains the queue.
+    mongoTemplate.updateFirst(
+        Query.query(Criteria.where("_id").is(holder)),
+        new Update().set("status", RunStatus.cancelled).set("phase", RunPhase.completed),
+        WorkflowRunEntity.class);
     holder = parked.getId();
 
-    workflowExecutionService.expire(parked.getId(), 24);
+    workflowWatcher.sweepQueuedRuns();
 
-    assertEquals(RunStatus.running, run(parked.getId()).getStatus());
+    awaitEngine("the parked run to start")
+        .untilAsserted(() -> assertEquals(RunStatus.running, run(parked.getId()).getStatus()));
+    assertEquals(null, run(parked.getId()).getStatusReason());
   }
 
   @Test
@@ -155,7 +189,7 @@ class QueueExpiryTest extends AbstractEngineIntegrationTest {
     holder = staged.getId();
     backdate(staged.getId(), 30 * HOUR);
 
-    workflowExecutionService.expire(staged.getId(), 24);
+    expireAtTwentyFourHours(staged.getId());
 
     WorkflowRunEntity after = run(staged.getId());
     assertEquals(RunStatus.ready, after.getStatus(), "ready and pending is admitted, not parked");
@@ -174,6 +208,91 @@ class QueueExpiryTest extends AbstractEngineIntegrationTest {
     } finally {
       setSettingValue("workflowrun", "queue.max.age", previous);
       workflowRunService.cancel(parked.getId());
+    }
+  }
+
+  // A value that is not a whole number of hours of 0 or more reads as 24, never as something else.
+  @ParameterizedTest
+  @ValueSource(strings = {"1.5", "", "   ", "abc", "-1", "24h"})
+  void anUnreadableAgeLimitMeansTwentyFourHours(String value) {
+    WorkflowRun young = parkedRun("queue-expiry-unreadable-" + Math.abs(value.hashCode()));
+    backdate(young.getId(), 2 * HOUR);
+    String previous = setSettingValue("workflowrun", "queue.max.age", value);
+    try {
+      workflowWatcher.expireQueuedRuns();
+      assertEquals(RunStatus.waiting, run(young.getId()).getStatus(), "2 h is within 24");
+
+      backdate(young.getId(), 25 * HOUR);
+      workflowWatcher.expireQueuedRuns();
+
+      WorkflowRunEntity expired = run(young.getId());
+      assertEquals(StatusReason.QUEUE_EXPIRED, expired.getStatusReason());
+      assertEquals(
+          "Cancelled after waiting 25 h 0 min for a slot. The limit is 24 hours.",
+          expired.getStatusMessage());
+    } finally {
+      setSettingValue("workflowrun", "queue.max.age", previous);
+    }
+  }
+
+  @Test
+  void anAgeLimitInWholeHoursIsReadWithSpacesAroundIt() {
+    WorkflowRun parked = parkedRun("queue-expiry-two-hours");
+    backdate(parked.getId(), 3 * HOUR);
+    String previous = setSettingValue("workflowrun", "queue.max.age", " 2 ");
+    try {
+      workflowWatcher.expireQueuedRuns();
+
+      assertEquals(
+          "Cancelled after waiting 3 h 0 min for a slot. The limit is 2 hours.",
+          run(parked.getId()).getStatusMessage());
+    } finally {
+      setSettingValue("workflowrun", "queue.max.age", previous);
+    }
+  }
+
+  // A number of hours too large to turn into milliseconds is held to a century: it expires
+  // nothing, where an overflow would put the cutoff in the future and expire every parked run.
+  @ParameterizedTest
+  @ValueSource(strings = {"9999999999999", "99999999999999999999999999", "2562047788016"})
+  void aHugeAgeLimitExpiresNothing(String value) {
+    WorkflowRun parked = parkedRun("queue-expiry-huge-" + Math.abs(value.hashCode()));
+    backdate(parked.getId(), 2 * HOUR);
+    String previous = setSettingValue("workflowrun", "queue.max.age", value);
+    try {
+      workflowWatcher.expireQueuedRuns();
+
+      assertEquals(RunStatus.waiting, run(parked.getId()).getStatus());
+    } finally {
+      setSettingValue("workflowrun", "queue.max.age", previous);
+      workflowRunService.cancel(parked.getId());
+    }
+  }
+
+  @Test
+  void anUnreadableAgeLimitIsLoggedOnceForEachValue() {
+    String previous = setSettingValue("workflowrun", "queue.max.age", "soon");
+    try (LogCapture logs = LogCapture.start(Level.WARN, "io.boomerang.engine.WorkflowWatcher")) {
+      workflowWatcher.expireQueuedRuns();
+      workflowWatcher.expireQueuedRuns();
+      workflowWatcher.expireQueuedRuns();
+      setSettingValue("workflowrun", "queue.max.age", "later");
+      workflowWatcher.expireQueuedRuns();
+      workflowWatcher.expireQueuedRuns();
+      // Set right, then wrong again the same way: said again.
+      setSettingValue("workflowrun", "queue.max.age", "12");
+      workflowWatcher.expireQueuedRuns();
+      setSettingValue("workflowrun", "queue.max.age", "later");
+      workflowWatcher.expireQueuedRuns();
+
+      assertEquals(
+          List.of("'soon'", "'later'", "'later'"),
+          logs.lines().stream()
+              .filter(line -> line.startsWith("The workflowrun setting queue.max.age is "))
+              .map(line -> line.split(" ")[5].replace(",", ""))
+              .toList());
+    } finally {
+      setSettingValue("workflowrun", "queue.max.age", previous);
     }
   }
 
@@ -197,7 +316,15 @@ class QueueExpiryTest extends AbstractEngineIntegrationTest {
     return parked;
   }
 
+  private void expireAtTwentyFourHours(String id) {
+    workflowExecutionService.expire(id, new Date(System.currentTimeMillis() - 24 * HOUR), 24);
+  }
+
   private String workspace(String name) {
+    return workspace(name, false);
+  }
+
+  private String workspace(String name, boolean withVolume) {
     Quotas quotas = new Quotas();
     quotas.setMaxConcurrentRuns(1);
     WorkspaceRequest request = new WorkspaceRequest();
@@ -205,7 +332,13 @@ class QueueExpiryTest extends AbstractEngineIntegrationTest {
     request.setDisplayName(name);
     request.setQuotas(quotas);
     String workspace = workspaceService.create(request).getName();
-    workflowService.create(workspace, runnableWorkflow(name + "-workflow", TASK_SLUG));
+    Workflow workflow = runnableWorkflow(name + "-workflow", TASK_SLUG);
+    if (withVolume) {
+      WorkflowWorkspace volume = new WorkflowWorkspace();
+      volume.setSize("1Gi");
+      workflow.setWorkspace(volume);
+    }
+    workflowService.create(workspace, workflow);
     return workspace;
   }
 

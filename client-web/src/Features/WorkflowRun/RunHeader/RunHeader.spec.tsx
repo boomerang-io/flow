@@ -211,10 +211,11 @@ describe("RunHeader --- status and controls", () => {
     expect(screen.getByTestId("run-status")).toHaveTextContent(/Succeeded\s+·\s+21 s active/);
   });
 
-  it("offers Start run for a run without a workspace that waits to be started", () => {
+  // A submit always starts its run: there is no run waiting for someone to start it.
+  it("offers no Start run for a run without a workspace that is about to start", () => {
     renderRunHeader({ status: RunStatus.Ready, phase: RunPhase.Pending, duration: 0 }, {}, { user: operator });
 
-    expect(screen.getByRole("button", { name: /Start run/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start run/ })).not.toBeInTheDocument();
     expect(screen.queryByTestId("run-waits-for-dispatcher")).not.toBeInTheDocument();
   });
 
@@ -249,6 +250,7 @@ describe("RunHeader --- status and controls", () => {
         status: RunStatus.Waiting,
         phase: RunPhase.Pending,
         duration: 0,
+        statusReason: "WorkspaceConcurrencyLimit",
         statusMessage: "Waiting for a slot: the workspace's limit of 4 concurrent runs is reached.",
       },
       {},
@@ -258,6 +260,7 @@ describe("RunHeader --- status and controls", () => {
     expect(screen.getByTestId("run-queued")).toHaveTextContent(
       "Queued. Waiting for a slot: the workspace's limit of 4 concurrent runs is reached.",
     );
+    expect(screen.queryByTestId("run-status-reason")).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /Start run/ })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: /View run error/ })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "More run actions" })).toBeInTheDocument();

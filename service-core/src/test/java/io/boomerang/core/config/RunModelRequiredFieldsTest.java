@@ -106,7 +106,6 @@ class RunModelRequiredFieldsTest extends AbstractEngineIntegrationTest {
     JsonNode run =
         read(
             post("/api/v2/workspace/" + workspace + "/workflow/" + workflow.getName() + "/submit")
-                .param("start", "false")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content("{}"));
     submitted = run.get("id").asString();

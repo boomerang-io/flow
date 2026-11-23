@@ -33,8 +33,8 @@ secrets; narrower tokens are declared as `flow.security.tokens.<name>.*`, keyed 
 
 - Admin tooling MAY address any object under any workspace path; `key` tokens still walk from their own node.
 - Ownership writes MUST NOT trust the path segment for a global caller: a submit finds the workflow inside the named
-  workspace (`workflow/WorkflowService.java:729-738`), and a retry takes the owner from the run's or its workflow's
-  edge (`workflow/WorkflowRunService.java:681-734,1041-1044`).
+  workspace (`workflow/WorkflowService.java:728-737`), and a retry takes the owner from the run's or its workflow's
+  edge (`workflow/WorkflowRunService.java:670-723,1030-1033`).
 - The bootstrap token is full admin and rotates by changing its value and restarting; the webapp cannot use it, as
   `/api/v2/profile` accepts only session and user tokens (`workspace/ProfileControllerV2.java:51-54`). Verifying
   host-issued tokens is not built.

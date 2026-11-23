@@ -170,7 +170,7 @@ describe("Execution --- Snapshot", () => {
  *
  * Every expectation below is built by calling the same `serviceUrl.*` builder the action's own
  * RUN_INTENT_REQUESTS table names, never a hand-copied path string, so an intent wired to the
- * wrong builder (retry -> putStartWorkflow, say) fails here rather than passing on a literal that
+ * wrong builder (retry -> putPauseWorkflow, say) fails here rather than passing on a literal that
  * was copied from the same mistake.
  */
 type CapturedRequest = { path: string; method: string; body: string };
@@ -204,10 +204,8 @@ function submit(fields: Record<string, string>) {
 
 const runUrl = serviceUrl.workspace.workflowrun;
 
-// The start route takes an optional JSON body, so the start sends `{}`; the others send none.
 const INTENT_CONTRACT: Array<{ intent: RunActionIntent; path: string; method: string; body?: string }> = [
   { intent: "cancel", path: runUrl.deleteCancelWorkflow({ workspace, id: runId }), method: HttpMethod.Delete },
-  { intent: "start", path: runUrl.putStartWorkflow({ workspace, id: runId }), method: HttpMethod.Put, body: "{}" },
   { intent: "pause", path: runUrl.putPauseWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
   { intent: "resume", path: runUrl.putResumeWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
 ];
@@ -222,21 +220,6 @@ describe("WorkflowRun --- action", () => {
       expect(result).toEqual({ intent });
       expect(captured).toEqual([{ path, method, body }]);
     });
-  });
-
-  // A bodiless PUT goes out as a form, which the start route answers with 415.
-  it("sends the start as JSON", async () => {
-    let contentType: string | null = null;
-    server.use(
-      http.all("*", ({ request }) => {
-        contentType = request.headers.get("content-type");
-        return HttpResponse.json({});
-      }),
-    );
-
-    await submit({ intent: "start" });
-
-    expect(contentType).toMatch(/^application\/json/);
   });
 
   // A retry carries its scope as the request body: no scope from the form is the whole graph,
@@ -256,43 +239,50 @@ describe("WorkflowRun --- action", () => {
     ]);
   });
 
-  // The retry creates the new run unstarted; the page starts it the way its Start button does.
-  it("starts the run the retry created and answers with it", async () => {
+  // The retry starts its run itself: one request, answered with the run it created.
+  it("issues a single PUT retry request and answers with the run it created", async () => {
     const captured: Array<{ path: string; method: string }> = [];
     server.use(
       http.all("*", ({ request }) => {
         const path = new URL(request.url).pathname;
         captured.push({ path, method: request.method.toLowerCase() });
-        return HttpResponse.json(path.endsWith("/retry") ? { id: "retried-run" } : {});
+        return HttpResponse.json({ id: "retried-run", status: "running", phase: "running" });
       }),
     );
 
     const result = await submit({ intent: "retry" });
 
     expect(result).toEqual({ intent: "retry", workflowRunRef: "retried-run" });
-    expect(captured).toEqual([
-      { path: runUrl.putRetryWorkflow({ workspace, id: runId }), method: HttpMethod.Put },
-      { path: runUrl.putStartWorkflow({ workspace, id: "retried-run" }), method: HttpMethod.Put },
-    ]);
+    expect(captured).toEqual([{ path: runUrl.putRetryWorkflow({ workspace, id: runId }), method: HttpMethod.Put }]);
   });
 
-  it("still answers with the retried run when it fails to start, so the page can open it", async () => {
+  // A retry over a concurrency limit is created waiting for a slot: it starts by itself when it is
+  // admitted.
+  it("says a retry that was queued for a slot is queued", async () => {
     server.use(
       http.put(runUrl.putRetryWorkflow({ workspace: ":workspace", id: ":id" }), () =>
-        HttpResponse.json({ id: "retried-run" }),
+        HttpResponse.json({ id: "retried-run", status: "waiting", phase: "pending" }),
       ),
-      http.put(runUrl.putStartWorkflow({ workspace: ":workspace", id: ":id" }), () =>
-        HttpResponse.json({}, { status: 500 }),
+    );
+
+    const result = await submit({ intent: "retry" });
+
+    expect(result).toEqual({ intent: "retry", workflowRunRef: "retried-run", queued: true });
+  });
+
+  it("surfaces a refused retry without a run to move to", async () => {
+    server.use(
+      http.put(runUrl.putRetryWorkflow({ workspace: ":workspace", id: ":id" }), () =>
+        HttpResponse.json({ reason: "QUOTA_EXCEEDED", message: "A quota has been exceeded." }, { status: 429 }),
       ),
     );
 
     const result = (await submit({ intent: "retry" })) as unknown as {
-      data: { intent: string; workflowRunRef: string; error: { message: string } };
+      data: { intent: string; workflowRunRef?: string };
     };
 
     expect(isActionError(result.data)).toBe(true);
-    expect(result.data.workflowRunRef).toBe("retried-run");
-    expect(result.data.error.message).toEqual(expect.any(String));
+    expect(result.data.workflowRunRef).toBeUndefined();
   });
 
   it("sends the chosen scope and task names on a scoped retry", async () => {

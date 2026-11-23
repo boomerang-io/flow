@@ -34,7 +34,7 @@ public final class Flow {
     return new Builder();
   }
 
-  /** The workflow runs of one workspace: submit, start, read, pause, cancel, retry, query, count. */
+  /** The workflow runs of one workspace: submit, read, pause, cancel, retry, query, count. */
   public Runs runs(String workspace) {
     return new Runs(api, workspace);
   }
