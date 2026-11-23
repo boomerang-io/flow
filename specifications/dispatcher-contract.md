@@ -307,7 +307,7 @@ storage MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`,
 `className`, `accessMode`; `common/model/WorkflowWorkspace.java:19-49`), presence is the switch, and the run copies it
-at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2203-2209`).
+at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2221-2227`).
 Every task mounts it unless its node says `workspace: false`, which the canvas cannot set, and the task run carries its
 own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:371-383`).
 
@@ -342,7 +342,7 @@ takes the `task` settings' `default.image`, seeded as `boomerangio/task-flow:3.4
 still holding that (`migration/_0048__DefaultTaskImageTaskFlow34.java`), when its task run is created (`engine/DAGUtility.java:389-392`).
 
 A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
-(`workflow/WorkflowService.java:1770-1771`), and the task run records it (`engine/DAGUtility.java:282`), so a new
+(`workflow/WorkflowService.java:1788-1789`), and the task run records it (`engine/DAGUtility.java:282`), so a new
 task revision changes nothing for a saved workflow until it is saved again.
 
 ## AI tasks

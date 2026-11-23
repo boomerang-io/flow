@@ -16,6 +16,7 @@ import io.boomerang.core.security.enums.PermissionResource;
 import io.boomerang.core.security.enums.PermissionScope;
 import io.boomerang.core.security.enums.TokenActorKind;
 import io.boomerang.core.security.model.ResolvedPermissions;
+import com.mongodb.client.MongoCollection;
 import io.micrometer.core.instrument.MeterRegistry;
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -24,11 +25,12 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
+import org.bson.Document;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.data.mongodb.core.MongoTemplate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.springframework.stereotype.Component;
@@ -56,8 +58,9 @@ import org.springframework.web.context.request.RequestContextHolder;
  *
  * <p>Reading live Mongo on every call means there is no per-instance cache to go stale across
  * replicas - authz decisions made by any instance see every committed write immediately. Node
- * resolutions are memoised per HTTP request only; off-request callers (scheduler threads) simply
- * skip the memo.
+ * resolutions and the caller's memberships are memoised per HTTP request only, so a request sees
+ * one snapshot of each and the next request reads them again; off-request callers (scheduler
+ * threads) simply skip the memo.
  *
  * <p>Write ordering: callers persist the DOMAIN document first, then create the node/edge - the
  * relationship graph is an index over domain truth, never the source of it.
@@ -74,21 +77,26 @@ public class RelationshipService {
 
   private static final String NODE_MEMO_ATTRIBUTE =
       RelationshipService.class.getName() + ".nodeMemo";
+  private static final String MEMBERSHIP_MEMO_ATTRIBUTE =
+      RelationshipService.class.getName() + ".membershipMemo";
 
   private final RelationshipNodeRepository nodeRepository;
   private final RelationshipEdgeRepository edgeRepository;
   private final IdentityService identityService;
   private final MeterRegistry meterRegistry;
+  private final MongoTemplate mongoTemplate;
 
   public RelationshipService(
       RelationshipNodeRepository nodeRepository,
       RelationshipEdgeRepository edgeRepository,
       IdentityService identityService,
-      MeterRegistry meterRegistry) {
+      MeterRegistry meterRegistry,
+      MongoTemplate mongoTemplate) {
     this.nodeRepository = nodeRepository;
     this.edgeRepository = edgeRepository;
     this.identityService = identityService;
     this.meterRegistry = meterRegistry;
+    this.mongoTemplate = mongoTemplate;
   }
 
   // ── Node resolution (direct, index-backed, always type-scoped) ─────────────
@@ -178,6 +186,54 @@ public class RelationshipService {
     if (attributes != null) {
       attributes.removeAttribute(NODE_MEMO_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
     }
+    clearMembershipMemo();
+  }
+
+  /**
+   * Return a user node's {@code memberOf} edges. Those of the request's own caller are read once
+   * per HTTP request: authentication reads them before the request has an identity, and the walk
+   * and every check the caller then makes see that one read, while the next request reads them
+   * again, so a removed member is refused from the next request on. Every write this service makes
+   * to an edge that can be a membership forgets them, so the request that changes a membership
+   * sees its own change. Another user's memberships, and any read with no request active
+   * (scheduler and engine threads), are read every time.
+   */
+  @SuppressWarnings("unchecked")
+  private List<RelationshipEdgeEntity> memberships(String userNodeId) {
+    String label = RelationshipLabel.MEMBER_OF.getLabel();
+    RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+    if (attributes == null) {
+      return edgeRepository.findByFromAndLabel(userNodeId, label);
+    }
+    Map<String, List<RelationshipEdgeEntity>> memo =
+        (Map<String, List<RelationshipEdgeEntity>>)
+            attributes.getAttribute(MEMBERSHIP_MEMO_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+    if (memo == null) {
+      memo = new HashMap<>();
+      attributes.setAttribute(MEMBERSHIP_MEMO_ATTRIBUTE, memo, RequestAttributes.SCOPE_REQUEST);
+    }
+    Token caller = identityService.getCurrentIdentity();
+    // Before the request has an identity the read is kept for the caller authentication is about
+    // to establish; once it has one, only that caller's own memberships are taken from the memo.
+    boolean ownMemberships =
+        caller != null
+            && RelationshipType.USER.equals(identityRelationshipType(caller))
+            && userNodeId.equals(RelationshipType.USER.getLabel() + ":" + caller.getPrincipal());
+    List<RelationshipEdgeEntity> edges = (ownMemberships) ? memo.get(userNodeId) : null;
+    if (edges == null) {
+      edges = List.copyOf(edgeRepository.findByFromAndLabel(userNodeId, label));
+      if (ownMemberships || caller == null) {
+        memo.put(userNodeId, edges);
+      }
+    }
+    return edges;
+  }
+
+  private void clearMembershipMemo() {
+    RequestAttributes attributes = RequestContextHolder.getRequestAttributes();
+    if (attributes != null) {
+      attributes.removeAttribute(MEMBERSHIP_MEMO_ATTRIBUTE, RequestAttributes.SCOPE_REQUEST);
+    }
   }
 
   // ── Mutations (persist to Mongo; no in-memory graph to rebuild) ────────────
@@ -205,6 +261,7 @@ public class RelationshipService {
     requireEdgeShape(fromResult.getType(), label, toResult.getType());
     edgeRepository.save(
         new RelationshipEdgeEntity(fromResult.getId(), label, toResult.getId(), data));
+    clearMembershipMemo();
   }
 
   /*
@@ -264,6 +321,7 @@ public class RelationshipService {
     RelationshipNodeEntity toNode = this.createNode(toType, toRef, toSlug, nodeData);
     edgeRepository.save(
         new RelationshipEdgeEntity(fromResult.getId(), label, toNode.getId(), edgeData));
+    clearMembershipMemo();
   }
 
   /*
@@ -279,6 +337,7 @@ public class RelationshipService {
     RelationshipNodeEntity fromNode = resolveNodeOrThrow(fromType, from);
     RelationshipNodeEntity toNode = resolveNodeOrThrow(toType, to);
     edgeRepository.updateDataByFromAndTo(fromNode.getId(), toNode.getId(), data);
+    clearMembershipMemo();
   }
 
   /*
@@ -298,6 +357,7 @@ public class RelationshipService {
     RelationshipNodeEntity fromNode = resolveNodeOrThrow(fromType, from);
     RelationshipNodeEntity toNode = resolveNodeOrThrow(toType, to);
     edgeRepository.deleteByFromAndTo(fromNode.getId(), toNode.getId());
+    clearMembershipMemo();
   }
 
   /*
@@ -616,39 +676,160 @@ public class RelationshipService {
 
   /**
    * {@link #refsInWorkspace} for several workspaces, keyed by the workspace as named: one walk from
-   * the current principal through any of them, then one query for the edges into the nodes found to
-   * place each under the workspace it hangs from. A workspace with none is absent.
+   * the current principal through any of them, which places each node found under the named
+   * workspaces whose edges into it the walk followed. A named workspace the walk never reached still
+   * counts its edges into a node found, read in one more query only when there is one. A workspace
+   * with none is absent.
    */
   public Map<String, List<String>> refsInWorkspaces(
       RelationshipType type, Collection<String> workspaces) {
     Map<String, List<String>> refs = new HashMap<>();
-    List<String> visible =
-        filter(
-            type,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.copyOf(workspaces)),
-            false);
-    if (visible.isEmpty()) {
+    Anchor anchor = filterAnchor(identityService.getCurrentIdentity(), type, Optional.empty());
+    if (anchor == null) {
       return refs;
     }
     Map<String, String> workspaceByNodeId = new HashMap<>();
     resolveNodes(RelationshipType.WORKSPACE, workspaces)
         .forEach((workspace, node) -> workspaceByNodeId.put(node.getId(), workspace));
-    String prefix = type.getLabel() + ":";
-    for (RelationshipEdgeEntity edge :
-        edgeRepository.findByToIn(visible.stream().map(ref -> prefix + ref).toList())) {
-      if (workspaceByNodeId.containsKey(edge.getFrom())) {
-        // A node reached by two edges from one workspace is still one node.
-        List<String> placed =
-            refs.computeIfAbsent(workspaceByNodeId.get(edge.getFrom()), w -> new ArrayList<>());
-        String ref = edge.getTo().substring(prefix.length());
-        if (!placed.contains(ref)) {
-          placed.add(ref);
-        }
+    Placement placement = new Placement(workspaceByNodeId);
+    List<NodeRef> found =
+        reach(
+            anchor.type(),
+            anchor.from(),
+            type,
+            anchor.toList(),
+            Optional.of(RelationshipType.WORKSPACE),
+            Optional.of(List.copyOf(workspaces)),
+            placement);
+    if (found.isEmpty()) {
+      return refs;
+    }
+    Set<String> unwalked = new HashSet<>(workspaceByNodeId.keySet());
+    unwalked.removeAll(placement.expanded);
+    if (!unwalked.isEmpty()) {
+      edgeRepository
+          .findByFromInAndToIn(unwalked, found.stream().map(NodeRef::id).toList())
+          .forEach(edge -> placement.place(edge.getFrom(), edge.getTo()));
+    }
+    for (NodeRef node : found) {
+      // A node reached by two edges from one workspace is still one node.
+      for (String workspace : placement.workspacesByChild.getOrDefault(node.id(), Set.of())) {
+        refs.computeIfAbsent(workspace, w -> new ArrayList<>()).add(node.ref());
       }
     }
     return refs;
+  }
+
+  /**
+   * The number of workflows in each of {@code workspaces} the current principal may see, keyed by
+   * the workspace as named: what {@code refsInWorkspaces(WORKFLOW, workspaces)} would list, counted
+   * on the edge index without reading a workflow. The workspaces counted are the ones that walk
+   * descends from - every one named for a caller anchored at the root, a user's own among them,
+   * a workspace token's own - and each count is that workspace's {@code hasWorkflow} edges. A
+   * workspace with none is absent.
+   */
+  public Map<String, Long> workflowCountsInWorkspaces(Collection<String> workspaces) {
+    Map<String, Long> counts = new HashMap<>();
+    Anchor anchor =
+        filterAnchor(
+            identityService.getCurrentIdentity(), RelationshipType.WORKFLOW, Optional.empty());
+    if (anchor == null) {
+      return counts;
+    }
+    Map<String, String> workspaceByNodeId = new HashMap<>();
+    resolveNodes(RelationshipType.WORKSPACE, workspaces)
+        .forEach((workspace, node) -> workspaceByNodeId.put(node.getId(), workspace));
+    List<String> reached =
+        workspacesReached(anchor, List.copyOf(workspaces)).stream()
+            .map(NodeRef::id)
+            .filter(workspaceByNodeId::containsKey)
+            .toList();
+    if (reached.isEmpty()) {
+      return counts;
+    }
+    // A workflow hangs from its one workspace by one hasWorkflow edge, so the edges counted are
+    // the workflows listed. The count differs from the listing only on a graph that is already
+    // inconsistent: an edge whose workflow node is gone, or doubled, still counts here.
+    List<Document> pipeline =
+        List.of(
+            new Document(
+                "$match",
+                new Document("from", new Document("$in", reached))
+                    .append("label", RelationshipLabel.HAS_WORKFLOW.getLabel())),
+            new Document(
+                "$group", new Document("_id", "$from").append("n", new Document("$sum", 1))));
+    for (Document count : edges().aggregate(pipeline)) {
+      counts.put(
+          workspaceByNodeId.get(count.getString("_id")), ((Number) count.get("n")).longValue());
+    }
+    return counts;
+  }
+
+  // The named workspaces a walk from the anchor, confined to them, descends from: the starts of
+  // findNodes for such a walk, and for a workspace token its own workspace when the names match it.
+  private List<NodeRef> workspacesReached(Anchor anchor, List<String> workspaces) {
+    if (RelationshipType.ROOT.equals(anchor.type())) {
+      return resolveNodes(RelationshipType.WORKSPACE, workspaces).values().stream()
+          .distinct()
+          .map(NodeRef::of)
+          .toList();
+    }
+    RelationshipNodeEntity from = resolveNode(anchor.type(), anchor.from()).orElse(null);
+    if (from == null) {
+      return List.of();
+    }
+    if (RelationshipType.USER.equals(anchor.type())) {
+      return namedChildWorkspaces(NodeRef.of(from), workspaces, RelationshipType.WORKFLOW);
+    }
+    Optional<RelationshipType> workspaceType = Optional.of(RelationshipType.WORKSPACE);
+    return matchesIntermediate(NodeRef.of(from), true, workspaceType, Optional.of(workspaces))
+        ? List.of(NodeRef.of(from))
+        : List.of();
+  }
+
+  /**
+   * {@link #refsInWorkspace} with no names, as nodes: each carries its id, type, ref and slug and
+   * no data.
+   */
+  public List<RelationshipNodeEntity> nodesInWorkspace(RelationshipType type, String workspace) {
+    Anchor anchor = filterAnchor(identityService.getCurrentIdentity(), type, Optional.empty());
+    if (anchor == null) {
+      return new ArrayList<>();
+    }
+    return findNodes(
+        anchor.type(),
+        anchor.from(),
+        type,
+        anchor.toList(),
+        Optional.of(RelationshipType.WORKSPACE),
+        Optional.of(List.of(workspace)));
+  }
+
+  /**
+   * The named workspaces a walk passes through, and the nodes their edges run to: where {@link
+   * #refsInWorkspaces} places what the walk finds, taken from the edges the walk reads anyway.
+   */
+  private static final class Placement {
+    private final Map<String, String> workspaceByNodeId;
+    private final Map<String, Set<String>> workspacesByChild = new HashMap<>();
+    private final Set<String> expanded = new HashSet<>();
+
+    private Placement(Map<String, String> workspaceByNodeId) {
+      this.workspaceByNodeId = workspaceByNodeId;
+    }
+
+    private void place(String from, String to) {
+      String workspace = workspaceByNodeId.get(from);
+      if (workspace != null) {
+        workspacesByChild.merge(to, Set.of(workspace), Placement::union);
+      }
+    }
+
+    private static Set<String> union(Set<String> a, Set<String> b) {
+      Set<String> both = new HashSet<>(a);
+      both.addAll(b);
+      return both;
+    }
   }
 
   public List<String> filter(
@@ -671,64 +852,67 @@ public class RelationshipService {
       Optional<List<String>> intermediateList,
       Boolean returnSlugs) {
     List<String> refs = new ArrayList<>();
-    Token identity = identityService.getCurrentIdentity();
-    RelationshipType fromType = null;
-    String from = identity.getPrincipal();
-
-    if (RelationshipType.TASK.equals(toType)) {
-      // Tasks are a global catalogue: every principal sees every task, so the walk anchors
-      // at the root node instead of the principal.
-      fromType = RelationshipType.ROOT;
-      from = "root";
-    } else {
-      switch (identity.getType()) {
-        case session:
-        case user:
-          // An admin's or operator's session carries global grants and sees every node of the
-          // type, as a global token does; any other user sees what their own node reaches.
-          if (IdentityService.hasGlobalGrant(identity)) {
-            fromType = RelationshipType.ROOT;
-            from = "root";
-          } else {
-            fromType = RelationshipType.USER;
-          }
-          break;
-        case key:
-          // `key` folds the retired `workflow`/`workspace` classes together - actorKind
-          // (only ever WORKFLOW here) tells them apart, same as check() above.
-          if (TokenActorKind.WORKFLOW.equals(identity.getActorKind())) {
-            fromType = RelationshipType.WORKFLOW;
-            if (fromType.equals(toType)
-                && toRefsOrSlugs.isPresent()
-                && toRefsOrSlugs.get().contains(from)) {
-              // A workflow token accessing its own workflow record: anchor at root, scoped to
-              // itself, as the workflow node has no outgoing edge back to itself.
-              toRefsOrSlugs = Optional.of(List.of(from));
-              fromType = RelationshipType.ROOT;
-              from = "root";
-            }
-          } else {
-            fromType = RelationshipType.WORKSPACE;
-          }
-          break;
-        case global:
-          // Allow anything with no filtering - retrieve all nodes of a type in the system.
-          fromType = RelationshipType.ROOT;
-          from = "root";
-          break;
-      }
-    }
-
-    if (!Objects.isNull(fromType)) {
-      LOGGER.debug("Filtering {} for {}:{}", toType.getLabel(), fromType.getLabel(), from);
+    Anchor anchor = filterAnchor(identityService.getCurrentIdentity(), toType, toRefsOrSlugs);
+    if (anchor != null) {
+      LOGGER.debug(
+          "Filtering {} for {}:{}", toType.getLabel(), anchor.type().getLabel(), anchor.from());
       refs =
-          findNodes(fromType, from, toType, toRefsOrSlugs, intermediateType, intermediateList)
+          reach(
+                  anchor.type(),
+                  anchor.from(),
+                  toType,
+                  anchor.toList(),
+                  intermediateType,
+                  intermediateList,
+                  null)
               .stream()
-              .map(returnSlugs ? RelationshipNodeEntity::getSlug : RelationshipNodeEntity::getRef)
+              .map(returnSlugs ? NodeRef::slug : NodeRef::ref)
               .collect(Collectors.toList());
     }
     LOGGER.debug("Filtered {}: {}", toType.getLabel(), refs);
     return refs;
+  }
+
+  /** The node a filter walks from, and the refs or slugs it looks for there. */
+  private record Anchor(RelationshipType type, String from, Optional<List<String>> toList) {}
+
+  // Where a filter for the identity starts its walk; null when the identity's class reaches nothing.
+  private static Anchor filterAnchor(
+      Token identity, RelationshipType toType, Optional<List<String>> toRefsOrSlugs) {
+    String from = identity.getPrincipal();
+    if (RelationshipType.TASK.equals(toType)) {
+      // Tasks are a global catalogue: every principal sees every task, so the walk anchors
+      // at the root node instead of the principal.
+      return new Anchor(RelationshipType.ROOT, "root", toRefsOrSlugs);
+    }
+    switch (identity.getType()) {
+      case session:
+      case user:
+        // An admin's or operator's session carries global grants and sees every node of the
+        // type, as a global token does; any other user sees what their own node reaches.
+        return IdentityService.hasGlobalGrant(identity)
+            ? new Anchor(RelationshipType.ROOT, "root", toRefsOrSlugs)
+            : new Anchor(RelationshipType.USER, from, toRefsOrSlugs);
+      case key:
+        // `key` folds the retired `workflow`/`workspace` classes together - actorKind
+        // (only ever WORKFLOW here) tells them apart, same as check() above.
+        if (!TokenActorKind.WORKFLOW.equals(identity.getActorKind())) {
+          return new Anchor(RelationshipType.WORKSPACE, from, toRefsOrSlugs);
+        }
+        if (RelationshipType.WORKFLOW.equals(toType)
+            && toRefsOrSlugs.isPresent()
+            && toRefsOrSlugs.get().contains(from)) {
+          // A workflow token accessing its own workflow record: anchor at root, scoped to
+          // itself, as the workflow node has no outgoing edge back to itself.
+          return new Anchor(RelationshipType.ROOT, "root", Optional.of(List.of(from)));
+        }
+        return new Anchor(RelationshipType.WORKFLOW, from, toRefsOrSlugs);
+      case global:
+        // Allow anything with no filtering - retrieve all nodes of a type in the system.
+        return new Anchor(RelationshipType.ROOT, "root", toRefsOrSlugs);
+      default:
+        return null;
+    }
   }
 
   // ── Membership / roles (direct edge queries) ───────────────────────────────
@@ -757,10 +941,7 @@ public class RelationshipService {
    * Retrieve the Teams and Roles for current Principal
    */
   public Map<String, String> roles(String principal) {
-    List<RelationshipEdgeEntity> edges =
-        edgeRepository.findByFromAndLabel(
-            "user:" + principal, RelationshipLabel.MEMBER_OF.getLabel());
-    return edges.stream()
+    return memberships("user:" + principal).stream()
         .collect(
             Collectors.toMap(
                 e -> e.getTo().split(":")[1],
@@ -825,11 +1006,13 @@ public class RelationshipService {
    */
   /*
    * The edges the graph is made of, as from type, label and to type. The lookups take shortcuts
-   * that hold only for this shape (runsReached, namedChildWorkspaces, globalTasks, and the walk
-   * skipping run edges): a user reaches only workspaces, only a workspace reaches a run, nothing
-   * starts at a run or a workflow, and the root reaches tasks through hasTask. A new kind of edge
-   * is refused here until those lookups are checked against it; add it with
-   * RelationshipLookupEquivalenceTest covering it.
+   * that hold only for this shape (runsReached, namedChildWorkspaces, globalTasks,
+   * workspacesUnderRoot, workflowCountsInWorkspaces, and a user's edges being its memberships): a
+   * user reaches only workspaces and only by memberOf, only a workspace reaches a run, nothing
+   * starts at a run or a workflow, and the root reaches tasks through hasTask. The labels a walk
+   * follows are computed from these shapes (labelsToward), so a walk follows a new shape as soon
+   * as it is listed. A new kind of edge is refused here until those lookups are checked against
+   * it; add it with RelationshipLookupEquivalenceTest covering it.
    */
   private static final Set<String> EDGE_SHAPES =
       Set.of(
@@ -843,6 +1026,41 @@ public class RelationshipService {
           "workspace|hasApproverGroup|approvergroup",
           "workspace|hasIntegration|integration",
           "workspace|linksTemplate|workflow");
+
+  private record Shape(String from, String label, String to) {}
+
+  private static final List<Shape> SHAPES =
+      EDGE_SHAPES.stream()
+          .map(shape -> shape.split("\\|"))
+          .map(parts -> new Shape(parts[0], parts[1], parts[2]))
+          .toList();
+
+  /**
+   * The labels of the edges that leave a node of any of {@code fromTypes} and lie on a path to a
+   * node of {@code toType}, by {@link #EDGE_SHAPES}: an edge counts when it runs to the target type
+   * or to a type the target is reached from. Empty when no shape leads there, so a walk for a type
+   * nothing reaches reads nothing. Computed from the shapes, so a new shape is followed as soon as
+   * it is allowed.
+   */
+  private static Set<String> labelsToward(Collection<String> fromTypes, String toType) {
+    Set<String> leading = new HashSet<>(Set.of(toType));
+    boolean grew = true;
+    while (grew) {
+      grew = false;
+      for (Shape shape : SHAPES) {
+        if (leading.contains(shape.to()) && leading.add(shape.from())) {
+          grew = true;
+        }
+      }
+    }
+    Set<String> labels = new HashSet<>();
+    for (Shape shape : SHAPES) {
+      if (fromTypes.contains(shape.from()) && leading.contains(shape.to())) {
+        labels.add(shape.label());
+      }
+    }
+    return labels;
+  }
 
   private static void requireEdgeShape(String fromType, RelationshipLabel label, String toType) {
     if (!EDGE_SHAPES.contains(fromType + "|" + label.getLabel() + "|" + toType)) {
@@ -868,6 +1086,7 @@ public class RelationshipService {
           new RelationshipEdgeEntity(
               userNode.getId(), RelationshipLabel.MEMBER_OF, workspaceNode.getId(), Optional.of(data)));
     }
+    clearMembershipMemo();
   }
 
   // ── Traversal ──────────────────────────────────────────────────────────────
@@ -877,9 +1096,9 @@ public class RelationshipService {
    */
   public List<String> findNodeRefs(
       RelationshipType fromType, String from, RelationshipType toType) {
-    return findNodes(fromType, from, toType, Optional.empty(), Optional.empty(), Optional.empty())
+    return reach(fromType, from, toType, Optional.empty(), Optional.empty(), Optional.empty(), null)
         .stream()
-        .map(RelationshipNodeEntity::getRef)
+        .map(NodeRef::ref)
         .collect(Collectors.toList());
   }
 
@@ -949,6 +1168,23 @@ public class RelationshipService {
   }
 
   /**
+   * Return the ids of the nodes a node's outgoing edges with the label run to, from the edges
+   * alone: no node is read, so an id may name a node that is gone.
+   */
+  public Set<String> childIdsByLabel(
+      RelationshipType fromType, String from, RelationshipLabel label) {
+    Set<String> ids = new HashSet<>();
+    resolveNode(fromType, from)
+        .ifPresent(
+            node ->
+                edges()
+                    .find(new Document("from", node.getId()).append("label", label.getLabel()))
+                    .projection(new Document("to", 1).append("_id", 0))
+                    .forEach(edge -> ids.add(edge.getString("to"))));
+    return ids;
+  }
+
+  /**
    * {@link #childrenByLabel(RelationshipType, String, RelationshipLabel)} for several nodes of one
    * type, keyed by the node as named: one edge query and one node query for all of them. A node
    * with no children, or none at all, is absent.
@@ -991,9 +1227,9 @@ public class RelationshipService {
    * only teams they are a member of, and their descendants.
    *
    * <p>The graph is {@code root -> user|workspace|task}, {@code user -> workspace} and {@code
-   * workspace -> workflow|workflowrun|workspacetask|approvergroup|integration}, and nothing hangs
-   * below a run or a workflow, so these lookups read only the edges that can lead to the target and
-   * find exactly the nodes the full walk finds:
+   * workspace -> workflow|workflowrun|workspacetask|approvergroup|integration}, every workspace
+   * hangs from the root, and nothing hangs below a run or a workflow, so these lookups read only
+   * the edges that can lead to the target and find exactly the nodes the full walk finds:
    *
    * <ul>
    *   <li>A walk confined to named workspaces starts at those workspaces: from the root, every one
@@ -1001,8 +1237,14 @@ public class RelationshipService {
    *   <li>Named runs are found from their own incoming edges: a run counts when its workspace is
    *       the anchor, or one the anchoring user reaches by an edge read now.
    *   <li>The global task catalogue is the root's {@code hasTask} children.
-   *   <li>A walk for anything but a run leaves the {@code hasWorkflowRun} edges unread.
+   *   <li>Every workspace, from the root, is the root's {@code contains} children of that type.
+   *   <li>A walk level reads only the edges whose label lies on a path to the target type ({@link
+   *       #labelsToward}): a walk for approver groups reads no workflow edge, and none but a walk
+   *       for runs reads a {@code hasWorkflowRun} edge.
    * </ul>
+   *
+   * <p>A walk reads each node's type, ref and slug only, so the nodes it returns carry no data; a
+   * walk for named nodes reads only those of the type it names.
    */
   public List<RelationshipNodeEntity> findNodes(
       RelationshipType fromType,
@@ -1011,6 +1253,55 @@ public class RelationshipService {
       Optional<List<String>> toList,
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
+    return reach(fromType, from, toType, toList, intermediateType, intermediateList, null).stream()
+        .map(NodeRef::entity)
+        .collect(Collectors.toList());
+  }
+
+  /**
+   * A node as a lookup carries it: id, type, ref and slug, read straight from the document. One
+   * that was resolved or read whole keeps its entity, so {@link #findNodes} hands back the entity
+   * it always did; the others become an entity without data only there.
+   */
+  private record NodeRef(
+      String id, String type, String ref, String slug, RelationshipNodeEntity whole) {
+
+    private static NodeRef of(RelationshipNodeEntity node) {
+      return new NodeRef(node.getId(), node.getType(), node.getRef(), node.getSlug(), node);
+    }
+
+    private static NodeRef of(Document node) {
+      return new NodeRef(
+          node.getString("_id"),
+          node.getString("type"),
+          node.getString("ref"),
+          node.getString("slug"),
+          null);
+    }
+
+    private RelationshipNodeEntity entity() {
+      if (whole != null) {
+        return whole;
+      }
+      RelationshipNodeEntity node = new RelationshipNodeEntity(type, ref, slug, Optional.empty());
+      node.setId(id);
+      return node;
+    }
+  }
+
+  /** An edge as a walk carries it: the ids of its two ends. */
+  private record Ends(String from, String to) {}
+
+  // findNodes as light nodes, recording into the placement, when there is one, the edges the walk
+  // follows.
+  private List<NodeRef> reach(
+      RelationshipType fromType,
+      String from,
+      RelationshipType toType,
+      Optional<List<String>> toList,
+      Optional<RelationshipType> intermediateType,
+      Optional<List<String>> intermediateList,
+      Placement placement) {
     // A present-but-empty intermediate list is an intermediate filter that matches nothing.
     boolean hasIntermediate = intermediateType.isPresent() && intermediateList.isPresent();
     boolean inWorkspaces =
@@ -1018,12 +1309,15 @@ public class RelationshipService {
 
     if (RelationshipType.ROOT.equals(fromType) && inWorkspaces) {
       return walk(
-          List.copyOf(resolveNodes(RelationshipType.WORKSPACE, intermediateList.get()).values()),
+          resolveNodes(RelationshipType.WORKSPACE, intermediateList.get()).values().stream()
+              .map(NodeRef::of)
+              .toList(),
           toType,
           toList,
           hasIntermediate,
           intermediateType,
-          intermediateList);
+          intermediateList,
+          placement);
     }
     RelationshipNodeEntity anchor = resolveNode(fromType, from).orElse(null);
     if (anchor == null) {
@@ -1033,38 +1327,67 @@ public class RelationshipService {
     if (RelationshipType.ROOT.equals(fromType)
         && RelationshipType.TASK.equals(toType)
         && !hasIntermediate) {
-      return globalTasks(anchor, toList);
+      return globalTasks(anchor, toList).stream().map(NodeRef::of).collect(Collectors.toList());
+    }
+    if (RelationshipType.ROOT.equals(fromType)
+        && RelationshipType.WORKSPACE.equals(toType)
+        && !hasIntermediate) {
+      return workspacesUnderRoot(anchor, toList);
     }
     if (RelationshipType.WORKFLOWRUN.equals(toType)
         && toList.isPresent()
         && (!hasIntermediate || inWorkspaces)
         && (RelationshipType.USER.equals(fromType)
             || RelationshipType.WORKSPACE.equals(fromType))) {
-      return runsReached(anchor, toList.get(), hasIntermediate, intermediateList);
+      return runsReached(anchor, toList.get(), hasIntermediate, intermediateList).stream()
+          .map(NodeRef::of)
+          .collect(Collectors.toList());
     }
-    List<RelationshipNodeEntity> starts =
+    List<NodeRef> starts =
         (RelationshipType.USER.equals(fromType) && inWorkspaces)
-            ? namedChildWorkspaces(anchor, intermediateList.get(), toType)
-            : List.of(anchor);
-    return walk(starts, toType, toList, hasIntermediate, intermediateType, intermediateList);
+            ? namedChildWorkspaces(NodeRef.of(anchor), intermediateList.get(), toType)
+            : List.of(NodeRef.of(anchor));
+    return walk(
+        starts, toType, toList, hasIntermediate, intermediateType, intermediateList, placement);
   }
 
   // The workspaces a user's node has an edge to that the names match: where a walk from the user,
   // confined to those workspaces, passes the confinement. The others lead to no node it finds.
-  private List<RelationshipNodeEntity> namedChildWorkspaces(
-      RelationshipNodeEntity user, List<String> workspaces, RelationshipType toType) {
+  private List<NodeRef> namedChildWorkspaces(
+      NodeRef user, List<String> workspaces, RelationshipType toType) {
     List<String> children =
-        edgesFrom(List.of(user.getId()), toType).stream()
-            .map(RelationshipEdgeEntity::getTo)
-            .filter(id -> !id.equals(user.getId()))
+        edgesFrom(List.of(user), toType).stream()
+            .map(Ends::to)
+            .filter(id -> !id.equals(user.id()))
             .distinct()
             .toList();
     return children.isEmpty()
         ? List.of()
-        : nodeRepository.findByIdInAndTypeAndRefOrSlugIn(
-            children, RelationshipType.WORKSPACE.getLabel(), workspaces);
+        : nodes(
+            new Document("_id", new Document("$in", children))
+                .append("type", RelationshipType.WORKSPACE.getLabel())
+                .append("$or", named(workspaces)));
   }
 
+  // Every workspace under the root, optionally those of these refs or names: the root's contains
+  // children of the type. Every workspace hangs from the root, so the users beside them, whose
+  // memberships lead only to those same workspaces, are neither read nor walked.
+  private List<NodeRef> workspacesUnderRoot(
+      RelationshipNodeEntity root, Optional<List<String>> toList) {
+    List<String> children =
+        edgesFrom(List.of(NodeRef.of(root)), RelationshipType.WORKSPACE).stream()
+            .map(Ends::to)
+            .distinct()
+            .toList();
+    if (children.isEmpty()) {
+      return new ArrayList<>();
+    }
+    Document filter =
+        new Document("_id", new Document("$in", children))
+            .append("type", RelationshipType.WORKSPACE.getLabel());
+    toList.ifPresent(names -> filter.append("$or", named(names)));
+    return nodes(filter);
+  }
   /*
    * The named runs a walk from the anchor - a workspace, or a user - finds. A run is a leaf hanging
    * from its workspace, so it is found when an edge into it starts at the anchor, or at a node the
@@ -1087,15 +1410,18 @@ public class RelationshipService {
     Set<String> through;
     if (RelationshipType.WORKSPACE.getLabel().equals(anchor.getType())) {
       through =
-          (!hasIntermediate || matchesIntermediate(anchor, true, workspaceType, workspaces))
+          (!hasIntermediate
+                  || matchesIntermediate(NodeRef.of(anchor), true, workspaceType, workspaces))
               ? Set.of(anchor.getId())
               : Set.of();
     } else {
       Set<String> parents =
           into.stream().map(RelationshipEdgeEntity::getFrom).collect(Collectors.toSet());
+      // A user's edges are its memberships, which the request reads once.
       List<String> reached =
-          edgeRepository.findByFromAndToIn(anchor.getId(), parents).stream()
+          memberships(anchor.getId()).stream()
               .map(RelationshipEdgeEntity::getTo)
+              .filter(parents::contains)
               .toList();
       // A run is a leaf: the walk never goes on from one, so none leads to another.
       through =
@@ -1104,7 +1430,8 @@ public class RelationshipService {
               .filter(
                   node ->
                       !hasIntermediate
-                          || matchesIntermediate(node, true, workspaceType, workspaces))
+                          || matchesIntermediate(
+                              NodeRef.of(node), true, workspaceType, workspaces))
               .map(RelationshipNodeEntity::getId)
               .collect(Collectors.toSet());
     }
@@ -1147,79 +1474,143 @@ public class RelationshipService {
         .collect(Collectors.toList());
   }
 
-  // A walk level's outgoing edges. Runs are leaves under their workspace, so a walk for anything
-  // else leaves their edges unread; the from_label index skips them.
-  private List<RelationshipEdgeEntity> edgesFrom(List<String> ids, RelationshipType toType) {
-    return RelationshipType.WORKFLOWRUN.equals(toType)
-        ? edgeRepository.findByFromIn(ids)
-        : edgeRepository.findByFromInAndLabelNot(ids, RelationshipLabel.HAS_WORKFLOWRUN.getLabel());
+  private MongoCollection<Document> edges() {
+    return mongoTemplate.getCollection(mongoTemplate.getCollectionName(RelationshipEdgeEntity.class));
+  }
+
+  // Nodes matching the filter as id, type, ref and slug, read as documents: no entity is mapped.
+  private List<NodeRef> nodes(Document filter) {
+    List<NodeRef> nodes = new ArrayList<>();
+    mongoTemplate
+        .getCollection(mongoTemplate.getCollectionName(RelationshipNodeEntity.class))
+        .find(filter)
+        .projection(new Document("type", 1).append("ref", 1).append("slug", 1))
+        .forEach(node -> nodes.add(NodeRef.of(node)));
+    return nodes;
+  }
+
+  // The slug or the ref is any of the names: the two branches of a node filter's $or.
+  private static List<Document> named(Collection<String> names) {
+    Document in = new Document("$in", List.copyOf(names));
+    return List.of(new Document("slug", in), new Document("ref", in));
+  }
+
+  /*
+   * A walk level's outgoing edges, as their two ends, read as documents on the from_label index:
+   * only the edges whose label leads from these nodes toward the target type, so the others are
+   * never read, and none at all when nothing leads there. A user's node alone is its memberships,
+   * which the request has usually read already.
+   */
+  private List<Ends> edgesFrom(Collection<NodeRef> from, RelationshipType toType) {
+    Set<String> labels =
+        labelsToward(
+            from.stream().map(NodeRef::type).collect(Collectors.toSet()), toType.getLabel());
+    if (labels.isEmpty()) {
+      return List.of();
+    }
+    List<Ends> ends = new ArrayList<>();
+    if (from.size() == 1
+        && RelationshipType.USER.getLabel().equals(from.iterator().next().type())
+        && labels.equals(Set.of(RelationshipLabel.MEMBER_OF.getLabel()))) {
+      memberships(from.iterator().next().id())
+          .forEach(edge -> ends.add(new Ends(edge.getFrom(), edge.getTo())));
+      return ends;
+    }
+    edges()
+        .find(
+            new Document("from", new Document("$in", from.stream().map(NodeRef::id).toList()))
+                .append("label", new Document("$in", List.copyOf(labels))))
+        .projection(new Document("from", 1).append("to", 1).append("_id", 0))
+        .forEach(edge -> ends.add(new Ends(edge.getString("from"), edge.getString("to"))));
+    return ends;
+  }
+
+  // A walk level's nodes as type, ref and slug. A node of the target type that none of the names
+  // match is neither found nor walked past, so a walk for named nodes leaves it unread.
+  private List<NodeRef> readLevel(
+      Collection<String> ids, RelationshipType toType, Optional<List<String>> toList) {
+    Document filter = new Document("_id", new Document("$in", List.copyOf(ids)));
+    if (toList.isPresent()) {
+      List<Document> wanted = new ArrayList<>();
+      wanted.add(new Document("type", new Document("$ne", toType.getLabel())));
+      wanted.addAll(named(toList.get()));
+      filter.append("$or", wanted);
+    }
+    return nodes(filter);
   }
 
   // The level-by-level downward walk of findNodes, from one or more start nodes.
-  private List<RelationshipNodeEntity> walk(
-      List<RelationshipNodeEntity> starts,
+  private List<NodeRef> walk(
+      List<NodeRef> starts,
       RelationshipType toType,
       Optional<List<String>> toList,
       boolean hasIntermediate,
       Optional<RelationshipType> intermediateType,
-      Optional<List<String>> intermediateList) {
+      Optional<List<String>> intermediateList,
+      Placement placement) {
     String toTypeLabel = toType.getLabel();
-    List<RelationshipNodeEntity> results = new ArrayList<>();
-    Map<String, RelationshipNodeEntity> levelNodes = new HashMap<>();
+    List<NodeRef> results = new ArrayList<>();
+    Map<String, NodeRef> levelNodes = new HashMap<>();
     Map<String, Boolean> levelPassed = new HashMap<>();
-    for (RelationshipNodeEntity start : starts) {
-      levelNodes.put(start.getId(), start);
+    for (NodeRef start : starts) {
+      levelNodes.put(start.id(), start);
       levelPassed.put(
-          start.getId(),
+          start.id(),
           matchesIntermediate(start, hasIntermediate, intermediateType, intermediateList));
     }
     Set<String> seen = new HashSet<>(levelNodes.keySet());
 
     while (!levelNodes.isEmpty()) {
-      List<String> expandIds = new ArrayList<>();
-      for (Map.Entry<String, RelationshipNodeEntity> entry : levelNodes.entrySet()) {
-        RelationshipNodeEntity node = entry.getValue();
-        if (node.getType().equals(toTypeLabel)) {
+      List<NodeRef> expand = new ArrayList<>();
+      for (Map.Entry<String, NodeRef> entry : levelNodes.entrySet()) {
+        NodeRef node = entry.getValue();
+        if (node.type().equals(toTypeLabel)) {
           boolean interOk = !hasIntermediate || levelPassed.getOrDefault(entry.getKey(), false);
           if (interOk && matchesToList(node, toList)) {
             results.add(node);
           }
           // Target nodes are the leaves we want; do not expand past them.
         } else {
-          expandIds.add(entry.getKey());
+          expand.add(node);
         }
       }
-      if (expandIds.isEmpty()) {
+      if (expand.isEmpty()) {
         break;
       }
+      if (placement != null) {
+        expand.forEach(node -> placement.expanded.add(node.id()));
+      }
 
-      List<RelationshipEdgeEntity> edges = edgesFrom(expandIds, toType);
+      List<Ends> edges = edgesFrom(expand, toType);
       if (edges.isEmpty()) {
         break;
       }
 
       Map<String, Boolean> childPassed = new HashMap<>();
-      for (RelationshipEdgeEntity edge : edges) {
-        String childId = edge.getTo();
+      for (Ends edge : edges) {
+        String childId = edge.to();
+        if (placement != null) {
+          placement.place(edge.from(), childId);
+        }
         if (seen.contains(childId)) {
           continue;
         }
-        boolean parentPassed = levelPassed.getOrDefault(edge.getFrom(), false);
+        boolean parentPassed = levelPassed.getOrDefault(edge.from(), false);
         childPassed.merge(childId, parentPassed, Boolean::logicalOr);
       }
       if (childPassed.isEmpty()) {
         break;
       }
 
-      Map<String, RelationshipNodeEntity> nextNodes = new HashMap<>();
+      Map<String, NodeRef> nextNodes = new HashMap<>();
       Map<String, Boolean> nextPassed = new HashMap<>();
-      for (RelationshipNodeEntity child : nodeRepository.findAllById(childPassed.keySet())) {
+      for (NodeRef child : readLevel(childPassed.keySet(), toType, toList)) {
         boolean passed =
-            childPassed.getOrDefault(child.getId(), false)
+            childPassed.getOrDefault(child.id(), false)
                 || matchesIntermediate(child, hasIntermediate, intermediateType, intermediateList);
-        nextNodes.put(child.getId(), child);
-        nextPassed.put(child.getId(), passed);
-        seen.add(child.getId());
+        nextNodes.put(child.id(), child);
+        nextPassed.put(child.id(), passed);
+        seen.add(child.id());
       }
       levelNodes = nextNodes;
       levelPassed = nextPassed;
@@ -1236,29 +1627,29 @@ public class RelationshipService {
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
     boolean has =
-        !findNodes(fromType, from, toType, toList, intermediateType, intermediateList).isEmpty();
+        !reach(fromType, from, toType, toList, intermediateType, intermediateList, null).isEmpty();
     LOGGER.debug("Has Node(s): {}", has);
     return has;
   }
 
-  private static boolean matchesToList(RelationshipNodeEntity node, Optional<List<String>> toList) {
+  private static boolean matchesToList(NodeRef node, Optional<List<String>> toList) {
     return toList.isEmpty()
-        || toList.get().contains(node.getRef())
-        || toList.get().contains(node.getSlug());
+        || toList.get().contains(node.ref())
+        || toList.get().contains(node.slug());
   }
 
   private static boolean matchesIntermediate(
-      RelationshipNodeEntity node,
+      NodeRef node,
       boolean hasIntermediate,
       Optional<RelationshipType> intermediateType,
       Optional<List<String>> intermediateList) {
     if (!hasIntermediate) {
       return false;
     }
-    if (!node.getType().equals(intermediateType.get().getLabel())) {
+    if (!node.type().equals(intermediateType.get().getLabel())) {
       return false;
     }
-    return intermediateList.get().contains(node.getRef())
-        || intermediateList.get().contains(node.getSlug());
+    return intermediateList.get().contains(node.ref())
+        || intermediateList.get().contains(node.slug());
   }
 }

@@ -2,7 +2,7 @@ import moment from "moment-timezone";
 import queryString from "query-string";
 import { queryStringOptions } from "Config/appConfig";
 import { serviceUrl } from "Config/servicesConfig";
-import { serverFetch } from "Config/serverFetch";
+import { serverFetch, sharedGet } from "Config/serverFetch";
 import { Action, FlowUser, FlowWorkspaceSummary, PaginatedResponse, RunStatus, Schedule, WorkflowRun } from "Types";
 
 /*
@@ -159,7 +159,7 @@ export async function loader({ request }: { request: Request }): Promise<HomeLoa
   const timeZone = viewerTimeZone(request);
   const now = timeZone ? moment.tz(timeZone) : moment();
 
-  const profile = await settle(api.get<FlowUser>(serviceUrl.getUserProfile()));
+  const profile = await settle(sharedGet<FlowUser>(request, serviceUrl.getUserProfile()));
   const workspaces: Array<FlowWorkspaceSummary> = profile.ok ? profile.data.workspaces ?? [] : [];
   const degraded: HomeDegraded = {
     runsToday: !profile.ok,

@@ -387,16 +387,11 @@ public class WorkspaceService {
 
     // Get and delete all Workflows (this cascade deletes the Workflows, WorkflowRevisions,
     // Schedules, Actions, WorkflowRuns, and TaskRuns
+    // The workspace's workflows are found once, by ref, and each is deleted as found.
     List<String> workflowRefs =
-        relationshipService.filter(
-            RelationshipType.WORKFLOW,
-            Optional.empty(),
-            Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(workspace)));
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty());
     LOGGER.debug("Workspace Workflow Refs: {}", workflowRefs.toString());
-    if (workflowRefs.size() > 0) {
-      workflowRefs.forEach(ref -> workflowService.delete(workspace, ref));
-    }
+    workflowRefs.forEach(workflowService::deleteFound);
 
     // Delete all Tokens
     tokenService.deleteAllForPrincipal(workspace);
@@ -915,8 +910,8 @@ public class WorkspaceService {
         .forEach(entity -> workspaceEntities.put(entity.getId(), entity));
     Map<String, Map<String, String>> membersAndRoles =
         relationshipService.membersAndRoles(workspaceEntities.keySet());
-    Map<String, List<String>> workflowRefs =
-        relationshipService.refsInWorkspaces(RelationshipType.WORKFLOW, workspaceEntities.keySet());
+    Map<String, Long> workflowCounts =
+        relationshipService.workflowCountsInWorkspaces(workspaceEntities.keySet());
     teamRefsAndRoles.forEach(
         (k, v) -> {
           if (workspaceEntities.containsKey(k)) {
@@ -926,7 +921,7 @@ public class WorkspaceService {
             Map<String, String> workspaceMembers = membersAndRoles.getOrDefault(k, Map.of());
             tsi.setMembers(Long.valueOf(workspaceMembers.size()));
             members.addAll(workspaceMembers.keySet());
-            tsi.setWorkflows(Long.valueOf(workflowRefs.getOrDefault(k, List.of()).size()));
+            tsi.setWorkflows(workflowCounts.getOrDefault(k, 0L));
             ts.setInsights(tsi);
             ts.setRole(v);
             teamSummaries.add(ts);

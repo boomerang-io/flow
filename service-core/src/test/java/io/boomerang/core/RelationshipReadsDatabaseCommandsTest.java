@@ -351,8 +351,60 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
   }
 
   /**
-   * A walk level for anything but a run asks for its edges with the run label left out, which the
-   * from_label index answers without reading a run edge.
+   * A member's Workflows page, served over HTTP with their session: authentication reads the
+   * member's memberships and every lookup after it in the request uses that one read. The page
+   * finds the workspace's workflows in one walk and reads no workflow whole to list the templates
+   * beside them.
+   */
+  @Test
+  void aMembersWorkflowsPageReadsTheirMembershipsOnceAndWalksTheWorkspaceOnce() {
+    String member = memberOfThreeWorkspaces();
+    String email = userRepository.findById(member).orElseThrow().getEmail();
+    String session =
+        "Bearer " + tokenService.createSessionTokenWithRaw(email, "Rel", "Reads", false, false).rawToken();
+
+    Recorded<Integer> page =
+        http(
+            () ->
+                status(
+                    get("/api/v2/workspace/" + workspace + "/workflow/query")
+                        .header(HttpHeaders.AUTHORIZATION, session)));
+    List<String> names = page.names().stream().map(name -> name.replace(" flowtest_", " ")).toList();
+    System.out.printf(
+        "REL DOCS | member's workflows page | %d edges %d nodes | %s%n",
+        page.documentsRead("rel_edges"), page.documentsRead("rel_nodes"), names);
+    assertThat(page.result()).isEqualTo(200);
+    // The member's three memberships once, the workspace's one workflow edge for the walk, and
+    // the same edge as the workspace's own.
+    assertThat(page.documentsRead("rel_edges")).isEqualTo(3 + 1 + 1);
+    assertThat(names.stream().filter(name -> name.equals("find rel_edges"))).hasSize(3);
+    // No workflow is read by id to find the templates the workspace already links.
+    assertThat(names.stream().filter(name -> name.equals("find workflows")).count())
+        .isLessThanOrEqualTo(3);
+
+    // A request that names workflows asks the relationship layer for those names as well, since
+    // a workflow's own token reaches its workflow only by name: one more walk of the workspace's
+    // workflow edges, still on the one read of the memberships.
+    Recorded<Integer> named =
+        http(
+            () ->
+                status(
+                    get("/api/v2/workspace/" + workspace + "/workflow/query")
+                        .param("workflows", "rel-reads-wf-" + nonce)
+                        .header(HttpHeaders.AUTHORIZATION, session)));
+    List<String> namedNames =
+        named.names().stream().map(name -> name.replace(" flowtest_", " ")).toList();
+    System.out.printf(
+        "REL DOCS | member's workflows page, named | %d edges %d nodes | %s%n",
+        named.documentsRead("rel_edges"), named.documentsRead("rel_nodes"), namedNames);
+    assertThat(named.result()).isEqualTo(200);
+    assertThat(named.documentsRead("rel_edges")).isEqualTo(3 + 1 + 1 + 1);
+    assertThat(namedNames.stream().filter(name -> name.equals("find rel_edges"))).hasSize(4);
+  }
+
+  /**
+   * A walk level for anything but a run asks for its edges by the labels that lead to its target,
+   * which the from_label index answers without reading a run edge.
    */
   @Test
   void aWalkLevelLeavesTheRunEdgesUnreadOnTheFromLabelIndex() {
@@ -376,7 +428,10 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
                                     .append(
                                         "label",
                                         new Document(
-                                            "$ne", RelationshipLabel.HAS_WORKFLOWRUN.getLabel()))))
+                                            "$in",
+                                            List.of(
+                                                RelationshipLabel.HAS_WORKFLOW.getLabel(),
+                                                RelationshipLabel.LINKS_TEMPLATE.getLabel())))))
                     .append("verbosity", "executionStats"));
     Document stats = explain.get("executionStats", Document.class);
     System.out.printf(

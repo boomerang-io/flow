@@ -23,6 +23,7 @@ import io.boomerang.workspace.model.Workspace;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.function.Supplier;
 import org.junit.jupiter.api.BeforeEach;
@@ -128,6 +129,46 @@ class WorkspaceQueryDatabaseCommandsTest extends AbstractEngineIntegrationTest {
     assertThat(idle.getApproverGroups()).isEmpty();
     assertThat(idle.getQuotas().getCurrentWorkflowCount()).isZero();
     assertThat(idle.getQuotas().getCurrentConcurrentRuns()).isZero();
+  }
+
+  /**
+   * The profile counts each workspace's workflows on the edge index: it reads the same
+   * relationship nodes whether a workspace holds no workflow or three, and its counts are the
+   * workflows a listing names.
+   */
+  @Test
+  void theProfileCountsWorkflowsWithoutReadingAWorkflowNode() {
+    signInAsMember();
+    String growing = names.get(2);
+    Map<String, String> memberships = relationshipService.roles(userId);
+    Recorded<WorkspaceService.MembershipOverview> before =
+        inRequest(() -> DatabaseCommands.record(() -> workspaceService.membershipOverview(memberships)));
+    for (int i = 0; i < 3; i++) {
+      workflowService.create(growing, runnableWorkflow(growing + "-wf-" + i, TASK_SLUG));
+    }
+    signInAsMember();
+    Recorded<WorkspaceService.MembershipOverview> after =
+        inRequest(() -> DatabaseCommands.record(() -> workspaceService.membershipOverview(memberships)));
+
+    System.out.printf(
+        "DB COMMANDS | profile overview | %d commands, %d nodes, %d edges | with 3 more workflows:"
+            + " %d commands, %d nodes, %d edges%n",
+        before.commands().size(), before.documentsRead("rel_nodes"), before.documentsRead("rel_edges"),
+        after.commands().size(), after.documentsRead("rel_nodes"), after.documentsRead("rel_edges"));
+    assertThat(after.documentsRead("rel_nodes")).isEqualTo(before.documentsRead("rel_nodes"));
+    assertThat(after.commands().size()).isEqualTo(before.commands().size());
+    assertThat(after.result().summaries()).hasSize(WORKSPACES);
+    Map<String, List<String>> listed =
+        relationshipService.refsInWorkspaces(RelationshipType.WORKFLOW, names);
+    after
+        .result()
+        .summaries()
+        .forEach(
+            summary ->
+                assertThat(summary.getInsights().getWorkflows())
+                    .as(summary.getName())
+                    .isEqualTo((long) listed.getOrDefault(summary.getName(), List.of()).size()));
+    assertThat(listed.get(growing)).hasSize(3);
   }
 
   private void assertConstantCost(String caller) {

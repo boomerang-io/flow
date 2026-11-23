@@ -16,17 +16,11 @@ public interface RelationshipEdgeRepository
 
   List<RelationshipEdgeEntity> findByToAndLabel(String to, String label);
 
-  /** Outgoing edges for a set of nodes - one query per downward walk level. */
+  /** Outgoing edges for a set of nodes. */
   List<RelationshipEdgeEntity> findByFromIn(Collection<String> from);
 
-  /**
-   * Outgoing edges for a set of nodes, but for those with one label - a walk level that leaves out
-   * a workspace's runs. Served by the from_label index, so the edges left out are never read.
-   */
-  List<RelationshipEdgeEntity> findByFromInAndLabelNot(Collection<String> from, String label);
-
-  /** The edges from one node to any of a set of nodes - served by the from_label index. */
-  List<RelationshipEdgeEntity> findByFromAndToIn(String from, Collection<String> to);
+  /** The edges from any of a set of nodes to any of another - served by the from_label index. */
+  List<RelationshipEdgeEntity> findByFromInAndToIn(Collection<String> from, Collection<String> to);
 
   /** Outgoing edges with one label for a set of nodes - the children of each, in one query. */
   List<RelationshipEdgeEntity> findByFromInAndLabel(Collection<String> from, String label);

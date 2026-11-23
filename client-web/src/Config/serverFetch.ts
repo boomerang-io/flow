@@ -1,4 +1,4 @@
-import axios, { type AxiosInstance } from "axios";
+import axios, { type AxiosInstance, type AxiosResponse } from "axios";
 
 /*
  * Server-side counterpart to Config/servicesConfig.ts's browser `resolver`/`axios` calls. Only
@@ -86,4 +86,31 @@ export function serverFetch(request: Request): AxiosInstance {
   });
   instance.interceptors.request.use((config) => ({ ...config, url: toVersionedPath(config.url) }));
   return instance;
+}
+
+/*
+ * One GET shared by every loader that asks for the same URL as the same caller while it is in
+ * flight. A document request runs the root loader and the page's loader side by side, and both
+ * need the signed-in user's profile; each loader gets its own copy of the Request, so the request
+ * object cannot be the key - the Cookie header and the URL are. The Cookie header is the whole of
+ * the caller's identity that serverFetch forwards, so two reads share only when service-core would
+ * be sent the same request twice; anything else serverFetch comes to forward MUST join the key.
+ * The entry is dropped the moment the read settles, so nothing is cached: a read that starts
+ * afterwards goes out again and sees current data.
+ */
+const inFlightReads = new Map<string, Promise<AxiosResponse>>();
+
+export function sharedGet<T>(request: Request, url: string): Promise<AxiosResponse<T>> {
+  const key = `${request.headers.get("cookie") ?? ""}\n${url}`;
+  const existing = inFlightReads.get(key);
+  if (existing) {
+    return existing as Promise<AxiosResponse<T>>;
+  }
+  const read = serverFetch(request).get<T>(url);
+  inFlightReads.set(key, read);
+  const forget = () => {
+    inFlightReads.delete(key);
+  };
+  read.then(forget, forget);
+  return read;
 }

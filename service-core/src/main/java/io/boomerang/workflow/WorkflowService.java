@@ -379,11 +379,21 @@ public class WorkflowService {
       Optional<List<String>> queryTypes) {
 
     // Get Refs that request has access to
+    // One walk finds the workspace's workflows the caller sees, and the shared list reuses the
+    // same nodes. A request that names workflows asks the relationship layer for those names, as
+    // before: a workflow's own token reaches its workflow only when the lookup names it, so
+    // narrowing the unnamed walk in memory would answer that token with nothing.
+    List<RelationshipNodeEntity> visible =
+        relationshipService.nodesInWorkspace(RelationshipType.WORKFLOW, queryTeam);
     List<String> refs =
-        new ArrayList<>(
-            relationshipService.refsInWorkspace(
-                RelationshipType.WORKFLOW, queryTeam, queryWorkflows));
-    refs.addAll(availableSharedRefs(queryTeam, queryWorkflows));
+        queryWorkflows.isPresent()
+            ? new ArrayList<>(
+                relationshipService.refsInWorkspace(
+                    RelationshipType.WORKFLOW, queryTeam, queryWorkflows))
+            : visible.stream()
+                .map(RelationshipNodeEntity::getRef)
+                .collect(Collectors.toCollection(ArrayList::new));
+    refs.addAll(availableSharedRefs(queryTeam, queryWorkflows, visible));
     LOGGER.debug("Workflow Refs: {}", refs.toString());
     if (refs.isEmpty()) {
       return new WorkflowResponsePage();
@@ -925,19 +935,27 @@ public class WorkflowService {
         relationshipService.refsInWorkspace(
             RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)));
     if (!refs.isEmpty()) {
-      // A template other workspaces run by reference stays until no live link names it.
-      if (workflowRepository.existsByTemplateRefRefAndStatusNot(
-          refs.get(0), WorkflowStatus.deleted)) {
-        throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_IN_USE);
-      }
-      // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
-      delete(refs.get(0));
-      scheduleService.getObject().deleteAllForWorkflow(refs.get(0));
-      tokenService.deleteAllForPrincipal(refs.get(0));
-      removeWorkflowReferences(refs.get(0));
+      deleteFound(refs.get(0));
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
+  }
+
+  /**
+   * The scoped delete of a Workflow the caller has already been found to reach, by its id: what
+   * {@link #delete(String, String)} does once it has resolved the name, so a workspace's cascade
+   * resolves its workflows once and not once per workflow.
+   */
+  public void deleteFound(String workflowId) {
+    // A template other workspaces run by reference stays until no live link names it.
+    if (workflowRepository.existsByTemplateRefRefAndStatusNot(workflowId, WorkflowStatus.deleted)) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_TEMPLATE_IN_USE);
+    }
+    // Tombstones the Workflow; the watcher winds down its runs and prunes the documents.
+    delete(workflowId);
+    scheduleService.getObject().deleteAllForWorkflow(workflowId);
+    tokenService.deleteAllForPrincipal(workflowId);
+    removeWorkflowReferences(workflowId);
   }
 
   /**
@@ -2369,26 +2387,30 @@ public class WorkflowService {
    * The templates and starters a workspace lists beside its own workflows: the active ones whose
    * name no workflow of the workspace carries and (for a template) that none of them links. The
    * system workspace owns them and lists them as its own; a caller who cannot reach the workspace
-   * sees none.
+   * sees none. {@code visible} is the workspace's workflows the caller sees, which for a caller
+   * who reaches the workspace is every one it owns: the owned ones are those among them the
+   * workspace's {@code hasWorkflow} edges run to, so no node is read again, and only the links
+   * among them are read, as their template reference alone.
    */
-  private List<String> availableSharedRefs(String workspace, Optional<List<String>> names) {
+  private List<String> availableSharedRefs(
+      String workspace, Optional<List<String>> names, List<RelationshipNodeEntity> visible) {
     if (SYSTEM_WORKSPACE.equals(workspace)
         || !relationshipService.check(
             RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       return List.of();
     }
-    List<RelationshipNodeEntity> owned = ownedWorkflows(workspace);
+    Set<String> ownedIds =
+        relationshipService.childIdsByLabel(
+            RelationshipType.WORKSPACE, workspace, RelationshipLabel.HAS_WORKFLOW);
+    List<RelationshipNodeEntity> owned =
+        visible.stream().filter(node -> ownedIds.contains(node.getId())).toList();
     Set<String> ownedNames =
         owned.stream().map(RelationshipNodeEntity::getSlug).collect(Collectors.toSet());
     Set<String> linked = new HashSet<>();
     workflowRepository
-        .findAllById(owned.stream().map(RelationshipNodeEntity::getRef).toList())
-        .forEach(
-            w -> {
-              if (w.getTemplateRef() != null && !WorkflowStatus.deleted.equals(w.getStatus())) {
-                linked.add(w.getTemplateRef().getRef());
-              }
-            });
+        .findByIdInAndTemplateRefNotNullAndStatusNot(
+            owned.stream().map(RelationshipNodeEntity::getRef).toList(), WorkflowStatus.deleted)
+        .forEach(link -> linked.add(link.getTemplateRef().getRef()));
     return workflowRepository.findByTypeInAndStatus(SHARED_TYPES, WorkflowStatus.active).stream()
         .filter(t -> names.isEmpty() || names.get().contains(t.getName()))
         .filter(t -> !ownedNames.contains(t.getName()) && !linked.contains(t.getId()))

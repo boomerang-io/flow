@@ -1,9 +1,10 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { act, screen, waitFor } from "@testing-library/react";
 import { profile, workspaces } from "ApiServer/fixtures";
 import { server } from "ApiServer/msw/node";
 import { http, HttpResponse } from "msw";
-import { Route } from "react-router-dom";
+import { Outlet, Route, useFetcher, useNavigate, type RouteObject } from "react-router-dom";
+import { shouldRevalidate as rootShouldRevalidate } from "Features/App/App";
 import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 import { HttpMethod } from "Constants";
@@ -375,5 +376,219 @@ describe("WorkflowRun --- action", () => {
     expect(isActionError(result.data)).toBe(true);
     expect(result.data.intent).toBe("action");
     expect(result.data.error.message).toEqual(expect.any(String));
+  });
+});
+
+/*
+ * The run page polls while the run is live. The poll must re-run this route's loader only: the
+ * root bootstrap (profile, features, navigation, starters) is not the run's data and must not
+ * reload every five seconds, but it must still reload after a mutation.
+ */
+describe("WorkflowRun --- live poll", () => {
+  const POLL_MS = 5000;
+
+  function setup() {
+    const counts = { root: 0, runReads: 0 };
+    server.use(
+      http.get(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: ":workspace", id: ":id" }), () => {
+        counts.runReads += 1;
+        return HttpResponse.json({ ...workflowRun, status: RunStatus.Running, phase: RunPhase.Running });
+      }),
+      http.delete(serviceUrl.workspace.workflowrun.deleteCancelWorkflow({ workspace: ":workspace", id: ":id" }), () =>
+        HttpResponse.json({}),
+      ),
+    );
+
+    function Mutate() {
+      const fetcher = useFetcher();
+      return (
+        <button
+          onClick={() =>
+            fetcher.submit({ intent: "cancel" }, { method: "post", action: appLink.execution({ workspace, runId }) })
+          }
+        >
+          Mutate
+        </button>
+      );
+    }
+
+    const routes: RouteObject[] = [
+      {
+        id: "root",
+        path: "/",
+        loader: () => {
+          counts.root += 1;
+          return { rootLoads: counts.root };
+        },
+        shouldRevalidate: rootShouldRevalidate,
+        element: (
+          <>
+            <Mutate />
+            <Outlet />
+          </>
+        ),
+        children: [
+          {
+            path: AppPath.Run,
+            loader,
+            action,
+            element: <WorkflowExecutionContainer />,
+          },
+        ],
+      },
+    ];
+    renderWithContext(<></>, { routes, route: appLink.execution({ workspace, runId }) });
+    return counts;
+  }
+
+  beforeEach(() => {
+    // The shared setup freezes the clock; only the interval is faked here so MSW keeps real timers.
+    vi.useRealTimers();
+    vi.useFakeTimers({ toFake: ["setInterval", "clearInterval"] });
+  });
+
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
+  async function tick() {
+    await act(async () => {
+      await vi.advanceTimersByTimeAsync(POLL_MS);
+    });
+  }
+
+  it("refreshes the run on every tick without re-running the root loader", async () => {
+    const counts = setup();
+    await screen.findByText(/Activity detail/i);
+    expect(counts).toEqual({ root: 1, runReads: 1 });
+
+    for (let n = 2; n <= 4; n++) {
+      await tick();
+      await waitFor(() => expect(counts.runReads).toBe(n));
+    }
+
+    expect(counts.root).toBe(1);
+  });
+
+  it("shows what the poll read: a run the poll finds finished stops the poll", async () => {
+    const counts = setup();
+    await screen.findByText(/Activity detail/i);
+    server.use(
+      http.get(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: ":workspace", id: ":id" }), () => {
+        counts.runReads += 1;
+        return HttpResponse.json({ ...workflowRun, status: RunStatus.Succeeded, phase: RunPhase.Completed });
+      }),
+    );
+
+    await tick();
+    await waitFor(() => expect(counts.runReads).toBe(2));
+    await tick();
+    await tick();
+
+    expect(counts.runReads).toBe(2);
+    expect(counts.root).toBe(1);
+  });
+
+  // A poll that comes back with no run (an expired session, a removed member) is the one poll
+  // result the root has to hear about: it is revalidated once, and with no run the poll stops.
+  it("revalidates the root once when a poll fails, and stops polling", async () => {
+    const counts = setup();
+    await screen.findByText(/Activity detail/i);
+    server.use(
+      http.get(serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: ":workspace", id: ":id" }), () => {
+        counts.runReads += 1;
+        return HttpResponse.json({}, { status: 401 });
+      }),
+    );
+
+    await tick();
+    await waitFor(() => expect(counts.root).toBe(2));
+    // The failed poll, then the one revalidation: it re-runs the run's loader and, as every
+    // revalidation does, the poll's own fetcher load.
+    await waitFor(() => expect(counts.runReads).toBe(4));
+    await tick();
+    await tick();
+    await tick();
+
+    expect(counts.root).toBe(2);
+    expect(counts.runReads).toBe(4);
+  });
+
+  // A poll for run A still in flight when the page moves to run B must not put A back on screen.
+  it("keeps showing run B after navigating while run A's poll is in flight", async () => {
+    const otherRun = "5ec51eca5a92d80001a2ffff";
+    const reads: Array<string> = [];
+    let slowA = false;
+    server.use(
+      http.get(
+        serviceUrl.workspace.workflowrun.getWorkflowRun({ workspace: ":workspace", id: ":id" }),
+        async ({ params }) => {
+          reads.push(String(params.id));
+          if (params.id === otherRun) {
+            return HttpResponse.json({
+              ...workflowRun,
+              id: otherRun,
+              status: RunStatus.Failed,
+              phase: RunPhase.Completed,
+            });
+          }
+          if (slowA) {
+            await new Promise((resolve) => setTimeout(resolve, 400));
+          }
+          return HttpResponse.json({ ...workflowRun, status: RunStatus.Running, phase: RunPhase.Running });
+        },
+      ),
+    );
+    function GoToOtherRun() {
+      const navigate = useNavigate();
+      return <button onClick={() => navigate(appLink.execution({ workspace, runId: otherRun }))}>Other run</button>;
+    }
+    const routes: RouteObject[] = [
+      {
+        id: "root",
+        path: "/",
+        loader: () => ({}),
+        element: (
+          <>
+            <GoToOtherRun />
+            <Outlet />
+          </>
+        ),
+        children: [{ path: AppPath.Run, loader, action, element: <WorkflowExecutionContainer /> }],
+      },
+    ];
+    renderWithContext(<></>, { routes, route: appLink.execution({ workspace, runId }) });
+    await screen.findByText(/Activity detail/i);
+    const shownStatus = () => screen.getByTestId("run-status").textContent;
+    const whileRunning = shownStatus();
+
+    slowA = true;
+    await tick();
+    await waitFor(() => expect(reads.filter((id) => id === runId)).toHaveLength(2));
+    await act(async () => {
+      screen.getByText("Other run").click();
+    });
+    await waitFor(() => expect(reads).toContain(otherRun));
+    await waitFor(() => expect(shownStatus()).not.toBe(whileRunning));
+    const whenFailed = shownStatus();
+    // Run A's slow poll lands after the page has moved on.
+    await act(async () => {
+      await new Promise((resolve) => setTimeout(resolve, 700));
+    });
+
+    expect(shownStatus()).toBe(whenFailed);
+  });
+
+  it("still re-runs the root loader after a mutation", async () => {
+    const counts = setup();
+    await screen.findByText(/Activity detail/i);
+    expect(counts.root).toBe(1);
+
+    await act(async () => {
+      screen.getByText("Mutate").click();
+    });
+
+    await waitFor(() => expect(counts.root).toBe(2));
+    await waitFor(() => expect(counts.runReads).toBe(2));
   });
 });
