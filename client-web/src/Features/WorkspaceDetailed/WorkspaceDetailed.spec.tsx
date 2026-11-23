@@ -370,6 +370,19 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByText("Artifact Retention")).toBeInTheDocument();
   });
 
+  // Concurrent runs are the ones running; the ones waiting for a slot have a card, and a limit,
+  // of their own (workspace.js: 0 of 20 queued).
+  test("a Queued Runs card sits beside Concurrent Runs with its own limit and usage", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await screen.findByText("Number of Workflows");
+
+    expect(screen.getByText("Concurrent Runs (executions)")).toBeInTheDocument();
+    expect(screen.getByText("Queued Runs")).toBeInTheDocument();
+    expect(screen.getByText("Runs that can wait for a slot once the concurrent limit is reached.")).toBeInTheDocument();
+    expect(screen.getByText("20 runs")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Queued Runs" })).toBeInTheDocument();
+  });
+
   // Flow 5 keeps one shared workspace per run: the two storage cards (per Workflow, per Run)
   // collapsed into one bound to `maxWorkspaceStorage` (workspace.js: 5).
   test("one Workspace Storage card replaces the per-Workflow and per-Run capacity cards", async () => {
@@ -426,6 +439,7 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
       "Number of Executions",
       "Run Duration",
       "Concurrent Runs (executions)",
+      "Queued Runs",
       "Workspace Storage - Per Run",
       "Artifact Storage",
       "Artifact Retention",

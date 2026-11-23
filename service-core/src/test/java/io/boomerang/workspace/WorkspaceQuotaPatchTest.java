@@ -52,6 +52,37 @@ class WorkspaceQuotaPatchTest extends AbstractEngineIntegrationTest {
     assertEquals(0, untouched.getMaxConcurrentRuns());
   }
 
+  @Test
+  void theQueueQuotaPatchesAloneAndResetsWithTheRest() {
+    String workspaceName = "workspace-quota-queue-patch-test";
+    Quotas initial = new Quotas();
+    initial.setMaxConcurrentRuns(2);
+    WorkspaceRequest createRequest = new WorkspaceRequest();
+    createRequest.setName(workspaceName);
+    createRequest.setDisplayName(workspaceName);
+    createRequest.setQuotas(initial);
+    workspaceService.create(createRequest);
+    assertNull(storedQuotas(workspaceName).getMaxQueuedRuns(), "absent inherits the default");
+    assertEquals(20, workspaceService.get(workspaceName).getQuotas().getMaxQueuedRuns());
+
+    Quotas queueOnly = new Quotas();
+    queueOnly.setMaxQueuedRuns(0);
+    WorkspaceRequest patchRequest = new WorkspaceRequest();
+    patchRequest.setQuotas(queueOnly);
+    workspaceService.patch(workspaceName, patchRequest);
+
+    Quotas stored = storedQuotas(workspaceName);
+    assertEquals(0, stored.getMaxQueuedRuns(), "a stored 0 is unlimited");
+    assertEquals(2, stored.getMaxConcurrentRuns(), "the others are untouched");
+    assertEquals(0, workspaceService.get(workspaceName).getQuotas().getMaxQueuedRuns());
+    assertEquals(0, workspaceService.get(workspaceName).getQuotas().getCurrentQueuedRuns());
+
+    workspaceService.deleteCustomQuotas(workspaceName);
+
+    assertNull(storedQuotas(workspaceName).getMaxQueuedRuns());
+    assertEquals(20, workspaceService.get(workspaceName).getQuotas().getMaxQueuedRuns());
+  }
+
   private Quotas storedQuotas(String workspaceName) {
     WorkspaceEntity entity = workspaceRepository.findByNameIgnoreCase(workspaceName).orElseThrow();
     return entity.getQuotas();

@@ -44,7 +44,7 @@ class RunsTest {
   @Test
   void submitPostsTheRequestToTheWorkflowAndReadsTheRun() {
     stub.server
-        .expect(requestTo(SUBMIT + "?start=true"))
+        .expect(requestTo(SUBMIT))
         .andExpect(method(HttpMethod.POST))
         .andExpect(header("Authorization", "Bearer secret"))
         .andExpect(header("Content-Type", "application/json"))
@@ -73,19 +73,6 @@ class RunsTest {
     assertThat(run.creationDate()).isEqualTo(Instant.parse("2026-10-01T10:00:00Z"));
     assertThat(run.labels()).containsEntry("team.io/batch", "b-7");
     assertThat(run.tasks()).isNull();
-  }
-
-  @Test
-  void submitWithoutStartParksTheRun() {
-    stub.server
-        .expect(requestTo(SUBMIT + "?start=false"))
-        .andExpect(method(HttpMethod.POST))
-        .andExpect(StubServer.jsonBody("{\"params\":[],\"labels\":{},\"annotations\":{}}"))
-        .andRespond(
-            withSuccess("{\"id\":\"r1\",\"status\":\"ready\"}", MediaType.APPLICATION_JSON));
-
-    assertThat(runs.submit("analysis", SubmitRequest.empty(), false).status())
-        .isEqualTo(RunStatus.ready);
   }
 
   @Test
@@ -122,8 +109,8 @@ class RunsTest {
   }
 
   @Test
-  void startPausesAndResumesPutTheRouteWithNoBodyAndReadTheRunAfter() {
-    for (String route : List.of("start", "pause", "resume")) {
+  void pauseAndResumePutTheRouteWithNoBodyAndReadTheRunAfter() {
+    for (String route : List.of("pause", "resume")) {
       stub.server
           .expect(requestTo(RUNS + "/r1/" + route))
           .andExpect(method(HttpMethod.PUT))
@@ -135,8 +122,7 @@ class RunsTest {
               withSuccess("{\"id\":\"r1\",\"status\":\"running\"}", MediaType.APPLICATION_JSON));
     }
 
-    assertThat(runs.start("r1").status()).isEqualTo(RunStatus.running);
-    assertThat(runs.pause("r1").id()).isEqualTo("r1");
+    assertThat(runs.pause("r1").status()).isEqualTo(RunStatus.running);
     assertThat(runs.resume("r1").id()).isEqualTo("r1");
   }
 

@@ -36,11 +36,11 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.context.SecurityContextHolder;
 
 /**
- * A burst of simultaneous submits must not admit more WorkflowRuns than the workspace quota
- * allows (boomerang-io/flow#347): the quota check is a read-then-insert, so every racer can read
- * a count below the limit and all of them pass. Each test fires one burst against a quota of one
- * and asserts on the resulting WorkflowRun documents - the ground truth a racy check would
- * over-populate.
+ * A burst of simultaneous submits must not admit more WorkflowRuns than the workspace's monthly
+ * quota allows (boomerang-io/flow#347): the quota check is a read-then-insert, so every racer can
+ * read a count below the limit and all of them pass. Against the concurrent quota a burst queues
+ * instead: nothing is refused, and the runs over the limit wait. Each test fires one burst against
+ * a quota of one and asserts on the resulting WorkflowRun documents - the ground truth.
  */
 class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest {
 
@@ -116,7 +116,7 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
   }
 
   @Test
-  void aSubmitBurstCannotExceedTheConcurrentRunQuota() throws Exception {
+  void aSubmitBurstOverTheConcurrentRunQuotaQueues() throws Exception {
     Quotas quotas = new Quotas();
     quotas.setMaxConcurrentRuns(1);
     String workspace = createWorkspace("quota-burst-concurrent", quotas);
@@ -126,22 +126,19 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
 
     int admitted = submitBurst(workspace, workflow);
 
-    // Nothing here starts or finishes a run, so every admitted run is still in flight: the
-    // number admitted is the concurrency the quota allowed.
-    assertTrue(
-        admitted <= 1, "concurrent quota of 1 admitted " + admitted + " of " + BURST + " submits");
-    if (admitted == 0) {
-      workflowService.submit(workspace, workflow, manualRequest(), false);
-    }
-    BoomerangException refused =
-        assertThrows(
-            BoomerangException.class,
-            () -> workflowService.submit(workspace, workflow, manualRequest(), false));
-    assertEquals("QUOTA_EXCEEDED", refused.getReason());
+    // The concurrent quota refuses nothing: every submit leaves a run, holding the slot or
+    // waiting for it. Racers admitted together may each recount before the others are in flight,
+    // so more than one can hold a slot; a submit after the burst always waits.
+    assertEquals(BURST, admitted, "the concurrent quota refused a submit");
+    assertEquals(BURST, persistedRuns(workspace, workflow));
     assertEquals(
-        1,
-        persistedRuns(workspace, workflow),
-        "WorkflowRun documents exceed the concurrent quota");
+        io.boomerang.common.enums.RunStatus.waiting,
+        workflowService.submit(workspace, workflow, manualRequest(), false).getStatus(),
+        "a submit after the burst queues");
+    long inFlight = runsWithStatus(workspace, workflow, io.boomerang.common.enums.RunStatus.ready);
+    long queued = runsWithStatus(workspace, workflow, io.boomerang.common.enums.RunStatus.waiting);
+    assertTrue(inFlight >= 1, "at least the limit holds a slot");
+    assertEquals(BURST + 1, inFlight + queued, "every run holds a slot or waits for one");
   }
 
   /**
@@ -211,6 +208,22 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
     return auditQueryService
         .countRunsCreated(List.of(workspace), new Date(0), new Date(Long.MAX_VALUE))
         .getOrDefault(workspace, 0L);
+  }
+
+  private long runsWithStatus(
+      String workspace, String workflow, io.boomerang.common.enums.RunStatus status) {
+    List<String> refs =
+        relationshipService.filter(
+            io.boomerang.core.enums.RelationshipType.WORKFLOW,
+            java.util.Optional.of(List.of(workflow)),
+            java.util.Optional.of(io.boomerang.core.enums.RelationshipType.WORKSPACE),
+            java.util.Optional.of(List.of(workspace)),
+            false);
+    return workflowRunRepository
+        .findByWorkflowRefAndPhaseIn(refs.get(0), List.of(RunPhase.values()))
+        .stream()
+        .filter(run -> status.equals(run.getStatus()))
+        .count();
   }
 
   private long persistedRuns(String workspace, String workflow) {

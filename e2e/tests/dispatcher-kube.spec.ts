@@ -18,7 +18,7 @@ import {
  * deployment). The dispatcher sits behind a compose profile, so this file is skipped unless
  * E2E_DISPATCHER=true.
  *
- * Each scenario creates its own workflow in one shared workspace, submits it with start=true and
+ * Each scenario creates its own workflow in one shared workspace, submits it and
  * asserts the terminal run: statuses, typed statusReason values, results flowing between tasks,
  * decision routing, run-scoped storage, failure, timeout, child workflows, and pod-loss recovery.
  *

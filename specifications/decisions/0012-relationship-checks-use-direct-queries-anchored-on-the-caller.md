@@ -31,7 +31,7 @@ one database agree at once.
 ## Consequences
 
 - Adding replicas needs no cache coordination; the indexes `rel_nodes{type,ref}`, `rel_nodes{type,slug}`,
-  `rel_edges{from,label}` and `rel_edges{to,label}` carry the load (`migration/_0021__Indexes.java:152-165`).
+  `rel_edges{from,label}` and `rel_edges{to,label}` carry the load (`migration/_0021__Indexes.java:160-173`).
 - The shortcuts hold because no edge starts at a run or a workflow; an edge that does must come with its own lookup.
 - Revisit with `$graphLookup` if the hierarchy grows beyond two levels, or with a shared cache if a load test shows
   check volume is the bottleneck.

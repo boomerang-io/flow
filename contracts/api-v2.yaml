@@ -392,6 +392,9 @@ components:
         currentConcurrentRuns:
           format: "int32"
           type: "integer"
+        currentQueuedRuns:
+          format: "int32"
+          type: "integer"
         currentRunAverageDuration:
           format: "int64"
           type: "integer"
@@ -408,6 +411,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxQueuedRuns:
           format: "int32"
           type: "integer"
         maxWorkflowCount:
@@ -1161,6 +1167,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxQueuedRuns:
           format: "int32"
           type: "integer"
         maxWorkflowCount:
@@ -2819,30 +2828,6 @@ components:
         scheduled:
           format: "int32"
           type: "integer"
-      type: "object"
-    WorkflowRunRequest:
-      properties:
-        annotations:
-          additionalProperties: {}
-          type: "object"
-        debug:
-          type: "boolean"
-        labels:
-          additionalProperties:
-            type: "string"
-          type: "object"
-        params:
-          items:
-            $ref: "#/components/schemas/RunParam"
-          type: "array"
-        retries:
-          format: "int64"
-          type: "integer"
-        timeout:
-          format: "int64"
-          type: "integer"
-        workspace:
-          $ref: "#/components/schemas/WorkflowWorkspace"
       type: "object"
     WorkflowRunRetryRequest:
       properties:
@@ -8345,14 +8330,6 @@ paths:
         required: true
         schema:
           type: "string"
-      - description: "Start the WorkflowRun after submission (default). Pass start=false\
-          \ to park the run at ready for a later PUT /workflowrun/{id}/start."
-        in: "query"
-        name: "start"
-        required: false
-        schema:
-          default: true
-          type: "boolean"
       requestBody:
         content:
           application/json:
@@ -8372,8 +8349,8 @@ paths:
               schema:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
-      summary: "Submit a Workflow to be run. Will queue the WorkflowRun ready for\
-        \ execution."
+      summary: "Submit a Workflow to be run. The run starts, or waits for a slot when\
+        \ a concurrency limit is reached and starts when it is admitted."
       tags:
       - "Workflows"
       x-flow-permission:
@@ -9028,54 +9005,6 @@ paths:
                 $ref: "#/components/schemas/WorkflowRun"
           description: "Bad Request"
       summary: "Retry WorkflowRun execution."
-      tags:
-      - "WorkflowRuns"
-      x-flow-permission:
-        permission: "workflowrun/action"
-        tokens:
-        - "global"
-        - "key"
-        - "user"
-        - "session"
-  /api/v2/workspace/{workspace}/workflowrun/{workflowRunId}/start:
-    put:
-      description: "Requires the `workflowrun/action` permission, from a global, key,\
-        \ user, session token."
-      operationId: "startWorkflowRun"
-      parameters:
-      - description: "Owning workspace name."
-        example: "my-amazing-workspace"
-        in: "path"
-        name: "workspace"
-        required: true
-        schema:
-          type: "string"
-      - description: "ID of WorkflowRun to Start"
-        in: "path"
-        name: "workflowRunId"
-        required: true
-        schema:
-          type: "string"
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: "#/components/schemas/WorkflowRunRequest"
-      responses:
-        "200":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WorkflowRun"
-          description: "OK"
-        "400":
-          content:
-            '*/*':
-              schema:
-                $ref: "#/components/schemas/WorkflowRun"
-          description: "Bad Request"
-      summary: "Start WorkflowRun execution. The WorkflowRun has to already have been\
-        \ queued."
       tags:
       - "WorkflowRuns"
       x-flow-permission:

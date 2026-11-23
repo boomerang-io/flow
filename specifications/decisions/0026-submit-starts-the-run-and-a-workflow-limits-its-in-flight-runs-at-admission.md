@@ -1,40 +1,39 @@
-# 0026 — Submit starts the run by default, and a workflow limits its in-flight runs at admission
+# 0026 — A submit always starts its run, and a run over a concurrency limit waits in its workspace's queue
 
-**Status:** accepted · **Date:** 2026-10-29
+**Status:** accepted · **Date:** 2026-11-23
 
 ## Context
 
-Nearly every caller of submit means "run now": the web app, a run-workflow task's child, a fired schedule, a webhook.
-The only concurrency limit was the workspace quota over every workflow, so an embedder's index rebuilds overlapped when
-two runs of one workflow were admitted together. The limit has to hold under simultaneous submits without changing the
-closed `RunStatus` enum.
+Nearly every caller of submit means "run now": the web app, a run-workflow task's child, a fired schedule, a webhook. Two limits bound what runs at
+once: a workflow's own `concurrency`, so an embedder's index rebuilds do not overlap, and the workspace's concurrent-run quota, which refused a submit
+over it with `429`, so a schedule's fire or a webhook delivery was lost. Both must hold under simultaneous submits with the `RunStatus` enum closed.
 
 ## Options
 
 | Option | Fits when | Cost / risk |
 | --- | --- | --- |
-| Start: `start=false` by default | A submit is a staging step | A caller that forgets the flag leaves a parked run nothing starts |
-| Start: `start=true` by default; `?start=false` parks | Submit means run, as callers and peers expect | An API caller that stages runs must ask for it |
-| Limit: a per-(workflow, key) slot document taken by `$inc` | An exact mutex is required | A new collection; a counter that drifts |
-| Limit: a count before admission and a recount after, the younger run stepping back, as the quota does | Exceeding the limit for the instant between two admissions is acceptable | Two counts per admission; a park compare-and-set |
-| Limit: a new status for a parked run; a keyed limit from a param or label | A distinct filter; one run per tenant | Breaks the closed enum; a typed key and an index |
+| Start: a `start` flag, `false` staging the run for a later start route | A submit is a staging step | A staged run nothing starts; a second route and a state to recover |
+| Start: a submit always starts its run, or queues it | Submit means run, as callers and peers expect | A caller that wanted to stage a run cannot |
+| Over the workspace limit: refuse with `429` | Callers retry and nothing must be kept | Fires and deliveries are dropped; the limit reads as an outage |
+| Over either limit: park the run `waiting/pending` in one queue per workspace, admitted oldest first, capped and aged out | A burst should be absorbed and shown | A count and a recount per limit per admission; a queue quota and an age setting |
+| A per-workflow slot document taken by `$inc`; a new status for a parked run | An exact mutex; a distinct filter | A new collection and a counter that drifts; breaks the closed enum |
 
 ## Decision
 
-`start` defaults to true (`workflow/WorkspaceWorkflowControllerV2.java:363-369`); a child run, a fired schedule and
-webhook and event triggers start too (`engine/TaskExecutionService.java:1403`, `schedule/ScheduleJob.java:76`,
-`flow.workflowrun.auto-start-on-submit`). A run without a workspace starts at once; one with a workspace stays pending
-until the dispatcher provisions and starts it (`workflow/WorkflowRunService.java:855-893`, decision 0025). A workflow
-carries `concurrency: {limit, overflow}` (`common/model/WorkflowConcurrency.java:18-19`): at admission the engine counts
-its runs in `ready` or `running` on `workflow_ref_status`, at the limit parks the run as `waiting/pending` with a message
-or, with `overflow: skip`, completes it `cancelled` with `ConcurrencyLimit`, and after admitting recounts and steps back a
-run not among the oldest `limit` (`engine/WorkflowExecutionService.java:95-118`, `:138-177`,
-`engine/WorkflowRunStateHelper.java:168-225`). A run's completion re-admits the oldest parked run
-(`engine/ConcurrencyAdmissionListener.java:33-53`, `readmit` at `engine/WorkflowExecutionService.java:184-195`); the `readmitParkedRuns` sweep is the fallback.
+A submit always starts its run, and so do a retry, a child run, a fired schedule and webhook, event and GitHub triggers; there is no `start` flag and
+no route that starts a run (`workflow/WorkflowService.java:710-722`, `workflow/WorkflowRunService.java:1143-1154`). Admission counts the workflow's runs in
+flight against `concurrency.limit` and the workspace's against `max.workflowrun.concurrent`, before `tryAdmit` and again after it, the younger run
+stepping back (`engine/WorkflowExecutionService.java:107-151`, `workflow/QuotaService.java:518-541`). A run over either parks as `waiting/pending`
+with the holding limit as its reason, `ConcurrencyLimit` or `WorkspaceConcurrencyLimit`, holding no slot and no deadline, or with `overflow: skip`
+ends `cancelled` with `ConcurrencyLimit` (`engine/WorkflowExecutionService.java:174-226`, `engine/WorkflowRunStateHelper.java:202-230`). A completion
+drains the workspace's queue oldest first, passing over a workflow still at its own limit and, with every slot taken, still admitting child runs; a
+sweep is the fallback (`engine/WorkflowExecutionService.java:294-322`). The `max.workflowrun.queued` cap counts and refuses only runs waiting for a
+workspace slot: a workflow's own queue stays unbounded (`workflow/QuotaService.java:378-451`). A run parked longer than `workflowrun`/`queue.max.age`
+ends `cancelled` with `QueueExpired`. What decided it: a parked run is a record the caller and the operator can see, and a refusal is not.
 
 ## Consequences
 
-- Submitting from any client runs the workflow; staging a run is a deliberate `?start=false`.
-- A parked run counts against the workspace quota, which keeps precedence. A newer run that recounts before an older one is admitted keeps its slot, so a
-  burst can overshoot the limit by its racers (`engine/WorkflowRunStateHelper.java:217-226`); an exact mutex, a slot document, reopens with an incident.
-- A per-value limit is the `acquirelock` task until a case shows its accounting is wrong for it.
+- Submitting from any client runs the workflow or queues it; `429` means the month is spent, the queue is full or the requested workspace is too
+  large. A schedule's fire dropped after its attempts leaves a `SubmitRefused` run on the workflow's Activity.
+- A newer run that recounts before an older one is admitted keeps its slot, so a burst can overshoot either limit by its racers; an exact mutex, a
+  slot document, reopens with an incident. A per-value limit is the `acquirelock` task until a case shows its accounting is wrong for it.

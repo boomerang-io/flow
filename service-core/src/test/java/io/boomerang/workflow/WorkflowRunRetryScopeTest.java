@@ -1,6 +1,7 @@
 package io.boomerang.workflow;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertNotEquals;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -211,8 +212,8 @@ class WorkflowRunRetryScopeTest extends AbstractEngineIntegrationTest {
     complete(originId, RunStatus.succeeded);
 
     // b depends only on a and d, both carried over: nothing ends in the new run to queue it.
+    // The retry starts its run, as a submit does.
     WorkflowRun retried = workflowRunService.retry(WORKSPACE, originId, Optional.of(request(RetryScope.nodes, List.of("b")))).getBody();
-    workflowRunService.start(retried.getId(), Optional.empty());
 
     // Well inside the stalled-run sweep's one-minute grace, so the start itself queued b.
     Awaitility.await("b is queued by the start")
@@ -239,10 +240,9 @@ class WorkflowRunRetryScopeTest extends AbstractEngineIntegrationTest {
       assertNotNull(tasks.get("start").getReusedFromRef());
       for (String fresh : List.of("a", "sw", "x", "y", "end")) {
         assertNull(tasks.get(fresh).getReusedFromRef(), fresh + " never ran, so it must not be copied");
-        assertEquals(RunStatus.notstarted, tasks.get(fresh).getStatus());
+        assertNotEquals(RunStatus.skipped, tasks.get(fresh).getStatus(), fresh + " is planned afresh");
       }
     }
-    workflowRunService.start(fromNodes.getId(), Optional.empty());
     Awaitility.await("a, which the origin never reached, is queued")
         .atMost(Duration.ofSeconds(10))
         .until(() -> RunStatus.ready.equals(tasksOf(fromNodes.getId()).get("a").getStatus()));
@@ -282,7 +282,6 @@ class WorkflowRunRetryScopeTest extends AbstractEngineIntegrationTest {
     Map<String, TaskRunEntity> tasks = tasksOf(retried.getId());
     assertNotNull(tasks.get("sw").getReusedFromRef());
     assertNull(tasks.get("y").getReusedFromRef(), "y is planned afresh, not copied as skipped");
-    workflowRunService.start(retried.getId(), Optional.empty());
 
     Awaitility.await("y is skipped again by the carried switch's decision, and x is queued")
         .atMost(Duration.ofSeconds(10))

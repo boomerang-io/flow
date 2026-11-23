@@ -6,6 +6,7 @@ import static org.springframework.data.mongodb.core.aggregation.Aggregation.newA
 import static org.springframework.data.mongodb.core.query.Criteria.where;
 
 import io.boomerang.common.entity.WorkflowEntity;
+import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ArtifactScope;
 import io.boomerang.common.enums.ArtifactStatus;
@@ -14,6 +15,8 @@ import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
+import io.boomerang.common.model.StatusReason;
+import io.boomerang.common.model.WorkflowConcurrency;
 import io.boomerang.common.model.WorkflowWorkspace;
 import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.common.util.StorageQuantityUtil;
@@ -62,14 +65,20 @@ public class QuotaService {
   public static final String QUOTAS_SETTINGS_KEY = "quotas";
   public static final String QUOTA_MAX_WORKFLOW_COUNT = "max.workflow.count";
   public static final String QUOTA_MAX_WORKFLOWRUN_CONCURRENT = "max.workflowrun.concurrent";
+  public static final String QUOTA_MAX_WORKFLOWRUN_QUEUED = "max.workflowrun.queued";
   public static final String QUOTA_MAX_WORKFLOWRUN_MONTHLY = "max.workflowrun.monthly";
   public static final String QUOTA_MAX_WORKFLOWRUN_DURATION = "max.workflowrun.duration";
   public static final String QUOTA_MAX_WORKSPACE_STORAGE = "max.workspace.storage";
   public static final String QUOTA_MAX_ARTIFACT_STORAGE = "max.artifact.storage";
 
-  // A run counts against the concurrent limit from creation until it is terminal.
-  private static final Set<RunStatus> CONCURRENT_STATUSES =
-      Set.of(RunStatus.notstarted, RunStatus.ready, RunStatus.running, RunStatus.waiting);
+  // What a quota refusal names as exceeded, the first argument of QUOTA_EXCEEDED.
+  public static final String QUEUED_RUNS = "Queued runs";
+  public static final String MONTHLY_RUNS = "Number of runs (executions)";
+  public static final String WORKSPACE_SIZE = "Requested Workspace size";
+
+  // A run holds a slot of the concurrent limit once admitted, until it completes; one in its
+  // finally stage is counted apart, by phase. A run waiting for a slot holds none: it is queued.
+  private static final Set<RunStatus> IN_FLIGHT_STATUSES = Set.of(RunStatus.ready, RunStatus.running);
 
   // Artifacts that hold storage; task logs are kept apart and not counted.
   private static final List<ArtifactStatus> HOLDING_STORAGE =
@@ -113,6 +122,7 @@ public class QuotaService {
         Integer.valueOf(setting(QUOTA_MAX_WORKSPACE_STORAGE).replace("Gi", "")));
     quotas.setMaxWorkflowRunDuration(intSetting(QUOTA_MAX_WORKFLOWRUN_DURATION));
     quotas.setMaxConcurrentRuns(intSetting(QUOTA_MAX_WORKFLOWRUN_CONCURRENT));
+    quotas.setMaxQueuedRuns(intSetting(QUOTA_MAX_WORKFLOWRUN_QUEUED));
     quotas.setMaxArtifactStorage(
         Integer.valueOf(setting(QUOTA_MAX_ARTIFACT_STORAGE).replace("Gi", "")));
     quotas.setArtifactRetentionDays(defaultArtifactRetentionDays());
@@ -177,6 +187,9 @@ public class QuotaService {
     }
     if (overrides.getMaxConcurrentRuns() != null) {
       quotas.setMaxConcurrentRuns(overrides.getMaxConcurrentRuns());
+    }
+    if (overrides.getMaxQueuedRuns() != null) {
+      quotas.setMaxQueuedRuns(overrides.getMaxQueuedRuns());
     }
     if (overrides.getMaxArtifactStorage() != null) {
       quotas.setMaxArtifactStorage(overrides.getMaxArtifactStorage());
@@ -265,9 +278,14 @@ public class QuotaService {
     Map<String, Long> liveMonthly =
         countRuns(
             allWorkflowRefs, Optional.of(month.from()), Optional.of(month.to()), Optional.empty());
+    Map<String, Long> refusedMonthly = countRefusedSubmits(allWorkflowRefs, month);
     Map<String, Long> concurrent =
         countRuns(
-            allWorkflowRefs, Optional.empty(), Optional.empty(), Optional.of(CONCURRENT_STATUSES));
+            allWorkflowRefs, Optional.empty(), Optional.empty(), Optional.of(IN_FLIGHT_STATUSES));
+    Map<String, Long> queued =
+        allWorkflowRefs.isEmpty()
+            ? Map.of()
+            : countByWorkflow(WorkflowRunEntity.class, queuedForWorkspace(allWorkflowRefs, false));
     Map<String, Long> finallyStage = countFinallyStage(allWorkflowRefs);
     Map<String, Long> stored = storedBytes(allWorkflowRefs);
     Set<String> liveWorkflows = liveWorkflows(allWorkflowRefs);
@@ -286,15 +304,19 @@ public class QuotaService {
       // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
       // so a just-admitted run may not be audited yet (the live count covers that race), while a
       // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE
-      // events outlive both the run documents and the Workflow).
+      // events outlive both the run documents and the Workflow). The entry a refused submit left
+      // is a run document that was never admitted, so the live count leaves it out; it has no
+      // CREATE event.
       quotas.setCurrentRuns(
-          (int) Math.max(auditMonthly.getOrDefault(workspace, 0L), sum(liveMonthly, refs)));
-      // Concurrent = admitted and not yet terminal from the live WorkflowRun collection, so queued
-      // work counts against the limit - it measures what is running now, which deletion
-      // legitimately reduces.
-      // A run in its finally stage carries its final status but still runs its finally tasks, so it
-      // holds its slot until it completes.
+          (int)
+              Math.max(
+                  auditMonthly.getOrDefault(workspace, 0L),
+                  sum(liveMonthly, refs) - sum(refusedMonthly, refs)));
+      // Concurrent = holding a slot, from the live WorkflowRun collection: admitted or running,
+      // or in the finally stage, which carries the final status while its finally tasks still
+      // run. Queued = waiting for a slot, of the workspace or of its own workflow.
       quotas.setCurrentConcurrentRuns((int) (sum(concurrent, refs) + sum(finallyStage, refs)));
+      quotas.setCurrentQueuedRuns((int) sum(queued, refs));
       quotas.setCurrentArtifactStorage(sum(stored, refs));
       quotas.setCurrentWorkflowCount((int) refs.stream().filter(liveWorkflows::contains).count());
       current.put(workspace, quotas);
@@ -346,66 +368,258 @@ public class QuotaService {
   }
 
   /**
-   * Refuses, with {@code QUOTA_EXCEEDED}, a run the workspace's quotas have no room for:
-   * concurrent runs, runs this month, and the size of any Workspace it asks for. A submit and a
-   * retry - a retry is a new run - both clear it before the run is created.
+   * Refuses, with {@code QUOTA_EXCEEDED}, a run the workspace's quotas have no room for: runs this
+   * month, the size of any Workspace it asks for, and a full queue. The concurrent limit alone
+   * never refuses: a run over it waits in the queue. The queue's cap holds only the runs waiting
+   * for a slot of the workspace: a run of a workflow at its own concurrency limit waits for that
+   * workflow, however long its queue, and is never refused by the cap. A submit and a retry - a
+   * retry is a new run - both clear it before the run is created.
    */
-  public void assertRunQuotas(String workspace, Optional<WorkflowWorkspace> runWorkspace) {
-    if (enforced()) {
-      CurrentQuotas quotas = current(workspace);
-      // A workflow no workspace owns has no workspace quota to hold it to.
-      if (quotas == null) {
-        return;
-      }
-      LOGGER.debug("Quotas: {}", quotas);
-      // The run being submitted is not counted yet, so at-the-limit already means it would
-      // exceed the limit.
-      if (Quotas.limited(quotas.getMaxConcurrentRuns())
-          && quotas.getCurrentConcurrentRuns() >= quotas.getMaxConcurrentRuns()) {
-        throw new BoomerangException(
-            BoomerangError.QUOTA_EXCEEDED,
-            "Concurrent runs (executions)",
-            quotas.getCurrentConcurrentRuns(),
-            quotas.getMaxConcurrentRuns());
-      } else if (Quotas.limited(quotas.getMaxWorkflowRunMonthly())
-          && quotas.getCurrentRuns() >= quotas.getMaxWorkflowRunMonthly()) {
-        throw new BoomerangException(
-            BoomerangError.QUOTA_EXCEEDED,
-            "Number of runs (executions)",
-            quotas.getCurrentRuns(),
-            quotas.getMaxWorkflowRunMonthly());
-      } else if (runWorkspace.isPresent()) {
-        assertWorkspaceStorage(runWorkspace.get(), quotas);
-      }
+  public void assertRunQuotas(
+      String workspace,
+      Optional<WorkflowWorkspace> runWorkspace,
+      String workflowRef,
+      String workflowRevisionRef) {
+    if (!enforced()) {
+      return;
+    }
+    Admission admission = admission(workspace, false);
+    // A workflow no workspace owns has no workspace quota to hold it to.
+    if (admission == null) {
+      return;
+    }
+    LOGGER.debug("Admission: {}", admission);
+    // The run being submitted is not counted yet, so at-the-limit already means it would exceed
+    // the limit.
+    if (Quotas.limited(admission.maxMonthly()) && admission.monthly() >= admission.maxMonthly()) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED, MONTHLY_RUNS, admission.monthly(), admission.maxMonthly());
+    }
+    if (runWorkspace.isPresent()) {
+      assertWorkspaceStorage(runWorkspace.get(), admission.maxWorkspaceStorage());
+    }
+    // The queue is full only while every slot is taken: with a slot free the run would start.
+    if (admission.queueLimited()
+        && admission.inFlight() >= admission.maxConcurrent()
+        && admission.queued() >= admission.maxQueued()
+        && !heldByItsWorkflow(workflowRef, workflowRevisionRef)) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED, QUEUED_RUNS, admission.queued(), admission.maxQueued());
     }
   }
 
   /**
-   * Refuses a run once it has been admitted when it pushed a count over its limit. The counts now
+   * Refuses a run once it has been inserted when it pushed a count over its limit. The counts now
    * include the run itself, so a burst of simultaneous submits cannot each pass the pre-admission
-   * count; the caller removes the run before passing the refusal on.
+   * count; the caller removes the run before passing the refusal on. With every slot taken, the
+   * runs not yet admitted - this one among them - may not outnumber the queue's places.
    */
-  public void assertAdmittedRunWithinQuotas(String workspace) {
-    CurrentQuotas quotas = current(workspace);
+  public void assertAdmittedRunWithinQuotas(
+      String workspace, String workflowRef, String workflowRevisionRef) {
+    Admission admission = admission(workspace, true);
     // A workflow no workspace owns has no workspace quota to hold it to.
-    if (quotas == null) {
+    if (admission == null) {
       return;
     }
-    if (Quotas.limited(quotas.getMaxConcurrentRuns())
-        && quotas.getCurrentConcurrentRuns() > quotas.getMaxConcurrentRuns()) {
+    if (Quotas.limited(admission.maxMonthly()) && admission.monthly() > admission.maxMonthly()) {
       throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED,
-          "Concurrent runs (executions)",
-          quotas.getCurrentConcurrentRuns(),
-          quotas.getMaxConcurrentRuns());
-    } else if (Quotas.limited(quotas.getMaxWorkflowRunMonthly())
-        && quotas.getCurrentRuns() > quotas.getMaxWorkflowRunMonthly()) {
-      throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED,
-          "Number of runs (executions)",
-          quotas.getCurrentRuns(),
-          quotas.getMaxWorkflowRunMonthly());
+          BoomerangError.QUOTA_EXCEEDED, MONTHLY_RUNS, admission.monthly(), admission.maxMonthly());
     }
+    if (admission.queueLimited()
+        && admission.inFlight() >= admission.maxConcurrent()
+        && admission.queued() > admission.maxQueued()
+        && !heldByItsWorkflow(workflowRef, workflowRevisionRef)) {
+      throw new BoomerangException(
+          BoomerangError.QUOTA_EXCEEDED, QUEUED_RUNS, admission.queued(), admission.maxQueued());
+    }
+  }
+
+  // Whether a run of the workflow would wait for the workflow's own concurrency limit, which its
+  // admission checks first: the revision limits it and the workflow's runs in flight fill it. Read
+  // only when the cap would otherwise refuse the run.
+  private boolean heldByItsWorkflow(String workflowRef, String workflowRevisionRef) {
+    if (workflowRef == null || workflowRevisionRef == null) {
+      return false;
+    }
+    Query revision = Query.query(where("_id").is(workflowRevisionRef));
+    revision.fields().include("concurrency");
+    WorkflowRevisionEntity entity = mongoTemplate.findOne(revision, WorkflowRevisionEntity.class);
+    WorkflowConcurrency concurrency = (entity != null) ? entity.getConcurrency() : null;
+    return concurrency != null
+        && concurrency.limits()
+        && inFlight(List.of(workflowRef)) >= concurrency.getLimit();
+  }
+
+  /**
+   * What a run's admission is checked against: the workspace's limits and the counts behind them.
+   * A count behind an unlimited quota is not read and is 0.
+   */
+  public record Admission(
+      int maxMonthly,
+      int maxConcurrent,
+      int maxQueued,
+      Integer maxWorkspaceStorage,
+      long monthly,
+      long inFlight,
+      long queued) {
+
+    /** Whether a full queue can refuse a run: both the slots and the queue's places are limited. */
+    boolean queueLimited() {
+      return maxConcurrent > 0 && maxQueued > 0;
+    }
+  }
+
+  /**
+   * A workspace's admission limits and counts, the workspace given by id or name; null when none
+   * matches. Each count is one count over index keys of the workspace's own workflows, so it costs
+   * the same however many workflows and runs there are - unlike {@link #current(String)}, which
+   * also reads the audit totals, storage and workflow counts no admission needs. {@code queued}
+   * counts the runs waiting for a slot of the workspace, and with {@code withUnadmitted} the runs
+   * just inserted and not yet admitted or parked as well.
+   */
+  Admission admission(String workspace, boolean withUnadmitted) {
+    WorkspaceEntity entity = workspaceRepository.findByIdOrName(workspace).orElse(null);
+    if (entity == null) {
+      return null;
+    }
+    Quotas stored = (entity.getQuotas() != null) ? entity.getQuotas() : new Quotas();
+    int maxMonthly = limit(stored.getMaxWorkflowRunMonthly(), QUOTA_MAX_WORKFLOWRUN_MONTHLY);
+    int maxConcurrent = limit(stored.getMaxConcurrentRuns(), QUOTA_MAX_WORKFLOWRUN_CONCURRENT);
+    int maxQueued = limit(stored.getMaxQueuedRuns(), QUOTA_MAX_WORKFLOWRUN_QUEUED);
+    Integer maxWorkspaceStorage =
+        (stored.getMaxWorkspaceStorage() != null)
+            ? stored.getMaxWorkspaceStorage()
+            : Integer.valueOf(setting(QUOTA_MAX_WORKSPACE_STORAGE).replace("Gi", ""));
+    boolean queueLimited = maxConcurrent > 0 && maxQueued > 0;
+    List<String> workflowRefs =
+        (maxMonthly > 0 || queueLimited) ? workflowRefs(entity.getId()) : List.of();
+    long monthly = 0;
+    if (maxMonthly > 0) {
+      MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
+      long audited =
+          auditQueryService
+              .countRunsCreated(List.of(entity.getName()), month.from(), month.to())
+              .getOrDefault(entity.getName(), 0L);
+      monthly = Math.max(audited, liveRunsIn(workflowRefs, month));
+    }
+    long inFlight = queueLimited ? inFlight(workflowRefs) : 0;
+    long queued = queueLimited ? count(queuedForWorkspace(workflowRefs, withUnadmitted)) : 0;
+    return new Admission(
+        maxMonthly, maxConcurrent, maxQueued, maxWorkspaceStorage, monthly, inFlight, queued);
+  }
+
+  /**
+   * The slots of the concurrent limit a run of the workflow is admitted against: the owning
+   * workspace's workflows, its limit and the runs of those workflows holding a slot now. Null when
+   * no slot is to be checked: quotas are not enforced, no workspace owns the workflow, or its
+   * concurrent limit is unlimited. Reads the relationship graph without a caller identity, for the
+   * engine, which admits for no user.
+   */
+  public RunSlots runSlots(String workflowRef) {
+    if (!enforced()) {
+      return null;
+    }
+    String workspaceRef =
+        relationshipService.getParentByLabel(
+            RelationshipLabel.HAS_WORKFLOW, RelationshipType.WORKFLOW, workflowRef);
+    if (workspaceRef == null || workspaceRef.isBlank()) {
+      return null;
+    }
+    WorkspaceEntity entity = workspaceRepository.findById(workspaceRef).orElse(null);
+    if (entity == null) {
+      return null;
+    }
+    int limit =
+        limit(
+            (entity.getQuotas() != null) ? entity.getQuotas().getMaxConcurrentRuns() : null,
+            QUOTA_MAX_WORKFLOWRUN_CONCURRENT);
+    if (limit <= 0) {
+      return null;
+    }
+    List<String> workflowRefs = workflowRefs(workspaceRef);
+    return new RunSlots(workflowRefs, limit, inFlight(workflowRefs));
+  }
+
+  /** A workspace's workflows, its concurrent limit and the runs of those workflows in flight. */
+  public record RunSlots(List<String> workflowRefs, int limit, long inFlight) {
+
+    public boolean full() {
+      return inFlight >= limit;
+    }
+  }
+
+  // The workspace's own stored limit, else the platform default; 0 is unlimited.
+  private int limit(Integer stored, String defaultKey) {
+    return (stored != null) ? stored : intSetting(defaultKey);
+  }
+
+  // The workflows a workspace owns, from its edges alone: no workflow node is read.
+  private List<String> workflowRefs(String workspaceRef) {
+    String prefix = RelationshipType.WORKFLOW.getLabel() + ":";
+    return relationshipService
+        .childIdsByLabel(RelationshipType.WORKSPACE, workspaceRef, RelationshipLabel.HAS_WORKFLOW)
+        .stream()
+        .filter(id -> id.startsWith(prefix))
+        .map(id -> id.substring(prefix.length()))
+        .toList();
+  }
+
+  // Runs holding a slot: admitted or running, counted on workflow_ref_status, and the ones in
+  // their finally stage, which carry their final status, counted on workflow_ref_phase.
+  private long inFlight(List<String> workflowRefs) {
+    return count(inStatuses(workflowRefs, IN_FLIGHT_STATUSES))
+        + count(
+            where("workflowRef")
+                .in(workflowRefs)
+                .and("phase")
+                .is(RunPhase.running.name())
+                .and("graphEndedAt")
+                .exists(true));
+  }
+
+  // Runs created in the month, less the entries refused submits left, which were never admitted.
+  private long liveRunsIn(List<String> workflowRefs, MonthWindow month) {
+    Criteria created =
+        where("workflowRef").in(workflowRefs).and("creationDate").gte(month.from()).lt(month.to());
+    return count(created)
+        - count(
+            where("workflowRef")
+                .in(workflowRefs)
+                .and("creationDate")
+                .gte(month.from())
+                .lt(month.to())
+                .and("statusReason")
+                .is(StatusReason.SUBMIT_REFUSED));
+  }
+
+  // The runs waiting for a slot of the workspace: parked with the workspace's limit as their
+  // reason, never the ones their own workflow's limit holds. With withUnadmitted, also the runs
+  // not yet admitted or parked. The status narrows on workflow_ref_status; the reason is read
+  // off the parked runs' documents.
+  private static Criteria queuedForWorkspace(List<String> workflowRefs, boolean withUnadmitted) {
+    Criteria parked =
+        where("status")
+            .is(RunStatus.waiting.name())
+            .and("statusReason")
+            .is(StatusReason.WORKSPACE_CONCURRENCY_LIMIT);
+    return new Criteria()
+        .andOperator(
+            where("workflowRef").in(workflowRefs),
+            withUnadmitted
+                ? new Criteria()
+                    .orOperator(parked, where("status").is(RunStatus.notstarted.name()))
+                : parked);
+  }
+
+  private static Criteria inStatuses(List<String> workflowRefs, Set<RunStatus> statuses) {
+    return where("workflowRef")
+        .in(workflowRefs)
+        .and("status")
+        .in(statuses.stream().map(Enum::name).toList());
+  }
+
+  private long count(Criteria criteria) {
+    return mongoTemplate.count(Query.query(criteria), WorkflowRunEntity.class);
   }
 
   /*
@@ -414,15 +628,14 @@ public class QuotaService {
    * WorkflowService.applyWorkspaceDefaults applies at save. A workspace naming no size is passed
    * on blank and takes the dispatcher's own default size, which this check does not see.
    */
-  private static void assertWorkspaceStorage(WorkflowWorkspace workspace, CurrentQuotas quotas) {
-    Integer maxSizeGi = quotas.getMaxWorkspaceStorage();
+  private static void assertWorkspaceStorage(WorkflowWorkspace workspace, Integer maxSizeGi) {
     String size = workspace.getSize();
     if (Quotas.limited(maxSizeGi)
         && size != null
         && !size.isBlank()
         && StorageQuantityUtil.toGi(size) > maxSizeGi) {
       throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED, "Requested Workspace size", size, maxSizeGi);
+          BoomerangError.QUOTA_EXCEEDED, WORKSPACE_SIZE, size, maxSizeGi);
     }
   }
 
@@ -463,6 +676,22 @@ public class QuotaService {
             .between("creationDate", from, to)
             .in("status", statuses.map(s -> s.stream().map(Enum::name).toList()))
             .build());
+  }
+
+  // The entries refused submits left in the month, per Workflow.
+  private Map<String, Long> countRefusedSubmits(List<String> workflowRefs, MonthWindow month) {
+    if (workflowRefs.isEmpty()) {
+      return Map.of();
+    }
+    return countByWorkflow(
+        WorkflowRunEntity.class,
+        where("workflowRef")
+            .in(workflowRefs)
+            .and("creationDate")
+            .gte(month.from())
+            .lt(month.to())
+            .and("statusReason")
+            .is(StatusReason.SUBMIT_REFUSED));
   }
 
   private Map<String, Long> countFinallyStage(List<String> workflowRefs) {

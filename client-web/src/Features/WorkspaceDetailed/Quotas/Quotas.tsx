@@ -17,7 +17,7 @@ import { formatDuration } from "Utils/dateHelper";
 import { formatQuotaLimit, formatQuotaUsage, quotaUsagePercent } from "Utils/quotaHelper";
 import { useWorkspaceDetailedContext } from "../WorkspaceDetailed";
 
-// The editor's helper text for the five quotas a 0 makes unlimited.
+// The editor's helper text for the quotas a 0 makes unlimited.
 const UNLIMITED_AT_ZERO = "0 means unlimited";
 
 // Route module for the Quotas tab (app/routes/manageWorkspaceQuotas.tsx).
@@ -94,6 +94,7 @@ function Quotas() {
     workspace.quotas.currentConcurrentRuns,
     workspace.quotas.maxConcurrentRuns,
   );
+  const queuedLimitPercentage = quotaUsagePercent(workspace.quotas.currentQueuedRuns, workspace.quotas.maxQueuedRuns);
   const monthlyExecutionPercentage = quotaUsagePercent(
     workspace.quotas.currentRuns,
     workspace.quotas.maxWorkflowRunMonthly,
@@ -208,7 +209,7 @@ function Quotas() {
           <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxWorkflowRunDuration, "minutes")}</h3>
         </QuotaCard>
         <QuotaCard
-          subtitle="Max number of Workflows able to run at the same time."
+          subtitle="Max number of Workflows able to run at the same time. One more than that waits in the queue."
           title="Concurrent Runs (executions)"
           modalSubtitle="Set the maximum number of Workflows that are able to run at the same time."
           minValue={0}
@@ -232,6 +233,32 @@ function Quotas() {
             />
           )}
           <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentConcurrentRuns}`}</p>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Runs that can wait for a slot once the concurrent limit is reached."
+          title="Queued Runs"
+          modalSubtitle="Set how many runs can wait for a slot once the concurrent limit is reached. One more than that gets knocked back."
+          minValue={0}
+          helperText={`${UNLIMITED_AT_ZERO}. A good starting point is 5× the concurrent limit.`}
+          detailedTitle="Current number of queued Workflow Runs"
+          detailedData={`${workspace.quotas.currentQueuedRuns} Workflow Runs`}
+          inputLabel="Maximum queued"
+          inputUnits="runs"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxQueuedRuns"
+          quotaValue={workspace.quotas.maxQueuedRuns}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}> {formatQuotaLimit(workspace.quotas.maxQueuedRuns, "runs")}</h3>
+          {queuedLimitPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxQueuedRuns}
+              value={queuedLimitPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
+          <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentQueuedRuns}`}</p>
         </QuotaCard>
         <QuotaCard
           subtitle="Size limit of the shared workspace a workflow can declare for each of its runs."

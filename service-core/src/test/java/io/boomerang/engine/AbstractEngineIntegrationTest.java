@@ -111,6 +111,19 @@ public abstract class AbstractEngineIntegrationTest {
   }
 
   /**
+   * Ends every run earlier tests left parked for a slot, for a test that counts the parked runs
+   * of the whole database: the queue sweep visits every workflow with one, and a completion looks
+   * for any. They end as cancelled, which no sweep picks up.
+   */
+  protected void cancelRunsEarlierTestsLeftParked() {
+    mongoTemplate.updateMulti(
+        Query.query(
+            Criteria.where("status").is(RunStatus.waiting).and("phase").is(RunPhase.pending)),
+        new Update().set("status", RunStatus.cancelled).set("phase", RunPhase.completed),
+        WorkflowRunEntity.class);
+  }
+
+  /**
    * Establishes an identity for every test, mirroring production: a served request always has one
    * (AuthenticationFilter when {@code flow.security.enabled=true}, otherwise
    * UnauthenticatedGlobalAuthenticationFilter), and background work hoists its own (ScheduleJob).
@@ -122,7 +135,7 @@ public abstract class AbstractEngineIntegrationTest {
    * runs after this one.
    */
   @BeforeEach
-  void establishTestIdentity() {
+  protected void establishTestIdentity() {
     Token principal = new Token(AuthScope.global);
     principal.setPrincipal("integration-test-principal");
     // Enforcement is real (no shadow mode): a global caller in production always carries a

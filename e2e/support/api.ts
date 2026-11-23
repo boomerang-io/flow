@@ -82,7 +82,7 @@ export async function createWorkflow(
   // workflow whose only tasks are start/end ("cant run"), and submit on such a workflow persists
   // an `invalid` run and then throws HTTP 500 (WorkflowExecutionService.queue) rather than
   // returning that run. The `sleep` task is seeded by service-core's migrations, and a node's type
-  // must be its task's type; with ?start=false the run parks at `ready` without needing any agent.
+  // must be its task's type; the engine runs a sleep itself, so the run needs no dispatcher.
   const res = await request.post(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflow`, {
     data: {
       name: displayName,
@@ -111,7 +111,7 @@ export async function submitWorkflowRun(
   workspace: string,
   workflowName: string,
 ): Promise<WorkflowRun> {
-  const res = await request.post(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflow/${workflowName}/submit?start=false`, {
+  const res = await request.post(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflow/${workflowName}/submit`, {
     data: {},
   });
   if (!res.ok()) {

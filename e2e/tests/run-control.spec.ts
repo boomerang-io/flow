@@ -173,16 +173,12 @@ test.describe("retry and cancel on kubernetes", () => {
     const origin = await waitForRun(request, workspace, (await submitAndStart(request, workspace, wf.name)).id);
     expect(origin.status, describe(origin)).toBe("failed");
 
-    // A retry creates the new run; starting it is a separate call, as the Start button makes it.
+    // A retry creates the new run and starts it, as a submit does.
     const retry = await request.put(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflowrun/${origin.id}/retry`, {
       data: { scope: "failed", params: [{ name: "mode", value: "pass" }] },
     });
     expect(retry.status(), await retry.text()).toBe(200);
     const created = (await retry.json()) as WorkflowRunView;
-    const start = await request.put(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflowrun/${created.id}/start`, {
-      data: {},
-    });
-    expect(start.status(), await start.text()).toBe(200);
 
     const retried = await waitForRun(request, workspace, created.id);
     expectRetriedFromFailure(origin, retried);

@@ -30,7 +30,6 @@ import io.boomerang.dispatcher.PollWakeups;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
 import io.boomerang.engine.EngineConstants;
-import io.boomerang.engine.RunTimeouts;
 import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowExecutionService;
@@ -448,17 +447,6 @@ public class WorkflowRunService {
   }
 
   /*
-   * Start WorkflowRun
-   *
-   * TODO: do we expose this one?
-   */
-  public ResponseEntity<WorkflowRun> start(
-      String workspace, String workflowRunId, Optional<WorkflowRunRequest> optRunRequest) {
-    requireWorkspaceRelationship(workspace, workflowRunId);
-    return ResponseEntity.ok(redactSecrets(start(workflowRunId, optRunRequest)));
-  }
-
-  /*
    * Cancel WorkflowRun
    */
   public ResponseEntity<WorkflowRun> cancel(String workspace, String workflowRunId) {
@@ -563,7 +551,7 @@ public class WorkflowRunService {
 
     return ResponseEntity.ok(
         redactSecrets(
-            retry(workflowRunId, false, 1, retryRequest.orElseGet(WorkflowRunRetryRequest::new))));
+            retry(workflowRunId, true, 1, retryRequest.orElseGet(WorkflowRunRetryRequest::new))));
   }
 
   /**
@@ -860,22 +848,19 @@ public class WorkflowRunService {
    * and the dispatcher starts it itself once provisioned (PUT .../workflowrun/{id}/start). Only a
    * run with no workspace - nothing to provision - starts on this call.
    *
-   * A run waiting for its provisioning claim has no start to bake its deadline from, so it takes
-   * one from its creation: the timeout sweep bounds the wait for a dispatcher as it bounds the
-   * run, and the start re-stamps the deadline from the start time.
+   * A run waiting for its provisioning claim has no start to bake its deadline from, so its
+   * admission stamps one: the timeout sweep bounds the wait for a dispatcher as it bounds the
+   * run, and the start re-stamps the deadline from the start time. A run waiting for a slot
+   * carries none.
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
     boolean hasWorkspace = wfRunEntity.getWorkspace() != null;
-    if (start && hasWorkspace) {
-      wfRunEntity.setTimeoutAt(
-          RunTimeouts.deadline(wfRunEntity.getCreationDate(), wfRunEntity.getTimeout()));
-    }
     workflowRunRepository.save(wfRunEntity);
     workflowExecutionService.queue(wfRunEntity.getId());
 
-    // Only an admitted run goes on: one parked for a slot of its workflow, skipped over the
-    // workflow's limit, or found invalid is returned as it stands, and the response carries that
-    // status truthfully.
+    // Only an admitted run goes on: one parked for a slot of its workflow or its workspace,
+    // skipped over the workflow's limit, or found invalid is returned as it stands, and the
+    // response carries that status truthfully. A parked run starts when it is admitted.
     WorkflowRunEntity queued = workflowRunRepository.findById(wfRunEntity.getId()).get();
     boolean admitted = RunStatus.ready.equals(queued.getStatus());
     if (start && hasWorkspace && admitted) {
@@ -1060,7 +1045,11 @@ public class WorkflowRunService {
       // no workspace owns has no quotas to check and no ceiling to clamp to.
       String ownerName = workspaceNameOrNull(owner);
       if (ownerName != null) {
-        quotaService.assertRunQuotas(ownerName, Optional.ofNullable(wfRunEntity.getWorkspace()));
+        quotaService.assertRunQuotas(
+            ownerName,
+            Optional.ofNullable(wfRunEntity.getWorkspace()),
+            wfRunEntity.getWorkflowRef(),
+            wfRunEntity.getWorkflowRevisionRef());
         long ceiling = quotaService.maxRunDuration(ownerName);
         if (ceiling > 0
             && (wfRunEntity.getTimeout() == null
@@ -1074,13 +1063,21 @@ public class WorkflowRunService {
       wfRunEntity.setPhase(RunPhase.pending);
       wfRunEntity.setId(null);
       wfRunEntity.setStatusMessage(null);
+      // The reason is the origin's: a retry of a run the queue cancelled, or of the entry a
+      // refused submit left, is a run of its own and not one of those.
+      wfRunEntity.setStatusReason(null);
       wfRunEntity.setDuration(0);
       wfRunEntity.setStartTime(null);
       wfRunEntity.setRetryCount(retryCount);
       // The clone is a fresh execution: it must not inherit the source run's claim ownership,
-      // baked deadline, approval gate, status override or produced results.
+      // baked deadline, ended graph, pause, wait or purge request, approval gate, status override
+      // or produced results.
       wfRunEntity.setClaim(null);
       wfRunEntity.setTimeoutAt(null);
+      wfRunEntity.setGraphEndedAt(null);
+      wfRunEntity.setPauseRequestedAt(null);
+      wfRunEntity.setWaitingSince(null);
+      wfRunEntity.setPurgeRequestedAt(null);
       wfRunEntity.setAwaitingApproval(false);
       wfRunEntity.setStatusOverride(null);
       // A scoped retry keeps the run results its carried-over tasks produced; a fresh run has none.
@@ -1143,13 +1140,18 @@ public class WorkflowRunService {
         workflowExecutionService.cancel(workflowRunId);
       }
 
-      if (start) {
+      // Only an admitted clone is started, as a submit starts its run: one with nothing to provision
+      // here, one with a workspace by the dispatcher that provisions it. One parked for a slot is
+      // returned as it stands, and its admission starts it.
+      WorkflowRunEntity queued = workflowRunRepository.findById(wfRunEntity.getId()).get();
+      boolean admitted = RunStatus.ready.equals(queued.getStatus());
+      if (start && admitted && queued.getWorkspace() == null) {
         return this.start(wfRunEntity.getId(), Optional.empty());
-      } else {
-        // Retrieve the refreshed status
-        return ConvertUtil.entityToModel(
-            workflowRunRepository.findById(wfRunEntity.getId()).get(), WorkflowRun.class);
       }
+      if (start && admitted) {
+        pollWakeups.runProvisionable();
+      }
+      return ConvertUtil.entityToModel(queued, WorkflowRun.class);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }

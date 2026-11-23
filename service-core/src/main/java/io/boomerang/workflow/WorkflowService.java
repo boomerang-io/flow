@@ -18,6 +18,7 @@ import io.boomerang.common.entity.WorkflowRevisionEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.ConfigType;
 import io.boomerang.common.enums.ParamType;
+import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
 import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
@@ -37,6 +38,10 @@ import io.boomerang.common.util.StringUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
+import io.boomerang.core.audit.AuditAction;
+import io.boomerang.core.audit.AuditEventEmitter;
+import io.boomerang.core.audit.AuditLevel;
+import io.boomerang.core.audit.AuditOutcome;
 import io.boomerang.core.audit.SecretChangeHolder;
 import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
@@ -178,6 +183,7 @@ public class WorkflowService {
   private final ObjectMapper objectMapper;
   private final ParamLayerCache paramLayerCache;
   private final IdentityService identityService;
+  private final AuditEventEmitter auditEventEmitter;
 
   // json-path (Configuration/JacksonMappingProvider/JacksonJsonNodeJsonProvider) only ships
   // Jackson 2 SPIs - com.fasterxml.jackson.databind.ObjectMapper, not the Boot-managed Jackson 3
@@ -209,7 +215,8 @@ public class WorkflowService {
       RunTimeoutPolicy runTimeoutPolicy,
       ObjectMapper objectMapper,
       ParamLayerCache paramLayerCache,
-      IdentityService identityService) {
+      IdentityService identityService,
+      AuditEventEmitter auditEventEmitter) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
@@ -227,6 +234,7 @@ public class WorkflowService {
     this.objectMapper = objectMapper;
     this.paramLayerCache = paramLayerCache;
     this.identityService = identityService;
+    this.auditEventEmitter = auditEventEmitter;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ────────────────────────
@@ -699,8 +707,7 @@ public class WorkflowService {
    * to the webapp (a session token) runs manual; any other caller, a token or the security-off
    * synthetic admin, runs api. Both answer to the Manual switch, and a body may send only those two.
    */
-  public WorkflowRun submitOnDemand(
-      String workspace, String name, WorkflowSubmitRequest request, boolean start) {
+  public WorkflowRun submitOnDemand(String workspace, String name, WorkflowSubmitRequest request) {
     TriggerEnum sent = request.getTrigger();
     if (sent != null && !TriggerEnum.manual.equals(sent) && !TriggerEnum.api.equals(sent)) {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_TRIGGER, sent.getTrigger());
@@ -710,7 +717,7 @@ public class WorkflowService {
         (identity != null && AuthScope.session.equals(identity.getType()))
             ? TriggerEnum.manual
             : TriggerEnum.api);
-    return submit(workspace, name, request, start);
+    return submit(workspace, name, request, true);
   }
 
   /*
@@ -817,11 +824,11 @@ public class WorkflowService {
   }
 
   // Admits a run of a workflow whose trigger has taken the request: quotas, then the run itself.
+  // A refusal is the monthly quota, the requested workspace size or a full queue; a run over the
+  // concurrent limit is created and waits in the queue.
   private WorkflowRun admit(
       String workspace, String workflowId, WorkflowSubmitRequest request, boolean start,
       String initiatedByRef) {
-    // Check Quotas - Throws Exception
-    quotaService.assertRunQuotas(workspace, Optional.ofNullable(request.getWorkspace()));
     // Set Workflow & Task Debug
     if (Objects.isNull(request.getDebug())) {
       boolean enableDebug = false;
@@ -840,15 +847,24 @@ public class WorkflowService {
         .removeIf(key -> key.startsWith(ParamLayerService.SERVER_ANNOTATION_PREFIX));
     request.setLabels(ServerLabel.withoutServerLabels(request.getLabels()));
 
-    // Admit-then-recheck: with quotas enforced the run is persisted before it is queued, the quota
-    // counts are re-read (now including this run), and a run that pushed a count over its limit is
-    // removed - simultaneous submits cannot each slip past the pre-admission count above. A removed
-    // run never left notstarted, so no transition was published and it is never audited as created.
+    // Admit-then-recheck: with quotas enforced the run is persisted before it is queued, the
+    // monthly and queue counts are re-read (now including this run), and a run that pushed one over
+    // its limit is removed - simultaneous submits cannot each slip past the pre-admission count
+    // above. A removed run never left notstarted, so no transition was published and it is never
+    // audited as created.
     WorkflowRunEntity newRun = newRun(workflowId, request, initiatedByRef);
+    // Check Quotas - Throws Exception. The run is built first, nothing written: the queue's cap
+    // depends on whether the run's own workflow would hold it.
+    quotaService.assertRunQuotas(
+        workspace,
+        Optional.ofNullable(request.getWorkspace()),
+        newRun.getWorkflowRef(),
+        newRun.getWorkflowRevisionRef());
     if (quotaService.enforced()) {
       mongoTemplate.insert(newRun);
       try {
-        quotaService.assertAdmittedRunWithinQuotas(workspace);
+        quotaService.assertAdmittedRunWithinQuotas(
+            workspace, newRun.getWorkflowRef(), newRun.getWorkflowRevisionRef());
       } catch (RuntimeException refused) {
         // The run pushed a count over its limit, or the recheck itself failed: it removes itself,
         // so it uses no quota and no un-queued run is left without an owner.
@@ -871,6 +887,134 @@ public class WorkflowService {
         Optional.empty());
     return wfRun;
   }
+
+  /**
+   * Record a submit that was refused and has no caller to answer - a schedule's fire dropped after
+   * its last attempt - as a run that ended before it began: cancelled, completed, with the reason
+   * {@code SubmitRefused} and the message given, owned by the workspace like any run. It is written
+   * as it stands: no quota is checked, nothing is queued and no transition is published, so it
+   * holds no slot, sends no event and is not counted as a run of the month. It carries the request
+   * as a run of the Workflow would, so a retry of it runs what the submit asked for; when the
+   * Workflow itself cannot run, it carries what the request named. One failed {@code SUBMIT} audit
+   * event is written with it.
+   */
+  public WorkflowRun recordRefusedSubmit(
+      String workspace,
+      String workflowId,
+      WorkflowSubmitRequest request,
+      String initiatedByRef,
+      String statusMessage,
+      RuntimeException refusal) {
+    WorkflowRunEntity entry;
+    try {
+      entry = newRun(workflowId, request, initiatedByRef);
+    } catch (RuntimeException cannotRun) {
+      entry = new WorkflowRunEntity();
+      entry.setWorkflowRef(workflowId);
+      entry.setCreationDate(new Date());
+      WorkflowRunEntity bare = entry;
+      workflowRevisionRepository
+          .findByWorkflowRefAndLatestVersion(workflowId)
+          .ifPresent(
+              revision -> {
+                bare.setWorkflowRevisionRef(revision.getId());
+                bare.setWorkflowVersion(revision.getVersion());
+              });
+      if (request.getLabels() != null) {
+        entry.getLabels().putAll(ServerLabel.withoutServerLabels(request.getLabels()));
+      }
+      if (request.getParams() != null) {
+        entry.setParams(request.getParams());
+      }
+      if (request.getTrigger() != null) {
+        entry.setTrigger(request.getTrigger().getTrigger());
+      }
+      entry.setInitiatedByRef(initiatedByRef);
+    }
+    entry.setStatus(RunStatus.cancelled);
+    entry.setPhase(RunPhase.completed);
+    entry.setStatusReason(StatusReason.SUBMIT_REFUSED);
+    entry.setStatusMessage(statusMessage);
+    entry.setDuration(0);
+    mongoTemplate.insert(entry);
+    // A Workflow no workspace owns has no workspace to list the entry under.
+    if (workspace != null && !workspace.isBlank()) {
+      relationshipService.createNodeAndEdge(
+          RelationshipType.WORKSPACE,
+          workspace,
+          RelationshipLabel.HAS_WORKFLOWRUN,
+          RelationshipType.WORKFLOWRUN,
+          entry.getId(),
+          entry.getId(),
+          Optional.empty(),
+          Optional.empty());
+    }
+    auditRefusedSubmit(workspace, workflowId, entry, refusal);
+    return ConvertUtil.entityToModel(entry, WorkflowRun.class);
+  }
+
+  // One audit event for the refused submit, shaped as the submit route's own failed submit.
+  private void auditRefusedSubmit(
+      String workspace, String workflowId, WorkflowRunEntity entry, RuntimeException refusal) {
+    try {
+      Map<String, Object> detail = new LinkedHashMap<>();
+      detail.put("trigger", entry.getTrigger());
+      detail.put("workflowRun", entry.getId());
+      if (entry.getInitiatedByRef() != null) {
+        detail.put("initiatedBy", entry.getInitiatedByRef());
+      }
+      auditEventEmitter.emit(
+          AuditAction.SUBMIT,
+          AuditLevel.WRITE,
+          "workflow",
+          relationshipService.getSlugByRefForType(RelationshipType.WORKFLOW, workflowId),
+          null,
+          relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspace),
+          AuditOutcome.FAILED,
+          refusalSummary(refusal),
+          detail);
+    } catch (RuntimeException e) {
+      // The entry is written; a refusal that cannot be audited is still on the run.
+      LOGGER.warn("Failed to audit the refused submit of Workflow {}: {}", workflowId, e.toString());
+    }
+  }
+
+  /**
+   * A refused submit in a few words: its code and a plain cause ({@code QUOTA_EXCEEDED: maximum
+   * queued runs}), the code alone where no cause is kept for it, and for a failure that carries no
+   * code the exception's class and nothing of its message.
+   */
+  public static String refusalSummary(RuntimeException refusal) {
+    if (!(refusal instanceof BoomerangException coded) || coded.getReason() == null) {
+      return refusal.getClass().getSimpleName();
+    }
+    String reason = coded.getReason();
+    String cause = null;
+    if (BoomerangError.QUOTA_EXCEEDED.getReason().equals(reason)) {
+      // Which quota: the refusal's first argument.
+      if (coded.getArgs() != null
+          && coded.getArgs().length > 0
+          && coded.getArgs()[0] instanceof String quota) {
+        cause = QUOTA_CAUSES.get(quota);
+      }
+    } else {
+      cause = REFUSAL_CAUSES.get(reason);
+    }
+    return (cause != null) ? reason + ": " + cause : reason;
+  }
+
+  private static final Map<String, String> QUOTA_CAUSES =
+      Map.of(
+          QuotaService.QUEUED_RUNS, "maximum queued runs",
+          QuotaService.MONTHLY_RUNS, "maximum runs this month",
+          QuotaService.WORKSPACE_SIZE, "requested workspace size");
+
+  private static final Map<String, String> REFUSAL_CAUSES =
+      Map.of(
+          BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED.getReason(), "trigger disabled",
+          BoomerangError.WORKFLOW_NOT_ACTIVE.getReason(), "workflow not active",
+          BoomerangError.WORKFLOW_REVISION_NOT_FOUND.getReason(), "workflow has no version to run",
+          BoomerangError.WORKFLOW_STORAGE_REMOVED.getReason(), "workflow storage no longer exists");
 
   /*
    * Retrieve a workflows changelog from all versions

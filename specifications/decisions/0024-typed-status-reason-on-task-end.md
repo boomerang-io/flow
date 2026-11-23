@@ -19,10 +19,10 @@ comparable system studied (Code Engine, Tekton, Google Cloud Batch, Trigger.dev)
 
 B. `TaskRunEndRequest`, `TaskRun` and `TaskRunEntity` carry `statusReason` (`service-core/src/main/java/io/boomerang/common/model/TaskRunEndRequest.java:30`,
 `common/model/TaskRun.java:47`, `common/entity/TaskRunEntity.java:50`). The closed set lives in one class
-(`common/model/StatusReason.java:11-50`): a dispatcher sends `DispatchError`, `DeadlineExceeded`, `JobFailed`,
+(`common/model/StatusReason.java:11-57`): a dispatcher sends `DispatchError`, `DeadlineExceeded`, `JobFailed`,
 `JobDeleted`, `OOMKilled`, `ImagePull`, `ImageNotAllowed`, `AdmissionDenied` or `ResultsTooLarge`, or, for a task that
 did not run to an end, `ExceededQuota`, `StartTimeout`, `RateLimited`, `ClusterUnavailable` or `DispatcherStopping`; the engine writes `DispatcherGone`, `LeaseExpired` and
-`DeadlineExceeded` on its reaps (`engine/WorkflowWatcher.java:250`, `:521`, `:564`) and its own causes for refused
+`DeadlineExceeded` on its reaps (`engine/WorkflowWatcher.java:272`, `:646`, `:689`) and its own causes for refused
 specs, parameters, artifacts, for-each items and child runs. The `StatusReason` in `dispatcher-sdk` is a subset, checked by its tests
 (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/StatusReason.java:8-56`), and Flow's Kubernetes dispatcher maps
 Job and TaskRun conditions and the pod's container state onto it (`service-dispatcher/src/main/java/io/boomerang/kube/KubeJobsExecutor.java:505-525`,
@@ -33,7 +33,7 @@ rather than starting a second vocabulary, and policy derives from it.
 ## Consequences
 
 - Two policies are built on it: the requeue of a task that did not run to an end, `StartTimeout`, `ExceededQuota`,
-  `RateLimited`, `ClusterUnavailable` and `DispatcherStopping` (`common/model/StatusReason.java:53-59`,
+  `RateLimited`, `ClusterUnavailable` and `DispatcherStopping` (`common/model/StatusReason.java:60-66`,
   `engine/TaskRunService.java:1189-1208`), and a node retry's refusal of causes a retry cannot change (`:61-74`).
 - Insights and status events carry the reason (`workflow/WorkflowRunInsightService.java:542`,
   `event/model/RunStatusSummary.java:89-100`).

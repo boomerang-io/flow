@@ -47,6 +47,9 @@ const retryStatusTypes = [
   RunStatus.Succeeded,
 ];
 const startPhaseTypes = [RunPhase.Pending, RunPhase.Queued];
+// The reasons a run ends cancelled without ever starting: it waited too long for a slot, or its
+// submit was refused and the run is the record of that.
+const cancelledByQueueReasons = ["QueueExpired", "SubmitRefused"];
 // The run's status tag takes the colour its tasks use: teal done, red failed or stopped, blue in
 // progress, gray not run.
 const statusTagType: Partial<Record<RunStatus, "teal" | "red" | "blue" | "gray">> = {
@@ -70,7 +73,6 @@ const TRANSITION_COPY: Record<
   { title: string; success: string; failure: string }
 > = {
   cancel: { title: "Cancel run", success: "Run successfully cancelled", failure: "Failed to cancel this run" },
-  start: { title: "Start run", success: "Run successfully started", failure: "Failed to start this run" },
   pause: { title: "Pause run", success: "Run successfully paused", failure: "Failed to pause this run" },
   resume: { title: "Resume run", success: "Run successfully resumed", failure: "Failed to resume this run" },
 };
@@ -108,17 +110,19 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
   const canActionWorkflowRun = hasPermission(user, "workflowrun", "action", workspace.name);
   const displayCancelButton = cancelStatusTypes.includes(status);
   const displayRetryButton = retryStatusTypes.includes(status) && Boolean(onRetry);
-  // A run with a workspace is started by the dispatcher that provisions its storage; starting it
-  // here would run it with nothing provisioned. Start is for a run without one, submitted unstarted.
-  const waitsForDispatcher = startPhaseTypes.includes(phase) && Boolean(workflowRun.workspace);
-  // Start only admits a run still waiting to begin. An absent `paused` (older backends) is
-  // treated as not paused, so Pause is the one shown rather than both or neither.
-  const displayStartButton = startPhaseTypes.includes(phase) && !waitsForDispatcher;
+  // A run with a workspace is started by the dispatcher that provisions its storage. Queued: the run waits for a slot, of its workspace's concurrent runs or of its own workflow's
+  // limit. Nobody starts it; it starts when it is admitted, and its message says what it waits on.
+  const isQueued = status === RunStatus.Waiting && phase === RunPhase.Pending;
+  const waitsForDispatcher = startPhaseTypes.includes(phase) && Boolean(workflowRun.workspace) && !isQueued;
+  // A run the queue or a refused submit ended was cancelled for a reason, not by an error.
+  const wasCancelledByTheQueue = cancelledByQueueReasons.includes(workflowRun.statusReason ?? "");
+  // An absent `paused` (older backends) is treated as not paused, so Pause is the one shown rather
+  // than both or neither.
   const displayPauseButton = phase === RunPhase.Running && !paused;
   const displayResumeButton = Boolean(paused);
   // Workspace is the fact that gives way when a primary run action needs the room.
   const showsPrimaryAction =
-    canActionWorkflowRun && (displayStartButton || displayRetryButton || displayPauseButton || displayResumeButton);
+    canActionWorkflowRun && (displayRetryButton || displayPauseButton || displayResumeButton);
   // The overflow's items open these modals, which cannot sit inside a menu item themselves.
   const [openModal, setOpenModal] = React.useState<"advanced" | "cancel" | null>(null);
   // "· 21 s active" once finished: a run's duration is execution only, its waits and pauses left
@@ -167,7 +171,6 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
     fetcher.submit({ intent }, { method: "post" });
 
   const handleCancelWorkflow = () => submitTransition("cancel");
-  const handleStartWorkflow = () => submitTransition("start");
   const handlePauseWorkflow = () => submitTransition("pause");
   const handleResumeWorkflow = () => submitTransition("resume");
 
@@ -240,7 +243,12 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
                   <span suppressHydrationWarning>{` ${runDuration}`}</span>
                 ) : null}
               </Tag>
-              {workflowRun.statusReason ? (
+              {/* A queued run's reason names the limit that holds it; its message says it in words. */}
+              {isQueued ? (
+                <span className={styles.statusReason} data-testid="run-queued">
+                  {`Queued. ${workflowRun.statusMessage || "Waiting for a slot."}`}
+                </span>
+              ) : workflowRun.statusReason ? (
                 <span className={styles.statusReason} data-testid="run-status-reason">
                   {workflowRun.statusReason}
                 </span>
@@ -322,15 +330,16 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
           </dl>
           {/* Inside to outside: the run error, View results, the one primary run action, then the overflow. */}
           <div className={styles.controls}>
-            {Boolean(workflowRun.statusMessage) && (
+            {/* A queued run's message is beside its status: it says what the run waits on, not an error. */}
+            {Boolean(workflowRun.statusMessage) && !isQueued && (
               <ComposedModal
                 composedModalProps={{ shouldCloseOnOverlayClick: true }}
-                modalHeaderProps={{ title: "Run Error" }}
+                modalHeaderProps={{ title: wasCancelledByTheQueue ? "Why this run was cancelled" : "Run Error" }}
                 modalTrigger={({ openModal }) => (
                   <Button
                     className={styles.runErrorButton}
                     hasIconOnly
-                    iconDescription="View run error"
+                    iconDescription={wasCancelledByTheQueue ? "Why this run was cancelled" : "View run error"}
                     kind="ghost"
                     onClick={openModal}
                     renderIcon={Warning}
@@ -344,26 +353,6 @@ export default function RunHeader({ workflow, workflowRun, version, onRetry }: P
             )}
             {workflowRun.results && Object.keys(workflowRun.results).length > 0 && (
               <OutputPropertiesLog isOutput taskName={workflowRun.workflowName} results={workflowRun.results} />
-            )}
-            {canActionWorkflowRun && displayStartButton && (
-              <ConfirmModal
-                affirmativeAction={handleStartWorkflow}
-                children="Are you sure? This will start execution of the queued Workflow run."
-                title="Start run"
-                modalTrigger={({ openModal }) => (
-                  <Button
-                    className={styles.cancelRun}
-                    data-testid="start-run"
-                    kind="primary"
-                    iconDescription="Start run"
-                    onClick={openModal}
-                    renderIcon={Play}
-                    size="md"
-                  >
-                    Start run
-                  </Button>
-                )}
-              />
             )}
             {canActionWorkflowRun && displayRetryButton && (
               <Button

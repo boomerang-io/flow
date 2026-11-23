@@ -97,7 +97,7 @@ then a 40px row holding the page's tabs or, when it has none, its one-line descr
 | --- | --- |
 | Breadcrumb | Every page has one. Workspace pages start `Home / <workspace>`; the Manage area's layout carries `Home / Manage` once for every tab (`src/Features/Manage/Manage.tsx:56-77`). |
 | Title | A list page is titled with its route (Workflows, Actions, Settings). A page inside one object is titled with that object's name, and the breadcrumb ends with the route: the editor is `Home / Workflows / Editor` titled with the workflow's name (`src/Features/WorkflowEditor/Header/Header.tsx:71-90`), Activity detail is `Home / Activity / Activity detail` titled with the run's workflow, a user is titled with the user's name. |
-| Right slot | Page facts and actions (search, today's numbers, run facts) sit in `actions`. Controls sit after the facts, inside to outside: icon and secondary buttons, the one primary action, then an overflow menu (⋮) for the rest, destructive items last. A status is a Carbon tag in the status colour: on Activity detail it leads the run facts with the duration inside (`src/Features/WorkflowRun/RunHeader/RunHeader.tsx:222-255`). Controls that act on tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
+| Right slot | Page facts and actions (search, today's numbers, run facts) sit in `actions`. Controls sit after the facts, inside to outside: icon and secondary buttons, the one primary action, then an overflow menu (⋮) for the rest, destructive items last. A status is a Carbon tag in the status colour: on Activity detail it leads the run facts with the duration inside (`src/Features/WorkflowRun/RunHeader/RunHeader.tsx:230-267`). Controls that act on tabbed content (the editor's version switcher, a task's version actions) sit on the tab row instead, so the title keeps the width. |
 | Tabs and description | A page with tabs carries no description line (Actions, Manage). |
 
 The workflow editor's task palette follows the same density: one 32px title row ("Add a task", Expand all, the
@@ -377,7 +377,7 @@ conventions the canvas editor follows and new UI MUST keep:
 
 - Every interactive element carries a role and a name. The palette entries are `role="option"` named by the task's
   display name (`src/Features/WorkflowEditor/Designer/Tasks/Task/Task.tsx:33`); icon-only buttons carry
-  `hasIconOnly` with `iconDescription`, which names nothing without it (`src/Features/WorkspaceDetailed/Quotas/Quotas.tsx:346-356`), or an `alt`
+  `hasIconOnly` with `iconDescription`, which names nothing without it (`src/Features/WorkspaceDetailed/Quotas/Quotas.tsx:373-383`), or an `alt`
   (`src/Components/WorkflowEditButton/WorkflowEditButton.tsx:14`: "Workflow edit button").
 - Form inputs are named by their parameter label, not their key: `textbox "Shell Interpreter"`, not `#shell`
   (`src/Features/Reactflow/components/shared/inputs.tsx:30`, `e2e/tests/foreach-ui.spec.ts:118`).

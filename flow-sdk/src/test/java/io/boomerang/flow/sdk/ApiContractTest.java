@@ -421,7 +421,6 @@ class ApiContractTest {
 
     flow.runs("ws").submit("wf", SubmitRequest.empty());
     flow.runs("ws").get("r");
-    flow.runs("ws").start("r");
     flow.runs("ws").pause("r");
     flow.runs("ws").resume("r");
     flow.runs("ws").cancel("r");
@@ -442,7 +441,7 @@ class ApiContractTest {
     flow.insights().tasks(InsightsQuery.all());
     flow.insights().taskRuns(InsightsQuery.all().labels("a=b"));
 
-    assertThat(calls).hasSize(22);
+    assertThat(calls).hasSize(21);
     List<String> routes = routes();
     calls.forEach(
         call ->

@@ -18,6 +18,8 @@ public class Quotas {
   private Integer maxWorkspaceStorage;
   private Integer maxWorkflowRunDuration;
   private Integer maxConcurrentRuns;
+  // Runs that may wait for a slot once the concurrent limit is reached.
+  private Integer maxQueuedRuns;
   // Gi of unexpired artifacts the workspace may hold, and the days an artifact is kept.
   private Integer maxArtifactStorage;
   private Integer artifactRetentionDays;
@@ -28,6 +30,7 @@ public class Quotas {
         + maxWorkflowRunMonthly + ", maxWorkspaceStorage=" + maxWorkspaceStorage
         + ", maxWorkflowRunDuration="
         + maxWorkflowRunDuration + ", maxConcurrentRuns=" + maxConcurrentRuns
+        + ", maxQueuedRuns=" + maxQueuedRuns
         + ", maxArtifactStorage=" + maxArtifactStorage + ", artifactRetentionDays="
         + artifactRetentionDays + "]";
   }
@@ -60,6 +63,12 @@ public class Quotas {
   }
   public void setMaxConcurrentRuns(Integer maxConcurrentRuns) {
     this.maxConcurrentRuns = maxConcurrentRuns;
+  }
+  public Integer getMaxQueuedRuns() {
+    return maxQueuedRuns;
+  }
+  public void setMaxQueuedRuns(Integer maxQueuedRuns) {
+    this.maxQueuedRuns = maxQueuedRuns;
   }
   public Integer getMaxArtifactStorage() {
     return maxArtifactStorage;

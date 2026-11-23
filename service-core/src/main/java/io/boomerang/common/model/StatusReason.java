@@ -34,6 +34,13 @@ public abstract class StatusReason {
   public static final String CONCURRENCY_LIMIT = "ConcurrencyLimit";
   public static final String WORKFLOW_INVALID = "WorkflowInvalid";
   public static final String FINALLY_FAILED = "FinallyFailed";
+  // On a run waiting for a slot, the limit that holds it: its workflow's own (CONCURRENCY_LIMIT,
+  // which also ends a run its workflow skips) or its workspace's concurrent runs. Admission clears it.
+  public static final String WORKSPACE_CONCURRENCY_LIMIT = "WorkspaceConcurrencyLimit";
+  // A run that waited for a slot past the queue's age limit, and the entry a refused submit leaves
+  // when nothing else would record it (a schedule's dropped fire).
+  public static final String QUEUE_EXPIRED = "QueueExpired";
+  public static final String SUBMIT_REFUSED = "SubmitRefused";
 
   // Written by the engine.
   public static final String DISPATCH_PREPARE_FAILED = "DispatchPrepareFailed";

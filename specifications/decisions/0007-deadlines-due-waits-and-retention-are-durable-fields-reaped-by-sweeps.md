@@ -23,10 +23,10 @@ outlast it.
 
 A durable `timeoutAt` on each task run and workflow run, reaped every 30 s on every instance and fenced on `claim.seq` ;
 a run whose in-flight tasks are all `waiting` gets `waitingSince` and its deadline moves forward by the time waited
-(`engine/TaskRunService.java:865-888`, `engine/WorkflowRunStateHelper.java:402-444`), and reported duration excludes
+(`engine/TaskRunService.java:865-888`, `engine/WorkflowRunStateHelper.java:524-566`), and reported duration excludes
 waits. `DueWaitPoller` resumes due waits every `flow.watcher.wait-interval-ms` (1 s) on its own virtual thread, a resume
 claiming the wait by moving `waitUntil` 60 s ahead (`engine/DueWaitPoller.java:21`, `TaskRunService.java:941`).
-`WorkflowService.delete` is one guarded update to `deleted` (`workflow/WorkflowService.java:2288-2300`); the sweep
+`WorkflowService.delete` is one guarded update to `deleted` (`workflow/WorkflowService.java:2432-2444`); the sweep
 cancels the workflow's in-flight runs and then purges each run with its dependants, and `purgeExpiredRuns` runs hourly
 over `completed` runs older than the `workflowrun` setting `retention.days` (365, floored at 60), keeping any run
 another run names in `initiatedByRef`, 20 pages of 50 a pass (`workflow/WorkflowRetentionService.java:229-269,326-333`).

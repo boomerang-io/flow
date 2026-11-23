@@ -540,12 +540,15 @@ export interface FlowWorkspaceSummary {
 export interface FlowWorkspaceQuotas {
   currentRuns: number;
   currentWorkflowCount: number;
+  // Runs holding a slot: admitted, running or in their finally tasks.
   currentConcurrentRuns: number;
+  // Runs waiting for a slot.
+  currentQueuedRuns: number;
   currentRunTotalDuration: number;
   currentRunAverageDuration: number;
   // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
   currentArtifactStorage: number;
-  // For the five max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already
+  // For the six max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already
   // resolved an absent stored value to the platform default.
   maxWorkflowCount: number;
   maxWorkflowRunMonthly: number;
@@ -553,6 +556,8 @@ export interface FlowWorkspaceQuotas {
   maxWorkspaceStorage: number;
   maxWorkflowRunDuration: number;
   maxConcurrentRuns: number;
+  // Runs that may wait for a slot once the concurrent limit is reached.
+  maxQueuedRuns: number;
   // Gi (integer) - the artifact storage cap for this workspace.
   maxArtifactStorage: number;
   // Days an artifact is kept after upload before it expires.

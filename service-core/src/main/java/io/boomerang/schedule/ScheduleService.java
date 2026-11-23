@@ -478,6 +478,37 @@ public class ScheduleService {
   }
 
   /**
+   * When the fire a schedule is retrying was due: a run-once schedule's date, a recurring one's
+   * latest occurrence up to now. The fire time the schedule stores moves with every retry, so it
+   * is the fallback only, for a cron that cannot be read.
+   */
+  public Date firedAt(WorkflowScheduleEntity schedule) {
+    if (WorkflowScheduleType.runOnce.equals(schedule.getType())) {
+      return (schedule.getDateSchedule() != null)
+          ? schedule.getDateSchedule()
+          : schedule.getNextFireAt();
+    }
+    String unix =
+        (schedule.getCronSchedule() != null && schedule.getTimezone() != null)
+            ? cronService.toUnix(schedule.getType(), schedule.getCronSchedule())
+            : null;
+    if (unix != null) {
+      try {
+        CronDefinition definition = CronDefinitionBuilder.instanceDefinitionFor(CronType.UNIX);
+        ExecutionTime executionTime = ExecutionTime.forCron(new CronParser(definition).parse(unix));
+        ZoneId zone = TimeZone.getTimeZone(schedule.getTimezone()).toZoneId();
+        Optional<ZonedDateTime> last = executionTime.lastExecution(ZonedDateTime.now(zone));
+        if (last.isPresent()) {
+          return Date.from(last.get().toInstant());
+        }
+      } catch (Exception e) {
+        LOGGER.warn("[{}] Unable to compute the last cron occurrence: {}", schedule.getId(), e.toString());
+      }
+    }
+    return (schedule.getNextFireAt() != null) ? schedule.getNextFireAt() : new Date();
+  }
+
+  /**
    * Fire-claim Compare-And-Set: advance {@code nextFireAt} from its observed value to the next
    * occurrence in one atomic write. The query pinning the observed {@code nextFireAt} is the
    * fence - only one instance wins per tick; a racing instance's query misses because the value

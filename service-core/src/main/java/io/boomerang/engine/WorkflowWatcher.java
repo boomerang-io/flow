@@ -16,13 +16,16 @@ import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.util.Backoff;
 import io.boomerang.common.util.SweepRunner;
+import io.boomerang.core.SettingsService;
 import io.boomerang.dispatcher.entity.DispatcherEntity;
 import io.boomerang.dispatcher.repository.DispatcherRepository;
 import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.engine.repository.ActionRepository;
 import io.boomerang.engine.repository.WorkflowRunRepository;
 import java.time.Duration;
+import java.util.ArrayList;
 import java.util.Date;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Objects;
@@ -67,6 +70,11 @@ public class WorkflowWatcher {
   // later sweep finds it empty again.
   private final Map<String, Long> emptySince = new ConcurrentHashMap<>();
 
+  // Admitted runs with nothing to provision seen not yet started, by when they were first seen so.
+  // A submit admits and then starts its run, so a run is started here only when a later sweep
+  // finds it still waiting.
+  private final Map<String, Long> admittedSince = new ConcurrentHashMap<>();
+
   private static final Set<TaskType> REQUEUEABLE_TYPES = EngineConstants.REQUEUEABLE_TYPES;
 
   private static final int MAX_RETRIES = EngineConstants.MAX_RETRIES;
@@ -104,12 +112,22 @@ public class WorkflowWatcher {
   private final ArtifactService artifactService;
   private final WorkflowRetentionService workflowRetentionService;
   private final MongoTemplate mongoTemplate;
+  private final SettingsService settingsService;
 
   // Where the sweeps that page oldest first resume, so candidates they leave alone cannot hide the
   // ones behind them.
   private final SweepCursor stalledRuns = new SweepCursor("startTime");
   private final SweepCursor foreachParents = new SweepCursor("startTime");
   private final SweepCursor strayActions = new SweepCursor("creationDate");
+  // The workflow the parked-run sweep visited last; the next page starts after it.
+  private volatile String lastParkedWorkflow = "";
+
+  // Hours a run may wait for a slot: the "queue.max.age" key of the "workflowrun" settings.
+  private static final String QUEUE_MAX_AGE_SETTING = "queue.max.age";
+  private static final long QUEUE_MAX_AGE_DEFAULT_HOURS = 24;
+  private static final long QUEUE_MAX_AGE_CEILING_HOURS = 100L * 365 * 24;
+  // The last value of the setting that could not be read, so the log says so once per value.
+  private volatile String unreadableQueueMaxAge;
 
   @Value("${flow.watcher.enabled:true}")
   private boolean enabled;
@@ -136,7 +154,8 @@ public class WorkflowWatcher {
       DispatcherRepository dispatcherRepository,
       ArtifactService artifactService,
       WorkflowRetentionService workflowRetentionService,
-      MongoTemplate mongoTemplate) {
+      MongoTemplate mongoTemplate,
+      SettingsService settingsService) {
     this.taskRunService = taskRunService;
     this.workflowRunRepository = workflowRunRepository;
     this.workflowRepository = workflowRepository;
@@ -149,6 +168,7 @@ public class WorkflowWatcher {
     this.artifactService = artifactService;
     this.workflowRetentionService = workflowRetentionService;
     this.mongoTemplate = mongoTemplate;
+    this.settingsService = settingsService;
   }
 
   /** Start every cursored sweep's next page from its oldest candidate. */
@@ -156,6 +176,7 @@ public class WorkflowWatcher {
     stalledRuns.reset();
     foreachParents.reset();
     strayActions.reset();
+    lastParkedWorkflow = "";
   }
 
   @EventListener(ApplicationReadyEvent.class)
@@ -188,7 +209,8 @@ public class WorkflowWatcher {
     SweepRunner.runIsolated("purgeRequestedRuns", this::purgeRequestedRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapRunsWithMissingRevision", this::reapRunsWithMissingRevision, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("recoverStaleProvisionClaims", this::recoverStaleProvisionClaims, WorkflowWatcher::logSweepFailure);
-    SweepRunner.runIsolated("readmitParkedRuns", this::readmitParkedRuns, WorkflowWatcher::logSweepFailure);
+    sweepQueuedRuns();
+    SweepRunner.runIsolated("startAdmittedRuns", this::startAdmittedRuns, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapClaimsFromGoneDispatchers", this::reapClaimsFromGoneDispatchers, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("expireDispatcherRegistrations", this::expireDispatcherRegistrations, WorkflowWatcher::logSweepFailure);
     SweepRunner.runIsolated("reapExpiredLeases", this::reapExpiredLeases, WorkflowWatcher::logSweepFailure);
@@ -482,17 +504,120 @@ public class WorkflowWatcher {
   }
 
   /**
-   * Re-drive the runs parked for a slot of their workflow's concurrency limit, longest waiting
-   * first. The completion of a run of the workflow re-admits the oldest parked run at once; this
-   * sweep is the fallback for a re-admission lost with the instance that owed it. A run still over
-   * the limit stays parked: admission re-checks the count.
+   * The two sweeps over the runs parked for a slot, re-admission first: a run past the queue's age
+   * whose slot is free is admitted, not expired.
+   */
+  public void sweepQueuedRuns() {
+    SweepRunner.runIsolated("readmitParkedRuns", this::readmitParkedRuns, WorkflowWatcher::logSweepFailure);
+    SweepRunner.runIsolated("expireQueuedRuns", this::expireQueuedRuns, WorkflowWatcher::logSweepFailure);
+  }
+
+  /**
+   * Re-drive the runs parked for a slot. A run's completion drains its queue at once; this sweep
+   * is the fallback for a drain lost with the instance that owed it, and what admits a queue once
+   * a quota is raised or switched off. It visits the workflows that have a parked run, a page a
+   * tick in rotation, and drains each one's queue: a workspace's queue is drained once however
+   * many of its workflows are visited. A run still over a limit stays parked.
    */
   public void readmitParkedRuns() {
+    List<String> parked = workflowRunStateHelper.parkedWorkflowRefs();
+    if (parked.isEmpty()) {
+      return;
+    }
+    // The page after the workflow last visited, wrapping, so every workflow is reached in turn.
+    List<String> rotation = new ArrayList<>(parked.size());
+    parked.stream().filter(ref -> ref.compareTo(lastParkedWorkflow) > 0).forEach(rotation::add);
+    parked.stream().filter(ref -> ref.compareTo(lastParkedWorkflow) <= 0).forEach(rotation::add);
+    List<String> page = rotation.subList(0, Math.min(PAGE_SIZE, rotation.size()));
+    lastParkedWorkflow = page.get(page.size() - 1);
+    Set<String> drained = new HashSet<>();
     SweepRunner.forEachIsolated(
-        workflowRunStateHelper.findParked(PAGE_SIZE),
-        wfRun -> workflowExecutionService.readmit(wfRun.getId()),
+        page,
+        workflowRef -> {
+          if (!drained.contains(workflowRef)) {
+            drained.addAll(workflowExecutionService.drain(workflowRef));
+          }
+        },
+        (workflowRef, ex) ->
+            LOGGER.error(
+                "Parked-run re-admission failed for Workflow {}: {}", workflowRef, ex.getMessage()));
+  }
+
+  /**
+   * Start the admitted runs with nothing to provision whose start was lost: the instance that
+   * admitted one stopped before it started it, or it was re-admitted from the queue on its way
+   * down. A submit always starts its run, so a run seen ready and pending on two sweeps in a row
+   * is owed a start. The start is the same compare-and-set as the live path's, so a run started
+   * meanwhile is left alone.
+   */
+  public void startAdmittedRuns() {
+    List<WorkflowRunEntity> page = workflowRunStateHelper.findAdmittedNotStarted(PAGE_SIZE);
+    long now = System.currentTimeMillis();
+    Set<String> seen = new HashSet<>();
+    page.forEach(run -> seen.add(run.getId()));
+    admittedSince.keySet().retainAll(seen);
+    SweepRunner.forEachIsolated(
+        page,
+        wfRun -> {
+          if (admittedSince.putIfAbsent(wfRun.getId(), now) != null) {
+            admittedSince.remove(wfRun.getId());
+            workflowExecutionService.startAdmitted(wfRun.getId());
+          }
+        },
         (wfRun, ex) ->
-            LOGGER.error("[{}] Parked-run re-admission failed: {}", wfRun.getId(), ex.getMessage()));
+            LOGGER.error("[{}] Admitted-run start failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * End the runs that have waited for a slot longer than the queue's age limit, longest waiting
+   * first: the {@code queue.max.age} hours of the {@code workflowrun} settings, and no limit at 0.
+   * Runs after {@link #readmitParkedRuns}, so a run whose slot is free is admitted instead.
+   */
+  public void expireQueuedRuns() {
+    long maxAgeHours = queueMaxAgeHours();
+    if (maxAgeHours <= 0) {
+      return;
+    }
+    Date cutoff = new Date(System.currentTimeMillis() - maxAgeHours * 3600000L);
+    SweepRunner.forEachIsolated(
+        workflowRunStateHelper.findParkedBefore(cutoff, PAGE_SIZE),
+        wfRun -> workflowExecutionService.expire(wfRun.getId(), cutoff, maxAgeHours),
+        (wfRun, ex) ->
+            LOGGER.error("[{}] Queued-run expiry failed: {}", wfRun.getId(), ex.getMessage()));
+  }
+
+  /**
+   * The queue's age limit in whole hours: 24 where the settings predate the key, and 24 for a
+   * value that is not a whole number of 0 or more, said once in the log for each such value. A
+   * number past a century is held to one, so the limit in milliseconds always fits.
+   */
+  private long queueMaxAgeHours() {
+    String stored;
+    try {
+      stored =
+          settingsService
+              .getSettingConfig(TaskExecutionService.WORKFLOWRUN_SETTINGS_KEY, QUEUE_MAX_AGE_SETTING)
+              .getValue();
+    } catch (RuntimeException missing) {
+      return QUEUE_MAX_AGE_DEFAULT_HOURS;
+    }
+    String value = (stored != null) ? stored.trim() : "";
+    if (value.matches("\\d+")) {
+      unreadableQueueMaxAge = null;
+      return (value.length() > 9)
+          ? QUEUE_MAX_AGE_CEILING_HOURS
+          : Math.min(Long.parseLong(value), QUEUE_MAX_AGE_CEILING_HOURS);
+    }
+    if (!value.equals(unreadableQueueMaxAge)) {
+      unreadableQueueMaxAge = value;
+      LOGGER.warn(
+          "The workflowrun setting {} is '{}', not a whole number of hours of 0 or more. Runs"
+              + " wait for a slot for at most {} hours until it is one.",
+          QUEUE_MAX_AGE_SETTING,
+          value,
+          QUEUE_MAX_AGE_DEFAULT_HOURS);
+    }
+    return QUEUE_MAX_AGE_DEFAULT_HOURS;
   }
 
   /**

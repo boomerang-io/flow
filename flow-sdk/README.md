@@ -45,8 +45,7 @@ WorkflowRun run =
 
 run = runs.get(run.id());                                       // with its task runs
 if (run.status() == RunStatus.failed) {
-  run = runs.retry(run.id(), Retry.failed().param("depth", 5)); // a new run, parked at ready
-  runs.start(run.id());
+  run = runs.retry(run.id(), Retry.failed().param("depth", 5)); // a new run, started or queued
 }
 runs.pause(run.id());                                           // no further task admitted
 runs.resume(run.id());

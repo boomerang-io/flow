@@ -1,5 +1,5 @@
 import React from "react";
-import { screen } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { Route } from "react-router-dom";
@@ -14,6 +14,18 @@ import { isActionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 import WorkflowCard from "./index";
 
+// No toast container renders in a spec (react-toastify needs one), so the toasts the card raises
+// are read off notify's calls.
+const { notify } = vi.hoisted(() => ({ notify: vi.fn() }));
+vi.mock("@boomerang-io/carbon-addons-boomerang-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@boomerang-io/carbon-addons-boomerang-react")>()),
+  notify,
+}));
+
+beforeEach(() => {
+  notify.mockClear();
+});
+
 const workspace = workspaces.content[0];
 const workflowFixture = workflows.content[0];
 
@@ -26,6 +38,7 @@ const quotas: FlowWorkspaceQuotas = {
   currentRuns: 0,
   currentWorkflowCount: 0,
   currentConcurrentRuns: 0,
+  currentQueuedRuns: 0,
   currentRunTotalDuration: 0,
   currentRunAverageDuration: 0,
   currentArtifactStorage: 0,
@@ -36,6 +49,7 @@ const quotas: FlowWorkspaceQuotas = {
   maxArtifactStorage: 5,
   artifactRetentionDays: 30,
   maxConcurrentRuns: 10,
+  maxQueuedRuns: 20,
   monthlyResetDate: "2022-01-01T00:00:00.000Z",
 };
 
@@ -94,19 +108,19 @@ function renderWorkflowCard(overrides: Partial<Workflow> = {}, workspaceName: st
   );
 }
 
-describe("WorkflowCard --- quotas", () => {
-  // A quota of 0 is unlimited: a workspace with runs behind it can still run, while a reached limit cannot.
-  function renderWithQuotas(quotaOverrides: Partial<FlowWorkspaceQuotas>) {
-    return renderWithContext(
-      <Route
-        path="/:workspace/workflows"
-        action={action}
-        element={<WorkflowCard {...props} quotas={{ ...quotas, ...quotaOverrides }} />}
-      />,
-      { route: appLink.workflows({ workspace: workspace.name }) },
-    );
-  }
+// A quota of 0 is unlimited: a workspace with runs behind it can still run, while a reached limit cannot.
+function renderWithQuotas(quotaOverrides: Partial<FlowWorkspaceQuotas>) {
+  return renderWithContext(
+    <Route
+      path="/:workspace/workflows"
+      action={action}
+      element={<WorkflowCard {...props} quotas={{ ...quotas, ...quotaOverrides }} />}
+    />,
+    { route: appLink.workflows({ workspace: workspace.name }) },
+  );
+}
 
+describe("WorkflowCard --- quotas", () => {
   it("runs when the run quotas are unlimited, whatever the counts", () => {
     renderWithQuotas({ maxWorkflowRunMonthly: 0, currentRuns: 50, maxConcurrentRuns: 0, currentConcurrentRuns: 3 });
     expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
@@ -342,5 +356,92 @@ describe("WorkflowCard --- action", () => {
 
     expect(isActionError(result)).toBe(false);
     expect(result.intent).toBe("execute");
+  });
+});
+
+// These open the run modal and raise toasts, which stay in the document: kept after the snapshot.
+describe("WorkflowCard --- the run queue", () => {
+  // Busy slots queue a run; they no longer stop it.
+  it("still runs with every slot busy, and says the run will wait its turn", async () => {
+    renderWithQuotas({ maxConcurrentRuns: 4, currentConcurrentRuns: 4, maxQueuedRuns: 20, currentQueuedRuns: 3 });
+
+    const run = screen.getByRole("button", { name: /Run it/ });
+    expect(run).toBeEnabled();
+    await userEvent.click(run);
+
+    expect(
+      await screen.findByText(
+        "All 4 run slots are busy. Run it anyway and it'll wait its turn (3 of 20 in the queue).",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("says nothing about the queue while a slot is free", async () => {
+    renderWithQuotas({ maxConcurrentRuns: 4, currentConcurrentRuns: 3 });
+
+    await userEvent.click(screen.getByRole("button", { name: /Run it/ }));
+
+    expect(await screen.findByText("Run and View")).toBeInTheDocument();
+    expect(screen.queryByText(/wait its turn/)).not.toBeInTheDocument();
+  });
+
+  it("leaves the queue's size out of the note when the queue is unlimited", async () => {
+    renderWithQuotas({ maxConcurrentRuns: 1, currentConcurrentRuns: 1, maxQueuedRuns: 0, currentQueuedRuns: 7 });
+
+    await userEvent.click(screen.getByRole("button", { name: /Run it/ }));
+
+    expect(
+      await screen.findByText("The one run slot is busy. Run it anyway and it'll wait its turn (7 in the queue)."),
+    ).toBeInTheDocument();
+  });
+
+  it("cannot run once the queue is full", () => {
+    renderWithQuotas({ maxConcurrentRuns: 4, currentConcurrentRuns: 4, maxQueuedRuns: 20, currentQueuedRuns: 20 });
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeDisabled();
+  });
+
+  it("runs with the queue at its limit while a slot is free", () => {
+    renderWithQuotas({ maxConcurrentRuns: 4, currentConcurrentRuns: 2, maxQueuedRuns: 20, currentQueuedRuns: 20 });
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
+  });
+
+  it("cannot run once the month's runs are spent", () => {
+    renderWithQuotas({ maxWorkflowRunMonthly: 100, currentRuns: 100 });
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeDisabled();
+  });
+
+  it("tells a run that went into the queue apart from one that started", async () => {
+    server.use(
+      http.post(
+        serviceUrl.workspace.workflow.postSubmitWorkflow({ workspace: workspace.name, workflow: workflow.name }),
+        () => HttpResponse.json({ id: "queued-run", status: "waiting", phase: "pending" }),
+      ),
+    );
+    renderWithQuotas({ maxConcurrentRuns: 4, currentConcurrentRuns: 4, maxQueuedRuns: 20, currentQueuedRuns: 3 });
+
+    await userEvent.click(screen.getByRole("button", { name: /Run it/ }));
+    await userEvent.click(await screen.findByText("Run"));
+
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    const toasts = notify.mock.calls.map(([toast]) => toast.props);
+    expect(toasts).toHaveLength(1);
+    expect(toasts[0]).toMatchObject({
+      kind: "info",
+      title: "In the queue",
+      subtitle: "All 4 run slots are busy. This one starts as soon as one frees up.",
+    });
+  });
+
+  it("still says a run that started was started", async () => {
+    renderWithQuotas({ maxConcurrentRuns: 4, currentConcurrentRuns: 0 });
+
+    await userEvent.click(screen.getByRole("button", { name: /Run it/ }));
+    await userEvent.click(await screen.findByText("Run"));
+
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    expect(notify.mock.calls.map(([toast]) => toast.props.kind)).toEqual(["success"]);
   });
 });

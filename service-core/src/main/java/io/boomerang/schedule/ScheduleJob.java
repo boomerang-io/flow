@@ -8,7 +8,10 @@ import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.model.Token;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
+import java.util.Date;
 import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
@@ -53,10 +56,7 @@ public class ScheduleJob {
 
     WorkflowSchedule schedule = workflowScheduleService.internalGet(scheduleId);
     if (schedule != null) {
-      WorkflowSubmitRequest request = new WorkflowSubmitRequest();
-      request.setLabels(schedule.getLabels());
-      request.setParams(schedule.getParams());
-      request.setTrigger(TriggerEnum.schedule);
+      WorkflowSubmitRequest request = submitRequest(schedule);
 
       // Hoist token to ThreadLocal SecurityContext - this AuthN/AuthZ allows the WorkflowRun to be
       // triggered
@@ -79,5 +79,41 @@ public class ScheduleJob {
         workflowScheduleService.complete(schedule.getId());
       }
     }
+  }
+
+  /**
+   * Record a fire that was dropped after its last attempt as a cancelled run of the Workflow, so
+   * the schedule's missing run is on the Activity list with what refused it. Written as it
+   * stands: it holds no slot and uses none of the month's runs.
+   */
+  public void recordDropped(
+      String teamRef, String workflowRef, String scheduleId, Date firedAt, int attempts,
+      RuntimeException refusal) {
+    WorkflowSchedule schedule = workflowScheduleService.internalGet(scheduleId);
+    String name =
+        (schedule.getName() != null && !schedule.getName().isBlank()) ? schedule.getName() : scheduleId;
+    String statusMessage =
+        "Schedule \""
+            + name
+            + "\" fired at "
+            + FIRED_AT.format(firedAt.toInstant())
+            + " UTC and no run started after "
+            + attempts
+            + (attempts == 1 ? " attempt. " : " attempts. ")
+            + WorkflowService.refusalSummary(refusal);
+    workflowService.recordRefusedSubmit(
+        teamRef, workflowRef, submitRequest(schedule), scheduleId, statusMessage, refusal);
+  }
+
+  private static final DateTimeFormatter FIRED_AT =
+      DateTimeFormatter.ofPattern("HH:mm").withZone(ZoneOffset.UTC);
+
+  // The run a fire of the schedule asks for: the schedule's labels and params.
+  private static WorkflowSubmitRequest submitRequest(WorkflowSchedule schedule) {
+    WorkflowSubmitRequest request = new WorkflowSubmitRequest();
+    request.setLabels(schedule.getLabels());
+    request.setParams(schedule.getParams());
+    request.setTrigger(TriggerEnum.schedule);
+    return request;
   }
 }

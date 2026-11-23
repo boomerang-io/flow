@@ -46,7 +46,6 @@ import java.util.Map;
 import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
-import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.MessageSource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
@@ -60,8 +59,6 @@ public class WebhookEventService {
   private static final EventFormat CLOUD_EVENT_JSON =
       EventFormatProvider.getInstance().resolveFormat(JsonFormat.CONTENT_TYPE);
 
-  @Value("${flow.workflowrun.auto-start-on-submit}")
-  private boolean autoStart;
 
   private final WorkflowService workflowService;
   private final WorkflowRunService workflowRunService;
@@ -101,7 +98,7 @@ public class WebhookEventService {
         || !mayTrigger(workspace)) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
-    return workflowService.submit(workspace, workflowRef, eventSubmitRequest(event), autoStart);
+    return workflowService.submit(workspace, workflowRef, eventSubmitRequest(event), true);
   }
 
   /*
@@ -113,7 +110,7 @@ public class WebhookEventService {
     if (!mayTrigger(workspace)) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
-    return workflowService.submit(workspace, name, eventSubmitRequest(event), autoStart);
+    return workflowService.submit(workspace, name, eventSubmitRequest(event), true);
   }
 
   public WorkflowRun processWebhook(String workflowRef, JsonNode payload) {
@@ -128,7 +125,7 @@ public class WebhookEventService {
     // Auto start is not needed when using the default handler
     // As the default handler will pick up the queued Workflow and start the Workflow when ready.
     // However if using the non-default Handler then this may be needed to be set to true.
-    return workflowService.submit(teamRef, workflowRef, webhookSubmitRequest(payload), autoStart);
+    return workflowService.submit(teamRef, workflowRef, webhookSubmitRequest(payload), true);
   }
 
   /*
@@ -139,7 +136,7 @@ public class WebhookEventService {
     if (!mayTrigger(workspace)) {
       throw new BoomerangException(BoomerangError.WORKFLOW_INVALID_REF);
     }
-    return workflowService.submit(workspace, workflow, webhookSubmitRequest(payload), autoStart);
+    return workflowService.submit(workspace, workflow, webhookSubmitRequest(payload), true);
   }
 
   // The caller's grant to deliver webhooks and events counts in the workspace they act on.
@@ -199,7 +196,7 @@ public class WebhookEventService {
     }
     WorkflowService.WorkspaceSubmit submitted =
         workflowService.internalSubmitForWorkspace(
-            workspace, () -> gitHubSubmitRequest(eventType, deliveryId, payload), autoStart);
+            workspace, () -> gitHubSubmitRequest(eventType, deliveryId, payload), true);
     Map<String, RuntimeException> refused = submitted.refused();
     if (refused.isEmpty()) {
       return ResponseEntity.ok().build();

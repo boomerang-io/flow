@@ -84,8 +84,6 @@ class WorkflowRunWorkspaceAuthorizationTest extends AbstractEngineIntegrationTes
   @Test
   void everyScopedOperationRefusesARunTheCallerCannotReachThroughThatWorkspace() {
     assertRefused(() -> workflowRunService.get(MY_WORKSPACE, foreignRunId, false), "get");
-    assertRefused(
-        () -> workflowRunService.start(MY_WORKSPACE, foreignRunId, Optional.empty()), "start");
     assertRefused(() -> workflowRunService.cancel(MY_WORKSPACE, foreignRunId), "cancel");
     assertRefused(() -> workflowRunService.pause(MY_WORKSPACE, foreignRunId), "pause");
     assertRefused(() -> workflowRunService.resume(MY_WORKSPACE, foreignRunId), "resume");

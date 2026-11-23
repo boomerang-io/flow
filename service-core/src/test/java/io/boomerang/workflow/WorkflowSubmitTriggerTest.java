@@ -123,7 +123,7 @@ class WorkflowSubmitTriggerTest extends AbstractEngineIntegrationTest {
   private WorkflowRun submitOnDemand(String name, TriggerEnum sent) {
     WorkflowSubmitRequest request = new WorkflowSubmitRequest();
     request.setTrigger(sent);
-    return workflowService.submitOnDemand(workspace.getName(), name, request, false);
+    return workflowService.submitOnDemand(workspace.getName(), name, request);
   }
 
   private static void assertRefused(Runnable submit, BoomerangError error) {

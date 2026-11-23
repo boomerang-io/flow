@@ -41,10 +41,10 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 | `sys_migration_changelog`, `sys_migration_lock`, `sys_migration_state` | Flamingock's change log and lock; the recorded install generation | migrations only (`migration/MigrationConfiguration.java:42-43`, `migration/LegacyGenerationMarker.java:27`) |
 
 A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflowRunMonthly`,
-`maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`, `maxArtifactStorage`,
-`artifactRetentionDays`; `workspace/model/Quotas.java:15-23`) each have three stored states. Absent inherits
+`maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`, `maxQueuedRuns`, `maxArtifactStorage`,
+`artifactRetentionDays`; `workspace/model/Quotas.java:15-26`) each have three stored states. Absent inherits
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
-(`workflow/QuotaService.java:108-120,189-194`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
+(`workflow/QuotaService.java:117-130,203-207`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
 request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:229,340`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
@@ -54,11 +54,11 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1551-1578,2606-2631`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1695-1722,2750-2775`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1690-1694,2609-2628`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1834-1838,2753-2772`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -87,7 +87,7 @@ carry control state.
 | Lineage (typed, serialised) | `trigger`, `initiatedByRef` (a retry points at the run it retries, a child at its parent); `retryFrom{scope, nodes}` on a run a scoped retry created; `reusedFromRef` on a task run that retry carried over from the origin instead of executing | `common/entity/WorkflowRunEntity.java:83-92`, `common/entity/TaskRunEntity.java:69` |
 | For-each items (typed, serialised) | `parentRef` (the parent task run's id) and `index` (position from 0), set only on the items of a for-each task, which are named `<name>[<index>]` | `common/entity/TaskRunEntity.java:63-64` |
 | For-each setting (typed, `@JsonIgnore`) | `foreach{items}` on a parent task run, copied from the workflow task (`WorkflowTask.foreach`); the engine overwrites `items` with the resolved array at fan-out, and recovery re-creates missing items from it | `common/entity/TaskRunEntity.java:72`, `common/model/WorkflowTaskForeach.java:19` |
-| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkflowInvalid`, `FinallyFailed`, `DeadlineExceeded`), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:46-50`, `common/model/StatusReason.java:34-36` |
+| Status (typed, serialised) | `status` (the closed `RunStatus` enum), `phase`, `statusMessage`, `statusReason` (a closed set of causes: on a task run `OOMKilled`, `DeadlineExceeded`, `LeaseExpired` and the rest; on a workflow run `ConcurrencyLimit`, `WorkspaceConcurrencyLimit`, `WorkflowInvalid`, `FinallyFailed`, `QueueExpired`, `SubmitRefused`, `DeadlineExceeded`; on a run waiting for a slot, the limit that holds it), `statusOverride` (workflow runs) | `common/entity/WorkflowRunEntity.java:38-44`, `common/entity/TaskRunEntity.java:46-50`, `common/model/StatusReason.java:34-43` |
 | Pre-approval (typed, `@JsonIgnore`) | `preApprovedStatus` on a wait-for-event task run that an event reached before it was ready: the status it ends with once it runs | `common/entity/TaskRunEntity.java:52`, `engine/TaskRunService.java:406-414` |
 | Labels | `labels: Map<String,String>`, keyed `<prefix>/<name>` and queryable on every v2 list endpoint. A task run stacks its task's, its node's and its run's labels (`engine/DAGUtility.java:286-292`). Keys under `boomerang.io/` are the server's (`common/model/ServerLabel.java:12-18`): `boomerang.io/model` on an `ai` task run (its resolved `model` param, at admission, `engine/TaskExecutionService.java:254-264`) and `boomerang.io/item` on every item task run of a for-each and on a for-each Run workflow child (its text item, `engine/TaskExecutionService.java:904-913,1385-1396`), which the child's task runs inherit; a client's keys under that prefix are dropped. The engine decides from none of them | `common/entity/WorkflowRunEntity.java:30`, `common/entity/TaskRunEntity.java:36` |
 | Annotations | `annotations: Map<String,Object>`: user metadata and the `boomerang.io/*` keys below; the engine decides from none of them | `common/entity/WorkflowRunEntity.java:31`, `common/entity/TaskRunEntity.java:37` |
@@ -105,11 +105,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1683,2122,2275`, `workflow/TaskService.java:718,806` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1350` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1827,2266,2419`, `workflow/TaskService.java:718,806` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1494` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:835-841`, `workflow/WorkflowRunService.java:906-913`). The engine
+it dropped (`workflow/WorkflowService.java:842-848`, `workflow/WorkflowRunService.java:891-898`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -164,7 +164,7 @@ The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelati
 ## Indexes
 
 Indexes exist only because `_0021__Indexes` built them: its `INVENTORY` is the whole set, the same on an empty
-and an upgraded database (`migration/_0021__Indexes.java:53-197`).
+and an upgraded database (`migration/_0021__Indexes.java:53-205`).
 `spring.data.mongodb.auto-index-creation=false` (`service-core/src/main/resources/application.properties:140`)
 makes every entity `@Indexed` and `@CompoundIndex` inert; they have drifted and MUST NOT be read as the
 inventory. A new query that needs an index MUST add it to the inventory.
@@ -172,7 +172,7 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | Collection | Indexes |
 | --- | --- |
 | `task_runs` | `claim_page` (type, status, phase, claim.by, creationDate); `run_tasks`; sparse `lease_sweep`, `timeout_sweep`, `wait_sweep`; `claimed_sweep`; unique `node_uniqueness` (workflowRunRef, name); sparse `parent_index` (a for-each parent's items); `label_wildcard` (`labels.$**`) |
-| `workflow_runs` | `claim_page`; sparse `timeout_sweep`, `paused_lookup`, `purge_sweep`; `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase`, `workflow_ref_creation`, `workflow_ref_status`; `initiated_by_phase` (the child runs a cascade cancel pages); `label_wildcard` |
+| `workflow_runs` | `claim_page`; sparse `timeout_sweep`, `paused_lookup`, `purge_sweep`; `phase_creation_sweep`, `phase_start_sweep`, `workflow_ref_phase`, `workflow_ref_creation`, `workflow_ref_status`; `initiated_by_phase` (the child runs a cascade cancel pages); `label_wildcard`; `refused_submit_month` (`workflowRef`, `creationDate`, `statusReason`, partial on `statusReason` `SubmitRefused`: the entries dropped schedule fires leave, which the monthly run count takes back out by a count of its keys; the reason is a key so the keys differ from `workflow_ref_creation`'s) |
 | `workflows`, `workflow_revisions`, `workflow_schedules` | `status_lookup`, `name_lookup`, `creation_date_sort`; `workflow_ref_version`; `fire_sweep`, `workflow_lookup` |
 | `tasks`, `task_revisions` | `name_lookup`, `creation_date_sort`; `parent_ref_version` |
 | `events_outbox`, `events_inbox`, `task_locks` | `dispatch_page`, `sent_ttl` (7 days); `received_ttl` (7 days), `redrive_page`; `lease_ttl` (at `expiresAt`) |
@@ -180,13 +180,13 @@ inventory. A new query that needs an index MUST add it to the inventory.
 | `dispatchers`, `users`, `workspaces`, `tokens` | unique `registration` (name, host); unique `email_unique`; `name_lookup`, `display_name_lookup`, unique sparse `external_ref` (an embedding product's own id, carried by at most one workspace); `token_hash_lookup` |
 | `rel_nodes`, `rel_edges` | `type_slug`, `type_ref`; `from_label`, `to_label` |
 | `audit` | `createdAt_ttl` (365 days; `audit.retentionDays` is applied at startup and re-applied on every instance within a minute of a change, at least 60, `core/audit/AuditRetentionService.java:29,51-65`), `time_desc`, `workspace_time`, `actor_time`, `resource_time` |
-| `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:190-197`) |
+| `artifacts` | unique `run_name_idx` (workflowRunRef, name), `status_expiration_idx`, `workflow_status_idx`, unique `workflow_name_available_idx` (workflowRef, name), partial on `scope: workflow, status: available` (`migration/_0021__Indexes.java:198-205`) |
 
-Before the unique indexes are built, duplicates are removed (`migration/_0021__Indexes.java:202-205`): task
+Before the unique indexes are built, duplicates are removed (`migration/_0021__Indexes.java:210-213`): task
 runs keep the finished one, else the earliest; actions keep the earliest per task run, after a null
 `taskRunRef` is unset; dispatchers keep the most recently connected. Users are never deleted: a shared email is
-logged (`:289-297`) and then fails the unique index, and startup with it. An existing index that holds an
-inventory index's keys under another name, or its name with another shape, is dropped first (`:304`); any other
+logged (`:297-305`) and then fails the unique index, and startup with it. An existing index that holds an
+inventory index's keys under another name, or its name with another shape, is dropped first (`:312`); any other
 index, such as one an operator added, is kept.
 
 ## Artifacts
@@ -220,10 +220,10 @@ may not set scope `log`. A second upload for the same task run replaces the firs
 
 A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:278-311`) or its
 run's retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings
-document (365; `service-core/src/main/resources/seed/settings.json:480`), read at each pass and floored at 60
+document (365; `service-core/src/main/resources/seed/settings.json:488`), read at each pass and floored at 60
 so a month's quota counts stay whole; a document without the key reads as 365
 (`workflow/WorkflowRetentionService.java:313-324`). An hourly pass (`flow.watcher.retention-interval-ms`,
-`engine/WorkflowWatcher.java:213-223`) pages runs in phase `completed` created before the cutoff, oldest first,
+`engine/WorkflowWatcher.java:235-245`) pages runs in phase `completed` created before the cutoff, oldest first,
 on the `phase_creation_sweep` index, and deletes each one's run- and log-scoped artifacts (files first),
 actions, task runs, relationship node and finally the run document (`workflow/WorkflowRetentionService.java:229-269,335-343`).
 A run another run still names in `initiatedByRef`, by the run's id (a retry's origin) or by one of its task runs'
@@ -333,6 +333,9 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0048__DefaultTaskImageTaskFlow34` | all | Moves the `task` settings' `default.image` from `boomerangio/task-flow:3.3.0` to `3.4.0` where an install still holds the earlier seed's value; a value an operator chose is left as it is, and an empty database or a v3 upgrade has `3.4.0` from the seed |
 | `_0049__SeedTaskFlow34Revisions` | all | Adds task-flow 3.4.0's revisions where an install holds the task and lacks the revision: HTTP Call (basic 2, advanced 5), the three Slack webhook tasks (3), JSONPath to Parameter (4), File JSONPath to Parameter (3) and Execute Shell (3, with `failOnError`); revisions the install holds are never touched and a task an install dropped gets nothing. An empty database has them from `_0017` |
 | `_0050__V3MembershipRoles` | all | Gives each user's `memberOf` edge without a `data.role` the role v3 gave it: `owner` on the user's own personal workspace (`type: personal` whose `externalRef` is the user's id, as `_0008` writes it), `editor` anywhere else. `_0013` writes those memberships without a role; an edge with a role is never touched, and an empty database or a v5-built install has none |
+| `_0051__SeedRunQueueSettings` | all | Adds the run queue's two settings from the seed where an install lacks the key: `quotas`/`max.workflowrun.queued` (20, the runs that may wait for a slot) and `workflowrun`/`queue.max.age` (24, the hours one may wait); a key the install holds, whatever its value, is left as it is, and an empty database or a 3.5 upgrade has both from the seed |
+| `_0052__MonthlyRunQuotaDefault100` | all | Moves the `quotas` settings' `max.workflowrun.monthly` from `20` to `100` where an install still holds the earlier seed's value; any other value stays, and no workspace's own stored quota is touched |
+| `_0053__RefusedSubmitMonthIndex` | all | Builds the partial index `refused_submit_month` on `workflow_runs`, the inventory's own definition; an empty database or a 3.5 upgrade has it from `_0021`, and a second run finds it |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

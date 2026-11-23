@@ -78,7 +78,7 @@ task poll (`dispatcher/DispatcherService.java:380-383`).
 
 Register, heartbeat and every poll refresh `lastConnectedDate` (`dispatcher/DispatcherService.java:174,211,221`). A
 dispatcher silent for 60 s is gone and its claims are reaped (`execution-model.md`, "The watcher sweeps"); after 7 days
-its registration is deleted (`engine/WorkflowWatcher.java:93,534-546`), so replicas replaced on each deploy do not pile
+its registration is deleted (`engine/WorkflowWatcher.java:101,659-671`), so replicas replaced on each deploy do not pile
 up. Nothing else needs the record: the dispatcher token is shared, claims and attempts only carry the id, and a gone
 dispatcher's task has no live log route (`engine/LogClient.java:71-87`). With `flow.queue.enabled=false` polls do not
 refresh it, so an idle dispatcher may expire during a week-long switch; it registers again on its next call.
@@ -206,7 +206,7 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
 - `statusReason` is one of the engine's known reasons (`common/model/StatusReason.java`), of which the SDK's
   `StatusReason` is the subset a dispatcher sends (`StatusReasonTest`); any other value is an ordinary failure. Five
   mean the task did not run to an end and are requeued with backoff on the timed-out claimant's budget of three, then
-  failed (`common/model/StatusReason.java:53-59`, `engine/TaskRunService.java:1189-1208`); the requeue keeps the claim,
+  failed (`common/model/StatusReason.java:60-66`, `engine/TaskRunService.java:1189-1208`); the requeue keeps the claim,
   so the next attempt waits for the termination order that removes any work left behind (`:287-310`):
 
 | Reason | Send when |
@@ -235,7 +235,7 @@ A claim carries a lease from the moment it is made: the claim sets it 90 s ahead
 working on, and the engine moves the lease of each one it still holds in phase `queued` or `running` 90 s ahead again
 (`dispatcher/DispatcherService.java:227-248`, `engine/TaskRunService.java:662-674`). A dispatcher MUST heartbeat
 every task it holds, from its claim until the engine has taken its end, at least every 30 s. A lease that lapses, or a
-dispatcher with no poll or heartbeat for 60 s (`engine/WorkflowWatcher.java:87`), gets the task requeued or abandoned
+dispatcher with no poll or heartbeat for 60 s (`engine/WorkflowWatcher.java:95`), gets the task requeued or abandoned
 (`execution-model.md`, "Timeouts and crash recovery"); the lease catches a dispatcher that crashes and comes back under
 the same id within that minute, whose heartbeats no longer list the claims it lost.
 
@@ -247,7 +247,7 @@ for a poll still held at the timeout waits out its lease (`sdk/Dispatcher.java:1
 ## Logs
 
 A task's log is read through core alone: `GET /api/v2/taskrun/{id}/log` authorizes the reader and scrubs the run's
-secrets (`workflow/WorkflowRunService.java:586-622`), and reads from one of three sources
+secrets (`workflow/WorkflowRunService.java:574-610`), and reads from one of three sources
 (`engine/TaskRunService.java:1331-1352`, `engine/LogClient.java:100-159`):
 
 | Source | When |
@@ -292,13 +292,13 @@ carried on the wire; the SDK derives it, and gives none when either id is not 24
 ## Storage
 
 `GET /{id}/workflows` hands out workflow runs that declare a workspace, claimed for provisioning
-(`engine/WorkflowRunStateHelper.java:57-73`); the dispatcher provisions the run's one volume and calls
+(`engine/WorkflowRunStateHelper.java:58-74`); the dispatcher provisions the run's one volume and calls
 `PUT /workflowrun/{id}/start`. A dispatcher that cannot provision SHOULD report it with
 `PUT /{id}/workflowrun/{workflowRunId}/provision-failed` and the cause in `message` (`dispatcher/DispatcherControllerV1.java:187`):
 the run shows the cause, the claim is released for the next attempt after `flow.watcher.provision-retry-ms` (60 s),
-and the third attempt fails the run (`engine/WorkflowExecutionService.java:467-503`). A report for a run the dispatcher
+and the third attempt fails the run (`engine/WorkflowExecutionService.java:631-667`). A report for a run the dispatcher
 does not hold is ignored. One that never reports, or dies holding the claim, is released after a 5-minute grace and the
-run failed after three attempts (`engine/WorkflowWatcher.java:451-482`). The SDK reports the innermost cause of a failed
+run failed after three attempts (`engine/WorkflowWatcher.java:473-504`). The SDK reports the innermost cause of a failed
 `WorkflowHandler.provision` (`dispatcher-sdk/src/main/java/io/boomerang/dispatcher/sdk/WorkflowRunner.java:56-72`).
 `POST /workspaces/releasable`
 takes the run ids the dispatcher holds volumes for (500 at most, else 400) and answers with those whose run is
@@ -307,7 +307,7 @@ storage MAY skip both.
 
 Shared storage is one workspace per run: a workflow declares a single `workspace` (`size`, `mountPath`,
 `className`, `accessMode`; `common/model/WorkflowWorkspace.java:19-49`), presence is the switch, and the run copies it
-at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2221-2227`).
+at submit, the request's own `workspace` winning when it carries one (`workflow/WorkflowService.java:2365-2371`).
 Every task mounts it unless its node says `workspace: false`, which the canvas cannot set, and the task run carries its
 own copy with `mountPath` settled to the declared path or `/workspace` (`engine/DAGUtility.java:371-383`).
 
@@ -342,7 +342,7 @@ takes the `task` settings' `default.image`, seeded as `boomerangio/task-flow:3.4
 still holding that (`migration/_0048__DefaultTaskImageTaskFlow34.java`), when its task run is created (`engine/DAGUtility.java:389-392`).
 
 A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
-(`workflow/WorkflowService.java:1788-1789`), and the task run records it (`engine/DAGUtility.java:282`), so a new
+(`workflow/WorkflowService.java:1932-1933`), and the task run records it (`engine/DAGUtility.java:282`), so a new
 task revision changes nothing for a saved workflow until it is saved again.
 
 ## AI tasks

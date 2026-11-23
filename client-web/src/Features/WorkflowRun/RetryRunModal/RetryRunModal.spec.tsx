@@ -8,6 +8,18 @@ import { actionError } from "Utils/actionResult";
 import { renderWithContext } from "Utils/testing/render";
 import RetryRunModal from "./RetryRunModal";
 
+// No toast container renders in a spec (react-toastify needs one), so the toasts the modal raises
+// are read off notify's calls.
+const { notify } = vi.hoisted(() => ({ notify: vi.fn() }));
+vi.mock("@boomerang-io/carbon-addons-boomerang-react", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@boomerang-io/carbon-addons-boomerang-react")>()),
+  notify,
+}));
+
+beforeEach(() => {
+  notify.mockClear();
+});
+
 const workspace = "tyson-workspace";
 const runId = "651e4789ab1cb56bc8976ae4";
 
@@ -170,9 +182,9 @@ describe("RetryRunModal", () => {
   });
 });
 
-describe("RetryRunModal --- a retry that fails to start", () => {
-  // The run exists and waits on its page, whose Start button can start it again.
-  it("still opens the retried run", async () => {
+describe("RetryRunModal --- a refused retry", () => {
+  // A refused retry created no run: the modal stays where it is and says why.
+  it("stays on the run and says the retry was refused", async () => {
     const executionViewRedirect = vi.fn();
     renderWithContext(
       <Route
@@ -180,8 +192,7 @@ describe("RetryRunModal --- a retry that fails to start", () => {
         action={() =>
           actionError({
             intent: "retry",
-            workflowRunRef: "retried-run",
-            error: { title: "Retry run", message: "The retry was created but failed to start" },
+            error: { title: "Quota Exceeded", message: "A quota has been exceeded. Queued runs: 20 / 20" },
           })
         }
         element={
@@ -199,6 +210,57 @@ describe("RetryRunModal --- a retry that fails to start", () => {
 
     await userEvent.click(await screen.findByText("Retry run", { selector: "button" }));
 
+    await waitFor(() => expect(notify).toHaveBeenCalled());
+    expect(notify.mock.calls.map(([toast]) => toast.props)).toEqual([
+      expect.objectContaining({ kind: "error", title: "Quota Exceeded" }),
+    ]);
+    expect(executionViewRedirect).not.toHaveBeenCalled();
+  });
+});
+
+describe("RetryRunModal --- a retry that waits for a slot", () => {
+  function openModalAnswering(result: Record<string, unknown>) {
+    const executionViewRedirect = vi.fn();
+    renderWithContext(
+      <Route
+        path={AppPath.Run}
+        action={() => result}
+        element={
+          <RetryRunModal
+            workflowRun={workflowRun}
+            isOpen
+            initialNodes={[]}
+            onClose={() => {}}
+            executionViewRedirect={executionViewRedirect}
+          />
+        }
+      />,
+      { route: appLink.execution({ workspace, runId }) },
+    );
+    return executionViewRedirect;
+  }
+
+  it("says the retry is in the queue, not that it failed or started, and opens it", async () => {
+    const executionViewRedirect = openModalAnswering({ intent: "retry", workflowRunRef: "retried-run", queued: true });
+
+    await userEvent.click(await screen.findByText("Retry run", { selector: "button" }));
+
     await waitFor(() => expect(executionViewRedirect).toHaveBeenCalledWith({ workflowRunRef: "retried-run" }));
+    expect(notify.mock.calls.map(([toast]) => toast.props)).toEqual([
+      expect.objectContaining({
+        kind: "info",
+        title: "In the queue",
+        subtitle: "Every run slot is busy. Your retry starts as soon as one frees up. You’re on the new run.",
+      }),
+    ]);
+  });
+
+  it("still says a retry that started was started", async () => {
+    const executionViewRedirect = openModalAnswering({ intent: "retry", workflowRunRef: "retried-run" });
+
+    await userEvent.click(await screen.findByText("Retry run", { selector: "button" }));
+
+    await waitFor(() => expect(executionViewRedirect).toHaveBeenCalled());
+    expect(notify.mock.calls.map(([toast]) => toast.props.title)).toEqual(["Retry started"]);
   });
 });

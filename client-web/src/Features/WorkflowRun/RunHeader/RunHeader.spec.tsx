@@ -1,6 +1,6 @@
 import React from "react";
 import { Route } from "react-router-dom";
-import { screen } from "@testing-library/react";
+import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { AppPath, appLink } from "Config/appConfig";
 import { RunPhase, RunStatus, WorkflowCanvas, WorkflowRun, WorkflowStatus } from "Types";
@@ -211,10 +211,11 @@ describe("RunHeader --- status and controls", () => {
     expect(screen.getByTestId("run-status")).toHaveTextContent(/Succeeded\s+·\s+21 s active/);
   });
 
-  it("offers Start run for a run without a workspace that waits to be started", () => {
+  // A submit always starts its run: there is no run waiting for someone to start it.
+  it("offers no Start run for a run without a workspace that is about to start", () => {
     renderRunHeader({ status: RunStatus.Ready, phase: RunPhase.Pending, duration: 0 }, {}, { user: operator });
 
-    expect(screen.getByRole("button", { name: /Start run/ })).toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start run/ })).not.toBeInTheDocument();
     expect(screen.queryByTestId("run-waits-for-dispatcher")).not.toBeInTheDocument();
   });
 
@@ -240,6 +241,75 @@ describe("RunHeader --- status and controls", () => {
 
     expect(screen.queryByRole("button", { name: /Start run/ })).not.toBeInTheDocument();
     expect(screen.getByTestId("run-waits-for-dispatcher")).toHaveTextContent("A dispatcher is provisioning its workspace");
+  });
+
+  // A queued run starts when a slot frees: nobody starts it, and what it waits on is no error.
+  it("says what a queued run waits on beside its status, with no Start and no run error", () => {
+    renderRunHeader(
+      {
+        status: RunStatus.Waiting,
+        phase: RunPhase.Pending,
+        duration: 0,
+        statusReason: "WorkspaceConcurrencyLimit",
+        statusMessage: "Waiting for a slot: the workspace's limit of 4 concurrent runs is reached.",
+      },
+      {},
+      { user: operator },
+    );
+
+    expect(screen.getByTestId("run-queued")).toHaveTextContent(
+      "Queued. Waiting for a slot: the workspace's limit of 4 concurrent runs is reached.",
+    );
+    expect(screen.queryByTestId("run-status-reason")).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /Start run/ })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: /View run error/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "More run actions" })).toBeInTheDocument();
+  });
+
+  it("does not say a queued run with a workspace waits for a dispatcher", () => {
+    renderRunHeader(
+      {
+        status: RunStatus.Waiting,
+        phase: RunPhase.Pending,
+        duration: 0,
+        statusMessage: "Waiting for a slot: the workflow's concurrency limit of 1 in-flight run is reached.",
+        workspace: { size: "1Gi" },
+      },
+      {},
+      { user: operator },
+    );
+
+    expect(screen.getByTestId("run-queued")).toBeInTheDocument();
+    expect(screen.queryByTestId("run-waits-for-dispatcher")).not.toBeInTheDocument();
+  });
+
+  it.each(["QueueExpired", "SubmitRefused"])(
+    "explains a run cancelled as %s rather than calling it an error",
+    async (statusReason) => {
+      renderRunHeader({
+        status: RunStatus.Cancelled,
+        phase: RunPhase.Completed,
+        duration: 0,
+        statusReason,
+        statusMessage: "Cancelled after waiting 24 h 3 min for a slot. The limit is 24 hours.",
+      });
+
+      await userEvent.click(screen.getByRole("button", { name: "Why this run was cancelled" }));
+
+      // The modal library hides the page behind an open modal from the accessibility tree.
+      const explanation = await screen.findByRole("dialog", { hidden: true });
+      expect(within(explanation).getByText("Why this run was cancelled")).toBeInTheDocument();
+      expect(
+        within(explanation).getByText("Cancelled after waiting 24 h 3 min for a slot. The limit is 24 hours."),
+      ).toBeInTheDocument();
+      expect(screen.queryByText("Run Error")).not.toBeInTheDocument();
+    },
+  );
+
+  it("still calls a failed run's message a run error", () => {
+    renderRunHeader({ status: RunStatus.Failed, phase: RunPhase.Completed, statusMessage: "A task failed." });
+
+    expect(screen.getByRole("button", { name: /View run error/ })).toBeInTheDocument();
   });
 });
 

@@ -538,13 +538,15 @@ class V3DumpMigrationTest {
         .containsExactlyInAnyOrder("debug", "default.image", "deletion.policy", "edit.verified", "default.timeout");
 
     // workflowrun (v3 "activity"): rebuilt under the seed's key and name; its four v3 storage
-    // entries are retired, leaving the two engine ceilings, the finally stage's deadline and the
-    // finished-run retention.
+    // entries are retired, leaving the two engine ceilings, the finally stage's deadline, the
+    // finished-run retention and the queue's age limit.
     Document workflowrun =
         collection("settings").find(Filters.eq("_id", new ObjectId("60245957226920beece4fdf9"))).first();
     assertThat(workflowrun.getString("key")).isEqualTo("workflowrun");
     assertThat(workflowrun.getString("name")).isEqualTo("Run limits");
-    assertThat(configKeys(workflowrun)).containsExactlyInAnyOrder("max.nesting.depth", "max.foreach.items", "finally.timeout", "retention.days");
+    assertThat(configKeys(workflowrun))
+        .containsExactlyInAnyOrder(
+            "max.nesting.depth", "max.foreach.items", "finally.timeout", "retention.days", "queue.max.age");
     assertThat(collection("settings").find(Filters.eq("_id", new ObjectId("60245b56226920beece547e3"))).first())
         .as("the v3 execution-storage settings document must be removed")
         .isNull();
@@ -583,14 +585,15 @@ class V3DumpMigrationTest {
     assertThat(reencrypted).isEqualTo(expectedReencrypted);
 
     // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, the v3
-    // per-workflow storage cap retired, plus the new max.workspace.storage entry and the artifact
-    // storage default.
+    // per-workflow storage cap retired, plus the new max.workspace.storage entry, the artifact
+    // storage default and the run queue's limit.
     Document teams = collection("settings").find(Filters.eq("_id", new ObjectId("61393f5966c5eea103dfe134"))).first();
     assertThat(teams.getString("key")).isEqualTo("quotas");
     assertThat(teams.getString("name")).isEqualTo("Quotas");
     assertThat(configKeys(teams))
         .containsExactlyInAnyOrder(
             "max.workflowrun.concurrent",
+            "max.workflowrun.queued",
             "max.workflow.count",
             "max.workflowrun.monthly",
             "max.workflowrun.duration",

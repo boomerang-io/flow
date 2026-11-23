@@ -401,6 +401,14 @@
           "readOnly": false
         },
         {
+          "description": "Runs that may wait for a slot once the concurrent limit is reached. A submit beyond it is refused. 0 means unlimited. A good starting point is 5× the concurrent limit.",
+          "key": "max.workflowrun.queued",
+          "label": "Maximum Queued Workflow Runs",
+          "type": "number",
+          "value": "20",
+          "readOnly": false
+        },
+        {
           "description": "The total number of workflows that a team can have",
           "key": "max.workflow.count",
           "label": "Maximum Number of Workflows",
@@ -413,7 +421,7 @@
           "key": "max.workflowrun.monthly",
           "label": "Max WorkflowRuns per month",
           "type": "number",
-          "value": "20",
+          "value": "100",
           "readOnly": false
         },
         {
@@ -481,6 +489,14 @@
           "label": "Activity Retention (days)",
           "type": "number",
           "value": "365",
+          "readOnly": false
+        },
+        {
+          "description": "Hours a run may wait for a slot before it is cancelled. 0 means no limit.",
+          "key": "queue.max.age",
+          "label": "Maximum Queue Wait (hours)",
+          "type": "number",
+          "value": "24",
           "readOnly": false
         }
       ],
