@@ -33,7 +33,7 @@ release on, a record is never edited except to change **Status** (a reversed dec
 | 0024 | [A task ends with a typed `statusReason` beside its `statusMessage`](0024-typed-status-reason-on-task-end.md) | accepted | 2026-09-01 |
 | 0025 | [One workspace per run, provisioned and released by the dispatcher; a run's workspace is its workflow's owner](0025-one-workspace-per-run-provisioned-by-the-dispatcher-and-owned-by-the-workflows-workspace.md) | accepted | 2026-10-29 |
 | 0026 | [A submit always starts its run, and a run over a concurrency limit waits in its workspace's queue](0026-submit-starts-the-run-and-a-workflow-limits-its-in-flight-runs-at-admission.md) | accepted | 2026-11-23 |
-| 0027 | [Audit is flat per-event documents captured by annotation; monthly run quotas count them, and a workspace quota of 0 is unlimited](0027-audit-is-flat-events-run-quotas-count-them-and-a-zero-quota-is-unlimited.md) | accepted | 2026-10-15 |
+| 0027 | [Workspace quotas count the month from audit events, exempt listed workflows and child runs, and read 0 as unlimited](0027-workspace-quotas-count-the-month-from-audit-events-and-a-zero-quota-is-unlimited.md) | accepted | 2026-11-24 |
 | 0028 | [Authorization uses Spring Security's native model, and a REST handler is denied unless annotated](0028-spring-security-native-model-and-handlers-denied-unless-annotated.md) | accepted | 2026-09-14 |
 | 0029 | [A child run is linked to its task by lineage, receives only its node's params, and hands back its results](0029-a-child-run-is-linked-by-lineage-gets-its-node-params-and-returns-results.md) | accepted | 2026-10-20 |
 | 0030 | [Seeds carry no ids and match on natural keys](0030-seeds-carry-no-ids-and-match-on-natural-keys.md) | accepted | 2026-10-15 |

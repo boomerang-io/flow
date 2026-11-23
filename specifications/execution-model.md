@@ -83,7 +83,7 @@ of instances and overlapping sweeps are safe.
 ## Starting a run
 
 A submit always starts its run, or queues it for a slot: the submit route takes no `start` flag and there is no route that starts a run, and a retry, a child run, a fired schedule and a webhook,
-event or GitHub trigger start theirs the same way (`workflow/WorkflowService.java:710-722`, `workflow/WorkflowRunService.java:1143-1154`, `engine/TaskExecutionService.java:1403-1404`). An admitted
+event or GitHub trigger start theirs the same way (`workflow/WorkflowService.java:718-730`, `workflow/WorkflowRunService.java:1143-1154`, `engine/TaskExecutionService.java:1403-1404`). An admitted
 run without a workspace is started by the engine at once. A run that declares a workspace stays `ready/pending` until a dispatcher claims it, provisions its storage and calls `PUT
 /dispatcher/v1/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:856-877`, `dispatcher/DispatcherControllerV1.java:168`, `engine/WorkflowRunStateHelper.java:58-74`). A run admitted with
 nothing to provision whose start was lost with the instance that owed it is started by the `startAdmittedRuns` sweep. The wait for a dispatcher is bounded by the run's own budget: admission stamps
@@ -92,9 +92,9 @@ takes `pending` runs as well as `running` ones, never a parked one (`:574-591`),
 `timedout` with no task run in flight and no claim; a claimed one is `queued` and left to the stale-claim sweep below.
 
 Admission holds a run to two limits, each counted before `tryAdmit` and again after it (`engine/WorkflowExecutionService.java:107-151`). The first is its workflow's `concurrency: {limit, overflow}`
-(`common/model/WorkflowConcurrency.java:18-19`, saved with the revision; a limit below 1 is refused at save, `workflow/WorkflowService.java:555-559`), counted over the workflow's runs in flight:
+(`common/model/WorkflowConcurrency.java:18-19`, saved with the revision; a limit below 1 is refused at save, `workflow/WorkflowService.java:563-567`), counted over the workflow's runs in flight:
 `ready` or `running`, or in the finally stage (`engine/WorkflowRunStateHelper.java:234-272`). The second is the owning workspace's `max.workflowrun.concurrent` quota, counted the same way over every
-workflow the workspace owns (`QuotaService.runSlots`, `workflow/QuotaService.java:518-578`). The workspace limit is skipped when quotas are switched off, no workspace owns the workflow, the limit is
+workflow the workspace owns (`QuotaService.runSlots`, `workflow/QuotaService.java:621-704`). The workspace limit is skipped when quotas are switched off, no workspace owns the workflow, the limit is
 `0`, or the run is a child (`trigger=task`): a child starts at once and counts toward the total, its parent holding a slot already, while a child's retry (`trigger=retry`) is held like any run.
 After a successful admission `holdsSlot` steps back a run that is not among the oldest `limit` in flight by creation date, then id, of its workflow and then of its workspace
 (`engine/WorkflowRunStateHelper.java:247-260`). The recount is not exact: a newer run that recounts before an older one is admitted keeps its slot and never looks again, so a burst of simultaneous
@@ -183,7 +183,7 @@ a gate nobody answers leaves the run active until cancelled.
 one it has no `timeoutAt`; with one it is reaped like any task and times out its run. That timeout is left out of the critical path that floors the run budget
 (`workflow/RunTimeoutPolicy.java:145-149`), so an hour-long gate does not make the run ask for an hour.
 
-A run's timeout is settled at submit, on the path every run creation passes through (`workflow/WorkflowService.java:2372-2380`, `workflow/RunTimeoutPolicy.java:68-95`): the request's
+A run's timeout is settled at submit, on the path every run creation passes through (`workflow/WorkflowService.java:2388-2396`, `workflow/RunTimeoutPolicy.java:68-95`): the request's
 timeout, else the revision's, else the run-duration quota itself, the workspace's own limit or else the platform `quotas`/`max.workflowrun.duration` setting (`:161-172`). Below the
 revision's critical path, the longest chain of declared task timeouts (`:102-152`), the submit is refused with `WORKFLOWRUN_TIMEOUT_TOO_SHORT` (1306); the workspace's maximum run duration
 then clamps it, a maximum below the floor refused with the same error and a quota of 0 setting no maximum (`:83-93`).
@@ -196,7 +196,7 @@ never ran and `failures` for the retries of a reported failure its node asked fo
 (`common/model/RunRetry.java:21-25`, `engine/DAGUtility.java:359-369`), and from a for-each parent onto each of its items with the item's own budget (`engine/TaskExecutionService.java:937-944`). A
 requeueable task (`template`, `custom`, `script`, `generic`, `ai`, `uploadartifact`, `downloadartifact`) gets three engine requeues; `retry.max` is at most 10 (`engine/EngineConstants.java:27-49`).
 Any other type, `runworkflow` among them, is never requeued, and save refuses such a node that asks for retries (`retry.max` above 0) with `WORKFLOW_INVALID_TASK_RETRY` (1223)
-(`workflow/WorkflowService.java:569-581`). Every requeue pushes the attempt it supersedes (claim and end times, duration, status, reason, message, dispatcher) onto `attempts`
+(`workflow/WorkflowService.java:577-589`). Every requeue pushes the attempt it supersedes (claim and end times, duration, status, reason, message, dispatcher) onto `attempts`
 (`engine/TaskRunService.java:830`, `common/model/RunAttempt.java:20-27`); the run's own fields are the current attempt. The public task run shows a claimed task's `attempt`, the superseded ones plus
 one, and `attempts`, never `retry` (`common/model/TaskRun.java:67`, `:75-80`).
 
@@ -269,7 +269,7 @@ the arm (`applyEventDelivery`, `:406-414`) is honoured (`engine/TaskExecutionSer
 ## Finally tasks
 
 A finally task is a task whose single dependency is `end` with the execution condition `finally` (`common/enums/ExecutionCondition.java:9-16`): it runs once the run has ended, any way. Saving and
-submitting hold it to that one dependency and let nothing depend on it, so finally tasks never chain (`workflow/WorkflowService.java:1522-1560`). When the graph ends, by its own completion, a cancel
+submitting hold it to that one dependency and let nothing depend on it, so finally tasks never chain (`workflow/WorkflowService.java:1532-1570`). When the graph ends, by its own completion, a cancel
 or a timeout, the run takes its final status, reason and message in one compare-and-set that stamps `graphEndedAt` and leaves the phase `running`, its `timeoutAt` becomes the finally stage's deadline,
 and the pending finally tasks are queued in parallel (`engine/TaskExecutionService.java:685-729`, `engine/WorkflowRunStateHelper.java:445-481`); a run with no finally task completes as before. A
 finally task is admitted without the path check, since the graph has ended whichever paths it took, and any other task still pending then is skipped (`engine/TaskExecutionService.java:186-202`).
@@ -280,16 +280,16 @@ stage's deadline does (`engine/WorkflowExecutionService.java:397-402,434-460,541
 **The finally stage has its own budget, and it counts.** The run's timeout is the graph's: at graph end `timeoutAt` is replaced by the stage's deadline, so a run that timed out still gets its
 clean-up. The budget is the `workflowrun` setting `finally.timeout` (5 minutes), an operator's ceiling and default at once: every finally task's own timeout is capped by it, timing out that task
 alone (`engine/DAGUtility.java:349-356`), no workflow or run field raises it, and when it passes the run completes with any finally task still running ended. The time is counted: `duration` is
-written again at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:299-303`), and a run in the stage holds its concurrent-run slot and its
-workflow's concurrency slot until it completes (`workflow/QuotaService.java:315-318,569-578`, `engine/WorkflowRunStateHelper.java:262-272`). A workspace's `max.workflowrun.duration` bounds the graph, not
+written again at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:330-333`), and a run in the stage holds its concurrent-run slot and its
+workflow's concurrency slot until it completes (`workflow/QuotaService.java:351,695-704`, `engine/WorkflowRunStateHelper.java:262-272`). A workspace's `max.workflowrun.duration` bounds the graph, not
 the stage, so a workflow author gains at most `finally.timeout` of extra execution per run.
 
 ## Outbound events: the transactional outbox
 
 Compare-and-set winners publish an in-process `TaskRunTransition` or `WorkflowRunTransition`. `WorkflowRunAuditBridge`
-records a CREATE audit event on a run's first status change and an UPDATE with the terminal status and duration at
-`completed`, the events the monthly run quota counts (`core/audit/WorkflowRunAuditBridge.java:62-124`); task-run
-transitions are not audited, and auditing never fails the transition.
+records a CREATE audit event on a run's first status change and an UPDATE with the terminal status, duration and
+cumulative duration, its task runs' time from start to end added up, at `completed`: the events the monthly quotas count
+(`core/audit/WorkflowRunAuditBridge.java:74-158`); task-run transitions are not audited, and auditing never fails the transition.
 
 When `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:85`), `CloudEventsBridge` inserts one `events_outbox` row per externally visible status
 change, or per run reaching `completed` with a status its caller wrote directly; the start and end nodes write none (`event/CloudEventsBridge.java:39-86`). `OutboxDispatcher` then drains every
@@ -318,21 +318,21 @@ Occurrences use cron-utils' five-field UNIX definition: `CronService.toUnix` rea
 never fires. A fire queues like any submit. One dropped after its third attempt is recorded as a run of the workflow that never ran: `cancelled/completed`, `statusReason` `SubmitRefused`,
 `trigger=schedule`, `initiatedByRef` the schedule, no task runs, and a message of the form `Schedule "nightly" fired at 02:00 UTC and no run started after 3 attempts. QUOTA_EXCEEDED: maximum
 queued runs`: the refusal's code and a short cause, or the exception's class alone for a failure without a code (`schedule/ScheduleWatcher.java:178-190`, `schedule/ScheduleJob.java:89-106`,
-`workflow/WorkflowService.java:901-1017`). The entry is inserted as it stands: no quota is checked, no transition or event is published, it holds no slot and the monthly count leaves it out
+`workflow/WorkflowService.java:911-1027`). The entry is inserted as it stands: no quota is checked, no transition or event is published, it holds no slot and the monthly count leaves it out
 (`performance.md`, "Quotas"); one failed `SUBMIT` audit event is written with it, and a retry of it runs what the fire asked for.
 
 ## Child workflows
 
 A `runworkflow` task submits another workflow as a child run (`engine/TaskExecutionService.java:1338-1428`) with the task's own params minus `workflowRef` and `wait` (`:1435-1440`): the values its
 node passes and, under for-each, `item` and `index`. The parent run's params are not handed down; its timeout, retries, annotations and labels are. A node param the `runworkflow` task does not
-declare must be one the child workflow's latest revision declares, or saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:2092-2132`). A
+declare must be one the child workflow's latest revision declares, or saving refuses it with `WORKFLOW_INVALID_CHILD_PARAM` (1218) (`workflow/WorkflowService.java:2102-2142`). A
 `runscheduledworkflow` task builds its schedule's params the same way, also leaving out the `futureIn`, `futurePeriod`, `timezone` and `time` it reads itself
 (`engine/TaskExecutionService.java:1549-1552`). A `workflowRef` naming a template runs as the parent's workspace's link to that template, created under the template's name on first use, so a
 template's children run where the template runs and never in the system workspace on a workspace's behalf; in the system workspace, and for any other reference, the reference is used as given
-(`:1374-1377`, `workflow/WorkflowService.java:2565-2581`).
+(`:1374-1377`, `workflow/WorkflowService.java:2581-2597`).
 
 **Lineage.** The child is submitted with `trigger=task` and `initiatedByRef` = the submitting task run's id, the
-typed pair the retry path uses (`workflow/WorkflowService.java:2412-2416`); a run has no `parentRef`. The single-run
+typed pair the retry path uses (`workflow/WorkflowService.java:2428-2432`); a run has no `parentRef`. The single-run
 read resolves the owning run onto `initiatedByWorkflowRunRef` (`workflow/WorkflowRunService.java:1369-1376`). Before
 submitting, the engine walks `initiatedByRef` up, task run then owning run, and fails the task with
 `NestingDepthExceeded`, creating no child, when the depth reaches `workflowrun`/`max.nesting.depth` (5); the walk
@@ -355,7 +355,7 @@ cascade.
 A task with `foreach` set runs once per item of an array, in parallel, in the same run. Only the types a
 dispatcher runs (`template`, `script`, `custom`, `ai`, `generic` and the two artifact types) and `runworkflow`, which
 submits one child run per item, may carry it; saving refuses it anywhere else, `start` and `end` included
-(`workflow/WorkflowService.java:149-160`, `:1930-1947`, `:2151-2195`). The graph still sees one task run per node:
+(`workflow/WorkflowService.java:150-161`, `:1940-1957`, `:2161-2205`). The graph still sees one task run per node:
 `DAGUtility.retrieveGraph` and `retrieveDependants` read only task runs without a `parentRef` (`engine/DAGUtility.java:168-218`), so items are never vertices.
 
 | Step | What happens | Where |
@@ -369,7 +369,7 @@ An item that times out is a task timeout: it times out the whole run, which canc
 (`engine/TaskExecutionService.java:637-647`); a cancel reaches every item because the cancel pass reads the stored
 task runs, not the graph (`engine/WorkflowExecutionService.java:673-682`). Downstream, `$(tasks.<name>.results.<result>)`
 finds the parent, since the lookup is by exact name and items carry the bracketed suffix; a task name ending in
-`[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214), other brackets allowed (`workflow/WorkflowService.java:1909-1918`).
+`[<digits>]` is refused on save with `WORKFLOW_INVALID_TASK_NAME` (1214), other brackets allowed (`workflow/WorkflowService.java:1919-1928`).
 
 ## Task locks
 

@@ -67,6 +67,20 @@ tag's release notes.
   what it is waiting on beside its status, and a run the queue cancelled explains why instead of showing a run error.
   Retrying a run with every slot busy says the retry is in the queue. The run page has no Start button: nothing
   waits to be started.
+- **A monthly cumulative duration quota per workspace.** **Cumulative Duration** caps the minutes of task time a
+  workspace may use in a month: each task's time from its start to its end, added up, so tasks running side by side
+  each count, and counted when the run ends, rounded up to the minute per run. A submit or retry once the month's
+  minutes reach the limit is refused `429 QUOTA_EXCEEDED`, "Cumulative duration this month (minutes): 612 / 600"; runs
+  already going finish. It is unlimited by default: **Settings > Quotas > Max Cumulative Duration per month** is `0`,
+  and a workspace can set its own on its Quotas tab. A child run started by a run-workflow task is never held to it,
+  nor to the month's runs, and still counts.
+- **Unmetered workflows.** **Settings > Quotas > Unmetered Workflows** names workflows of the `system` workspace,
+  separated by commas, whose runs, and the runs of every workspace's template link to them, use none of a workspace's
+  monthly runs or cumulative duration. Exact names only; anyone who can write to `system` can create a workflow of a
+  listed name. A workflow added mid-month keeps its earlier runs counted; one removed has its earlier runs counted
+  again but not their minutes.
+- **The workflow list says which workflows are unmetered.** `GET …/workflow/query` marks each workflow with a
+  read-only `unmetered`, and the webapp's Run button stays enabled for one with the month spent.
 
 ### Changed
 
@@ -96,6 +110,9 @@ tag's release notes.
 
 ### Fixed
 
+- **The average run duration counts only the runs that ended.** A workspace's **Current average execution time**
+  divided the month's total by every run of the month, the ones still running included, so it read low while runs
+  were going. It is now the total over the runs that ended.
 - **A run waiting for a slot no longer carries a timeout deadline.** In 5.0.0 a run that declares a workspace took
   its deadline when it was submitted, parked or not, so the time it spent waiting for a slot of its workflow's
   concurrency limit was taken out of its timeout. A parked run now has no deadline; the deadline for the wait for a

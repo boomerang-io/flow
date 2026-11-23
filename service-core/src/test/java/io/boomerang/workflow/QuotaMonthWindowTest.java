@@ -25,6 +25,7 @@ import java.time.ZoneOffset;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import org.bson.Document;
 import org.junit.jupiter.api.Test;
@@ -66,6 +67,70 @@ class QuotaMonthWindowTest extends AbstractEngineIntegrationTest {
 
     assertEquals(1, totals.runs(), "the last day's run counts; the next month's does not");
     assertEquals(60_000L, totals.duration());
+  }
+
+  // A run counts its minutes in the month its completion is recorded, its run in the month it was
+  // created: one created on the last day and ending just after midnight is split across the two.
+  @Test
+  void aRunEndingJustAfterMidnightOnTheFirstCountsItsMinutesInTheNewMonth() {
+    String workspace = "quota-window-midnight-ws";
+    event(workspace, "quota-window-midnight", "CREATE", "2026-02-28T23:58:00Z", Map.of());
+    event(
+        workspace,
+        "quota-window-midnight",
+        "UPDATE",
+        "2026-03-01T00:00:30Z",
+        Map.of("duration", 150_000L, "cumulativeDuration", 150_000L));
+    QuotaService.MonthWindow february = QuotaService.MonthWindow.of(LocalDate.of(2026, 2, 10));
+    QuotaService.MonthWindow march = QuotaService.MonthWindow.of(LocalDate.of(2026, 3, 10));
+
+    AuditQueryService.MonthlyUsage inFebruary = usage(workspace, february);
+    AuditQueryService.MonthlyUsage inMarch = usage(workspace, march);
+
+    assertEquals(1, inFebruary.runs());
+    assertEquals(0, inFebruary.cumulativeMinutes());
+    assertEquals(0, inMarch.runs());
+    assertEquals(3, inMarch.cumulativeMinutes(), "150 s rounds up to 3 minutes");
+  }
+
+  // Rounded up once per run, never on the month's total: three runs of 61 s are 6 minutes, not 4.
+  @Test
+  void eachRunIsRoundedUpOnItsOwn() {
+    String workspace = "quota-window-rounding-ws";
+    for (int i = 0; i < 3; i++) {
+      event(workspace, "quota-window-rounding-" + i, "CREATE", "2026-04-10T10:00:00Z", Map.of());
+      event(
+          workspace,
+          "quota-window-rounding-" + i,
+          "UPDATE",
+          "2026-04-10T10:01:01Z",
+          Map.of("duration", 61_000L, "cumulativeDuration", 61_000L));
+    }
+    // An unmetered run is no run of the month and carries no minutes.
+    event(workspace, "quota-window-unmetered", "CREATE", "2026-04-10T10:00:00Z", Map.of("unmetered", true));
+    event(workspace, "quota-window-unmetered", "UPDATE", "2026-04-10T10:30:00Z", Map.of("unmetered", true));
+    QuotaService.MonthWindow april = QuotaService.MonthWindow.of(LocalDate.of(2026, 4, 10));
+
+    AuditQueryService.MonthlyUsage usage = usage(workspace, april);
+
+    assertEquals(3, usage.runs());
+    assertEquals(6, usage.cumulativeMinutes());
+  }
+
+  // The mean run duration is over the runs that ended: a run still going has no duration yet.
+  @Test
+  void theRunTotalsCountTheRunsThatEnded() {
+    String workspace = "quota-window-ended-ws";
+    event(workspace, "quota-window-ended", "CREATE", "2026-05-10T10:00:00Z", Map.of());
+    event(workspace, "quota-window-ended", "UPDATE", "2026-05-10T10:02:00Z", Map.of("duration", 120_000L));
+    event(workspace, "quota-window-going", "CREATE", "2026-05-10T10:00:00Z", Map.of());
+    QuotaService.MonthWindow may = QuotaService.MonthWindow.of(LocalDate.of(2026, 5, 10));
+
+    AuditQueryService.RunTotals totals = auditQueryService.runTotals(workspace, may.from(), may.to());
+
+    assertEquals(2, totals.runs());
+    assertEquals(1, totals.endedRuns());
+    assertEquals(120_000L, totals.duration());
   }
 
   @Test
@@ -175,12 +240,31 @@ class QuotaMonthWindowTest extends AbstractEngineIntegrationTest {
     return request;
   }
 
+  private AuditQueryService.MonthlyUsage usage(String workspace, QuotaService.MonthWindow month) {
+    return auditQueryService
+        .monthlyUsage(List.of(workspace), month.from(), month.to())
+        .getOrDefault(workspace, new AuditQueryService.MonthlyUsage(0L, 0L));
+  }
+
+  private void event(
+      String workspace, String runId, String action, String at, Map<String, Object> payload) {
+    AuditEventEntity event = new AuditEventEntity();
+    event.setWorkspaceId(workspace);
+    event.setAction(action);
+    event.setResourceType("workflowrun");
+    event.setResourceId(runId);
+    event.setTime(Date.from(Instant.parse(at)));
+    event.getPayload().putAll(payload);
+    mongoTemplate.insert(event);
+  }
+
   private void runEvent(String runId, String at, long duration) {
     AuditEventEntity event = new AuditEventEntity();
     event.setWorkspaceId(WORKSPACE);
     event.setResourceType("workflowrun");
     event.setResourceId(runId);
     event.setTime(Date.from(Instant.parse(at)));
+    event.setAction("UPDATE");
     event.getPayload().put("duration", duration);
     mongoTemplate.insert(event);
   }

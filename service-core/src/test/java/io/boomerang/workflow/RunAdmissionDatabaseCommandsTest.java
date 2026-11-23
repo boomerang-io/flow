@@ -64,6 +64,7 @@ class RunAdmissionDatabaseCommandsTest extends AbstractEngineIntegrationTest {
     quotas.setMaxConcurrentRuns(50);
     quotas.setMaxQueuedRuns(50);
     quotas.setMaxWorkflowRunMonthly(1000);
+    quotas.setMaxCumulativeDuration(100_000);
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName("run-admission-commands");
     request.setDisplayName("run-admission-commands");
@@ -116,8 +117,27 @@ class RunAdmissionDatabaseCommandsTest extends AbstractEngineIntegrationTest {
     assertThat(onRuns(checkOfMany.names())).containsOnly("aggregate flowtest_workflow_runs").hasSize(5);
     assertThat(slotsOfMany.documentsRead("workflow_runs")).isZero();
     assertThat(checkOfMany.documentsRead("workflow_runs")).isZero();
+    // The quotas settings are read once for every limit, and both monthly figures, runs and
+    // minutes, come from one audit aggregation.
+    assertThat(on(checkOfMany.names(), "settings")).containsExactly("find flowtest_settings", "find flowtest_settings");
+    assertThat(on(checkOfMany.names(), "audit")).containsExactly("aggregate flowtest_audit");
+
+    // A workspace under its limits costs nothing more with workflows listed as unmetered: the
+    // live count is recounted without them only when it would refuse.
+    String previous = setSettingValue("quotas", "unmetered.workflows", "some-system-workflow");
+    try {
+      DatabaseCommands.Recorded<Object> checkWithList = DatabaseCommands.record(() -> check(workspace));
+      assertThat(checkWithList.names()).isEqualTo(checkOfMany.names());
+    } finally {
+      setSettingValue("quotas", "unmetered.workflows", previous);
+    }
 
     workflowRunService.cancel(run.getId());
+  }
+
+  // The commands on one collection, by name.
+  private static List<String> on(List<String> names, String collection) {
+    return names.stream().filter(name -> name.endsWith("flowtest_" + collection)).toList();
   }
 
   private static List<String> withoutEdgeBatches(List<String> names) {

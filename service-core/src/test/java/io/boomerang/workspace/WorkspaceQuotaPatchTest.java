@@ -83,6 +83,43 @@ class WorkspaceQuotaPatchTest extends AbstractEngineIntegrationTest {
     assertEquals(20, workspaceService.get(workspaceName).getQuotas().getMaxQueuedRuns());
   }
 
+  @Test
+  void theCumulativeDurationQuotaPatchesAloneAndResetsWithTheRest() {
+    String workspaceName = "workspace-quota-cumulative-patch-test";
+    Quotas initial = new Quotas();
+    initial.setMaxWorkflowRunMonthly(40);
+    WorkspaceRequest createRequest = new WorkspaceRequest();
+    createRequest.setName(workspaceName);
+    createRequest.setDisplayName(workspaceName);
+    createRequest.setQuotas(initial);
+    workspaceService.create(createRequest);
+    assertNull(storedQuotas(workspaceName).getMaxCumulativeDuration(), "absent inherits the default");
+    assertEquals(0, workspaceService.get(workspaceName).getQuotas().getMaxCumulativeDuration());
+    assertEquals(0L, workspaceService.get(workspaceName).getQuotas().getCurrentCumulativeDuration());
+
+    Quotas cumulativeOnly = new Quotas();
+    cumulativeOnly.setMaxCumulativeDuration(600);
+    WorkspaceRequest patchRequest = new WorkspaceRequest();
+    patchRequest.setQuotas(cumulativeOnly);
+    workspaceService.patch(workspaceName, patchRequest);
+
+    Quotas stored = storedQuotas(workspaceName);
+    assertEquals(600, stored.getMaxCumulativeDuration());
+    assertEquals(40, stored.getMaxWorkflowRunMonthly(), "the others are untouched");
+    assertEquals(600, workspaceService.get(workspaceName).getQuotas().getMaxCumulativeDuration());
+
+    Quotas unlimited = new Quotas();
+    unlimited.setMaxCumulativeDuration(0);
+    patchRequest.setQuotas(unlimited);
+    workspaceService.patch(workspaceName, patchRequest);
+    assertEquals(0, storedQuotas(workspaceName).getMaxCumulativeDuration(), "a stored 0 is unlimited");
+
+    workspaceService.deleteCustomQuotas(workspaceName);
+
+    assertNull(storedQuotas(workspaceName).getMaxCumulativeDuration());
+    assertEquals(0, workspaceService.get(workspaceName).getQuotas().getMaxCumulativeDuration());
+  }
+
   private Quotas storedQuotas(String workspaceName) {
     WorkspaceEntity entity = workspaceRepository.findByNameIgnoreCase(workspaceName).orElseThrow();
     return entity.getQuotas();

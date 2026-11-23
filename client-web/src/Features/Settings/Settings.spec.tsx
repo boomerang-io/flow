@@ -47,6 +47,30 @@ describe("Settings --- sections", () => {
   });
 });
 
+describe("Settings --- a list-valued setting", () => {
+  test("shows an empty list and saves the names as typed", async () => {
+    let sent: unknown;
+    server.use(
+      http.patch(serviceUrl.resourceSettings(), async ({ request }) => {
+        sent = await request.json();
+        return HttpResponse.json([]);
+      }),
+    );
+    renderSettings("/admin/settings/quotas");
+    expect(await screen.findByRole("heading", { name: "Quotas" })).toBeInTheDocument();
+    const list = screen.getByLabelText(/^Unmetered Workflows/i);
+    expect(list).toHaveValue("");
+
+    await userEvent.type(list, "index-rebuild, nightly");
+    const save = screen.getByRole("button", { name: /Save/ });
+    await waitFor(() => expect(save).toBeEnabled());
+    await userEvent.click(save);
+
+    // Sent as typed: the server splits on commas and trims each name when it reads the list.
+    await waitFor(() => expect(sent).toEqual({ quotas: { "unmetered.workflows": "index-rebuild, nightly" } }));
+  });
+});
+
 describe("Settings --- error", () => {
   beforeEach(() => {
     server.use(http.get(serviceUrl.resourceSettings(), () => HttpResponse.json({}, { status: 500 })));

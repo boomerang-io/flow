@@ -41,9 +41,11 @@ const quotas: FlowWorkspaceQuotas = {
   currentQueuedRuns: 0,
   currentRunTotalDuration: 0,
   currentRunAverageDuration: 0,
+  currentCumulativeDuration: 0,
   currentArtifactStorage: 0,
   maxWorkflowCount: 10,
   maxWorkflowRunMonthly: 100,
+  maxCumulativeDuration: 0,
   maxWorkspaceStorage: 100,
   maxWorkflowRunDuration: 100,
   maxArtifactStorage: 5,
@@ -443,5 +445,74 @@ describe("WorkflowCard --- the run queue", () => {
 
     await waitFor(() => expect(notify).toHaveBeenCalled());
     expect(notify.mock.calls.map(([toast]) => toast.props.kind)).toEqual(["success"]);
+  });
+});
+
+// The month's minutes of task time are spent: a metered workflow cannot run, while one the
+// platform lists as unmetered - a system workflow, or another workspace's link to it - still can.
+function renderWithSpentMonth(overrides: Partial<Workflow>, workspaceName: string = props.workspaceName) {
+  return renderWithContext(
+    <Route
+      path="/:workspace/workflows"
+      action={action}
+      element={
+        <WorkflowCard
+          {...props}
+          workspaceName={workspaceName}
+          workflow={{ ...workflow, ...overrides }}
+          quotas={{
+            ...quotas,
+            maxCumulativeDuration: 600,
+            currentCumulativeDuration: 612,
+            maxWorkflowRunMonthly: 100,
+            currentRuns: 100,
+          }}
+        />
+      }
+    />,
+    { route: appLink.workflows({ workspace: workspaceName }) },
+  );
+}
+
+describe("WorkflowCard --- cumulative duration", () => {
+  it("cannot run a metered workflow once the month's minutes are spent, and says why", async () => {
+    renderWithQuotas({ maxCumulativeDuration: 600, currentCumulativeDuration: 600 });
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeDisabled();
+    await userEvent.hover(screen.getByTestId("workflow-card-run-quota"));
+    expect(
+      await screen.findByText(
+        "This workspace has used its 600 minutes of task time this month. Runs already going will finish. Ask an admin to raise the quota, or try again when it resets.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("runs while minutes are left, and when the quota is unlimited", () => {
+    renderWithQuotas({ maxCumulativeDuration: 600, currentCumulativeDuration: 599 });
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
+  });
+
+  it("runs with no limit whatever the minutes used", () => {
+    renderWithQuotas({ maxCumulativeDuration: 0, currentCumulativeDuration: 100_000 });
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
+  });
+
+  it("keeps an unmetered system workflow runnable with the month spent", () => {
+    renderWithSpentMonth({ unmetered: true }, "system");
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
+    expect(screen.queryByTestId("workflow-card-run-quota")).not.toBeInTheDocument();
+  });
+
+  it("keeps another workspace's link to an unmetered template runnable with the month spent", () => {
+    renderWithSpentMonth({ unmetered: true, templateRef: { name: "index-rebuild" } });
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
+  });
+
+  it("stops a metered workflow, a link included, with the month spent", () => {
+    renderWithSpentMonth({ unmetered: false, templateRef: { name: "nightly-report" } });
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeDisabled();
   });
 });

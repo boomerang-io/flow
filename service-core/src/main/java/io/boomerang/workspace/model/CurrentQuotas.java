@@ -13,6 +13,8 @@ public class CurrentQuotas extends Quotas {
   private Integer currentQueuedRuns;
   private Long currentRunTotalDuration;
   private Long currentRunAverageDuration;
+  // Minutes of task time the month's ended runs used, each run rounded up.
+  private Long currentCumulativeDuration;
   // Bytes held by the workspace's available and uploading artifacts.
   private Long currentArtifactStorage;
   // TODO: future - can't currently calculate this easily
@@ -31,7 +33,8 @@ public class CurrentQuotas extends Quotas {
         + currentRuns + ", currentConcurrentRuns=" + currentConcurrentRuns
         + ", currentQueuedRuns=" + currentQueuedRuns
         + ", currentRunTotalDuration=" + currentRunTotalDuration + ", currentRunAverageDuration="
-        + currentRunAverageDuration + ", currentArtifactStorage=" + currentArtifactStorage
+        + currentRunAverageDuration + ", currentCumulativeDuration=" + currentCumulativeDuration
+        + ", currentArtifactStorage=" + currentArtifactStorage
         + ", monthlyResetDate=" + monthlyResetDate + "]";
   }
   
@@ -76,6 +79,12 @@ public class CurrentQuotas extends Quotas {
   }
   public void setCurrentRunAverageDuration(Long currentRunAverageDuration) {
     this.currentRunAverageDuration = currentRunAverageDuration;
+  }
+  public Long getCurrentCumulativeDuration() {
+    return currentCumulativeDuration;
+  }
+  public void setCurrentCumulativeDuration(Long currentCumulativeDuration) {
+    this.currentCumulativeDuration = currentCumulativeDuration;
   }
   public Long getCurrentArtifactStorage() {
     return currentArtifactStorage;

@@ -99,6 +99,11 @@ function Quotas() {
     workspace.quotas.currentRuns,
     workspace.quotas.maxWorkflowRunMonthly,
   );
+  const currentCumulativeDuration = workspace.quotas.currentCumulativeDuration ?? 0;
+  const cumulativeDurationPercentage = quotaUsagePercent(
+    currentCumulativeDuration,
+    workspace.quotas.maxCumulativeDuration,
+  );
   // currentArtifactStorage is bytes; maxArtifactStorage is GB (Gi) - convert before comparing.
   const currentArtifactStorageGB = workspace.quotas.currentArtifactStorage / 1024 ** 3;
   let artifactStoragePercentage = (currentArtifactStorageGB / workspace.quotas.maxArtifactStorage) * 100;
@@ -188,6 +193,40 @@ function Quotas() {
           <p className={styles.detailedSmallText}>{`Current usage: ${workspace.quotas.currentRuns}`}</p>
           <p className={styles.detailedSmallText}>
             Monthly counts include Workflows and runs that have since been deleted.
+          </p>
+        </QuotaCard>
+        <QuotaCard
+          subtitle="Minutes of task time this workspace can use each month. Tasks running side by side each count, so it can climb faster than run time."
+          title="Cumulative Duration"
+          modalSubtitle="Set how many minutes of task time the workspace can use each month."
+          minValue={0}
+          helperText={UNLIMITED_AT_ZERO}
+          detailedTitle="Current Usage"
+          detailedData={`${formatQuotaUsage(currentCumulativeDuration, workspace.quotas.maxCumulativeDuration)} minutes`}
+          inputLabel="Maximum cumulative duration"
+          inputUnits="minutes"
+          stepValue={1}
+          workspaceName={workspace.name}
+          quotaProperty="maxCumulativeDuration"
+          quotaValue={workspace.quotas.maxCumulativeDuration}
+          disabled={!canEdit}
+        >
+          <h3 className={styles.detailedHeading}>
+            {" "}
+            {formatQuotaLimit(workspace.quotas.maxCumulativeDuration, "minutes per month")}
+          </h3>
+          {cumulativeDurationPercentage !== null && (
+            <ProgressBar
+              maxValue={workspace.quotas.maxCumulativeDuration}
+              value={cumulativeDurationPercentage}
+              coverageBarStyle={coverageBarStyle}
+            />
+          )}
+          <p className={styles.detailedSmallText}>
+            {`Current usage: ${formatQuotaUsage(currentCumulativeDuration, workspace.quotas.maxCumulativeDuration)} minutes`}
+          </p>
+          <p className={styles.detailedSmallText}>
+            Counted when a run ends, rounded up to the minute. Includes workflows and runs that have since been deleted.
           </p>
         </QuotaCard>
         <QuotaCard

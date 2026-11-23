@@ -6,7 +6,7 @@
 
 Insights must say why runs failed, which task took the time, how runs were triggered and how long they waited; an
 embedder needs task timings and usage per model, agent, task kind and time bucket over an hour to 90 days. The audit
-trail's run events carry only status, phase, duration and workflow (`core/audit/WorkflowRunAuditBridge.java:127-140`).
+trail's run events carry only status, phase, duration and workflow (`core/audit/WorkflowRunAuditBridge.java:159-212`).
 
 ## Options
 
@@ -28,7 +28,7 @@ B and D. `WorkflowRunInsightService` computes the summary and workflow detail fr
 hour, day or month and by the span of a run label (`:232-337`). One aggregation streams a small document per counted
 task run, with its labels and the usage an `ai` task reports, on the `workflowRunRef`-first index (`:570-605`), and
 percentiles use the summary's nearest-rank method in Java (`:830-838`). Quotas count from audit events
-(`core/audit/AuditQueryService.java:162,191`). What decided it: analytics over retained executions and metering at
+(`core/audit/AuditQueryService.java:167,211`). What decided it: analytics over retained executions and metering at
 event time, the line GitHub Actions and Step Functions draw, with labels as the grouping key.
 
 ## Consequences

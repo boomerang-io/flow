@@ -22,7 +22,10 @@ import io.boomerang.common.util.QueryCriteria;
 import io.boomerang.common.util.StorageQuantityUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.UnmeteredWorkflows;
 import io.boomerang.core.audit.AuditQueryService;
+import io.boomerang.core.entity.SettingEntity;
+import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -68,12 +71,15 @@ public class QuotaService {
   public static final String QUOTA_MAX_WORKFLOWRUN_QUEUED = "max.workflowrun.queued";
   public static final String QUOTA_MAX_WORKFLOWRUN_MONTHLY = "max.workflowrun.monthly";
   public static final String QUOTA_MAX_WORKFLOWRUN_DURATION = "max.workflowrun.duration";
+  public static final String QUOTA_MAX_WORKFLOWRUN_CUMULATIVE =
+      "max.workflowrun.cumulative.duration";
   public static final String QUOTA_MAX_WORKSPACE_STORAGE = "max.workspace.storage";
   public static final String QUOTA_MAX_ARTIFACT_STORAGE = "max.artifact.storage";
 
   // What a quota refusal names as exceeded, the first argument of QUOTA_EXCEEDED.
   public static final String QUEUED_RUNS = "Queued runs";
   public static final String MONTHLY_RUNS = "Number of runs (executions)";
+  public static final String CUMULATIVE_DURATION = "Cumulative duration this month (minutes)";
   public static final String WORKSPACE_SIZE = "Requested Workspace size";
 
   // A run holds a slot of the concurrent limit once admitted, until it completes; one in its
@@ -88,6 +94,7 @@ public class QuotaService {
   private final WorkspaceRepository workspaceRepository;
   private final RelationshipService relationshipService;
   private final AuditQueryService auditQueryService;
+  private final UnmeteredWorkflows unmeteredWorkflows;
   private final MongoTemplate mongoTemplate;
 
   public QuotaService(
@@ -95,11 +102,13 @@ public class QuotaService {
       WorkspaceRepository workspaceRepository,
       RelationshipService relationshipService,
       AuditQueryService auditQueryService,
+      UnmeteredWorkflows unmeteredWorkflows,
       MongoTemplate mongoTemplate) {
     this.settingsService = settingsService;
     this.workspaceRepository = workspaceRepository;
     this.relationshipService = relationshipService;
     this.auditQueryService = auditQueryService;
+    this.unmeteredWorkflows = unmeteredWorkflows;
     this.mongoTemplate = mongoTemplate;
   }
 
@@ -115,16 +124,26 @@ public class QuotaService {
 
   /** The platform defaults, read from the settings each time - never stored on a workspace. */
   public Quotas defaults() {
+    return defaults(quotaSettings());
+  }
+
+  // The platform defaults from the quotas settings document's entries, read once.
+  private Quotas defaults(Map<String, String> settings) {
     Quotas quotas = new Quotas();
-    quotas.setMaxWorkflowCount(intSetting(QUOTA_MAX_WORKFLOW_COUNT));
-    quotas.setMaxWorkflowRunMonthly(intSetting(QUOTA_MAX_WORKFLOWRUN_MONTHLY));
+    quotas.setMaxWorkflowCount(Integer.valueOf(settings.get(QUOTA_MAX_WORKFLOW_COUNT).trim()));
+    quotas.setMaxWorkflowRunMonthly(
+        Integer.valueOf(settings.get(QUOTA_MAX_WORKFLOWRUN_MONTHLY).trim()));
+    quotas.setMaxCumulativeDuration(
+        cumulativeDefault(settings.get(QUOTA_MAX_WORKFLOWRUN_CUMULATIVE)));
     quotas.setMaxWorkspaceStorage(
-        Integer.valueOf(setting(QUOTA_MAX_WORKSPACE_STORAGE).replace("Gi", "")));
-    quotas.setMaxWorkflowRunDuration(intSetting(QUOTA_MAX_WORKFLOWRUN_DURATION));
-    quotas.setMaxConcurrentRuns(intSetting(QUOTA_MAX_WORKFLOWRUN_CONCURRENT));
-    quotas.setMaxQueuedRuns(intSetting(QUOTA_MAX_WORKFLOWRUN_QUEUED));
+        Integer.valueOf(settings.get(QUOTA_MAX_WORKSPACE_STORAGE).replace("Gi", "").trim()));
+    quotas.setMaxWorkflowRunDuration(
+        Integer.valueOf(settings.get(QUOTA_MAX_WORKFLOWRUN_DURATION).trim()));
+    quotas.setMaxConcurrentRuns(
+        Integer.valueOf(settings.get(QUOTA_MAX_WORKFLOWRUN_CONCURRENT).trim()));
+    quotas.setMaxQueuedRuns(Integer.valueOf(settings.get(QUOTA_MAX_WORKFLOWRUN_QUEUED).trim()));
     quotas.setMaxArtifactStorage(
-        Integer.valueOf(setting(QUOTA_MAX_ARTIFACT_STORAGE).replace("Gi", "")));
+        Integer.valueOf(settings.get(QUOTA_MAX_ARTIFACT_STORAGE).replace("Gi", "").trim()));
     quotas.setArtifactRetentionDays(defaultArtifactRetentionDays());
     return quotas;
   }
@@ -178,6 +197,9 @@ public class QuotaService {
     }
     if (overrides.getMaxWorkflowRunMonthly() != null) {
       quotas.setMaxWorkflowRunMonthly(overrides.getMaxWorkflowRunMonthly());
+    }
+    if (overrides.getMaxCumulativeDuration() != null) {
+      quotas.setMaxCumulativeDuration(overrides.getMaxCumulativeDuration());
     }
     if (overrides.getMaxWorkspaceStorage() != null) {
       quotas.setMaxWorkspaceStorage(overrides.getMaxWorkspaceStorage());
@@ -255,15 +277,17 @@ public class QuotaService {
     // Counted under each workspace's own name, the key its audit events and graph node carry,
     // whatever form the caller named it in.
     List<String> workspaces = entities.stream().map(WorkspaceEntity::getName).toList();
-    Quotas defaults = defaults();
+    Map<String, String> settings = quotaSettings();
+    Quotas defaults = defaults(settings);
     MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
 
-    // Milliseconds, like every run duration: this month's total and the mean per run, from the
-    // audit trail so runs of since-deleted Workflows still count.
+    // Milliseconds, like every run duration: this month's total and the mean per run that ended,
+    // from the audit trail so runs of since-deleted Workflows still count; and the month's runs
+    // and cumulative minutes, the unmetered workflows' left out.
     Map<String, AuditQueryService.RunTotals> runTotals =
         auditQueryService.runTotals(workspaces, month.from(), month.to());
-    Map<String, Long> auditMonthly =
-        auditQueryService.countRunsCreated(workspaces, month.from(), month.to());
+    Map<String, AuditQueryService.MonthlyUsage> monthlyUsage =
+        auditQueryService.monthlyUsage(workspaces, month.from(), month.to());
 
     // The workspaces' workflows by their own edges: a quota is the workspace's whoever asks, and
     // the engine asks with no identity when it adopts a template link for a child run.
@@ -289,6 +313,11 @@ public class QuotaService {
     Map<String, Long> finallyStage = countFinallyStage(allWorkflowRefs);
     Map<String, Long> stored = storedBytes(allWorkflowRefs);
     Set<String> liveWorkflows = liveWorkflows(allWorkflowRefs);
+    // The workflows whose runs use none of the month, left out of the live count: two reads, and
+    // none when no workflow is unmetered.
+    Set<String> unmetered =
+        unmeteredWorkflows.unmeteredRefs(
+            workflowRefs, UnmeteredWorkflows.parse(settings.get(UnmeteredWorkflows.SETTING_KEY)));
 
     for (WorkspaceEntity entity : entities) {
       String workspace = entity.getName();
@@ -297,21 +326,25 @@ public class QuotaService {
       overlay(quotas, entity.getQuotas());
       quotas.setMonthlyResetDate(month.to());
       AuditQueryService.RunTotals totals =
-          runTotals.getOrDefault(workspace, new AuditQueryService.RunTotals(0L, 0L));
+          runTotals.getOrDefault(workspace, new AuditQueryService.RunTotals(0L, 0L, 0L));
       quotas.setCurrentRunTotalDuration(totals.duration());
+      // Only an ended run has a duration, so the mean is over the runs that ended.
       quotas.setCurrentRunAverageDuration(
-          (totals.runs() > 0) ? totals.duration() / totals.runs() : 0L);
+          (totals.endedRuns() > 0) ? totals.duration() / totals.endedRuns() : 0L);
+      AuditQueryService.MonthlyUsage usage =
+          monthlyUsage.getOrDefault(workspace, new AuditQueryService.MonthlyUsage(0L, 0L));
+      List<String> metered = refs.stream().filter(ref -> !unmetered.contains(ref)).toList();
       // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
       // so a just-admitted run may not be audited yet (the live count covers that race), while a
       // deleted Workflow's runs leave the live count (the audit count covers deletion - the CREATE
       // events outlive both the run documents and the Workflow). The entry a refused submit left
       // is a run document that was never admitted, so the live count leaves it out; it has no
-      // CREATE event.
+      // CREATE event. An unmetered workflow's runs are in neither.
       quotas.setCurrentRuns(
           (int)
               Math.max(
-                  auditMonthly.getOrDefault(workspace, 0L),
-                  sum(liveMonthly, refs) - sum(refusedMonthly, refs)));
+                  usage.runs(), sum(liveMonthly, metered) - sum(refusedMonthly, metered)));
+      quotas.setCurrentCumulativeDuration(usage.cumulativeMinutes());
       // Concurrent = holding a slot, from the live WorkflowRun collection: admitted or running,
       // or in the finally stage, which carries the final status while its finally tasks still
       // run. Queued = waiting for a slot, of the workspace or of its own workflow.
@@ -369,11 +402,14 @@ public class QuotaService {
 
   /**
    * Refuses, with {@code QUOTA_EXCEEDED}, a run the workspace's quotas have no room for: runs this
-   * month, the size of any Workspace it asks for, and a full queue. The concurrent limit alone
-   * never refuses: a run over it waits in the queue. The queue's cap holds only the runs waiting
-   * for a slot of the workspace: a run of a workflow at its own concurrency limit waits for that
-   * workflow, however long its queue, and is never refused by the cap. A submit and a retry - a
-   * retry is a new run - both clear it before the run is created.
+   * month, cumulative duration this month, the size of any Workspace it asks for, and a full queue.
+   * The concurrent limit alone never refuses: a run over it waits in the queue. The queue's cap
+   * holds only the runs waiting for a slot of the workspace: a run of a workflow at its own
+   * concurrency limit waits for that workflow, however long its queue, and is never refused by the
+   * cap. A run of an unmetered workflow ({@link UnmeteredWorkflows}) is held to neither monthly
+   * quota, which is asked only when one would refuse. A submit and a retry - a retry is a new run -
+   * both clear it before the run is created. No quota ends a run already going: the cumulative
+   * duration is counted as runs end, so a month can overshoot by the runs in flight.
    */
   public void assertRunQuotas(
       String workspace,
@@ -391,9 +427,23 @@ public class QuotaService {
     LOGGER.debug("Admission: {}", admission);
     // The run being submitted is not counted yet, so at-the-limit already means it would exceed
     // the limit.
-    if (Quotas.limited(admission.maxMonthly()) && admission.monthly() >= admission.maxMonthly()) {
-      throw new BoomerangException(
-          BoomerangError.QUOTA_EXCEEDED, MONTHLY_RUNS, admission.monthly(), admission.maxMonthly());
+    boolean monthSpent =
+        Quotas.limited(admission.maxMonthly()) && admission.monthly() >= admission.maxMonthly();
+    boolean minutesSpent =
+        Quotas.limited(admission.maxCumulative())
+            && admission.cumulative() >= admission.maxCumulative();
+    if ((monthSpent || minutesSpent) && !unmetered(admission, workflowRef)) {
+      throw monthSpent
+          ? new BoomerangException(
+              BoomerangError.QUOTA_EXCEEDED,
+              MONTHLY_RUNS,
+              admission.monthly(),
+              admission.maxMonthly())
+          : new BoomerangException(
+              BoomerangError.QUOTA_EXCEEDED,
+              CUMULATIVE_DURATION,
+              admission.cumulative(),
+              admission.maxCumulative());
     }
     if (runWorkspace.isPresent()) {
       assertWorkspaceStorage(runWorkspace.get(), admission.maxWorkspaceStorage());
@@ -412,7 +462,9 @@ public class QuotaService {
    * Refuses a run once it has been inserted when it pushed a count over its limit. The counts now
    * include the run itself, so a burst of simultaneous submits cannot each pass the pre-admission
    * count; the caller removes the run before passing the refusal on. With every slot taken, the
-   * runs not yet admitted - this one among them - may not outnumber the queue's places.
+   * runs not yet admitted - this one among them - may not outnumber the queue's places. An
+   * unmetered workflow's run is not held to the month's runs; the cumulative duration is not
+   * rechecked, since a run adds to it only when it ends.
    */
   public void assertAdmittedRunWithinQuotas(
       String workspace, String workflowRef, String workflowRevisionRef) {
@@ -421,7 +473,9 @@ public class QuotaService {
     if (admission == null) {
       return;
     }
-    if (Quotas.limited(admission.maxMonthly()) && admission.monthly() > admission.maxMonthly()) {
+    if (Quotas.limited(admission.maxMonthly())
+        && admission.monthly() > admission.maxMonthly()
+        && !unmetered(admission, workflowRef)) {
       throw new BoomerangException(
           BoomerangError.QUOTA_EXCEEDED, MONTHLY_RUNS, admission.monthly(), admission.maxMonthly());
     }
@@ -432,6 +486,12 @@ public class QuotaService {
       throw new BoomerangException(
           BoomerangError.QUOTA_EXCEEDED, QUEUED_RUNS, admission.queued(), admission.maxQueued());
     }
+  }
+
+  // Whether the workflow's runs are unmetered under the names the admission read.
+  private boolean unmetered(Admission admission, String workflowRef) {
+    return unmeteredWorkflows.test(
+        admission.unmeteredWorkflows(), admission.workspace(), null, workflowRef);
   }
 
   // Whether a run of the workflow would wait for the workflow's own concurrency limit, which its
@@ -451,15 +511,20 @@ public class QuotaService {
   }
 
   /**
-   * What a run's admission is checked against: the workspace's limits and the counts behind them.
-   * A count behind an unlimited quota is not read and is 0.
+   * What a run's admission is checked against: the workspace, by name, its limits, the counts
+   * behind them and the unmetered workflows' names. A count behind an unlimited quota is not read
+   * and is 0; {@code cumulative} is in minutes.
    */
   public record Admission(
+      String workspace,
+      List<String> unmeteredWorkflows,
       int maxMonthly,
+      int maxCumulative,
       int maxConcurrent,
       int maxQueued,
       Integer maxWorkspaceStorage,
       long monthly,
+      long cumulative,
       long inFlight,
       long queued) {
 
@@ -473,39 +538,77 @@ public class QuotaService {
    * A workspace's admission limits and counts, the workspace given by id or name; null when none
    * matches. Each count is one count over index keys of the workspace's own workflows, so it costs
    * the same however many workflows and runs there are - unlike {@link #current(String)}, which
-   * also reads the audit totals, storage and workflow counts no admission needs. {@code queued}
-   * counts the runs waiting for a slot of the workspace, and with {@code withUnadmitted} the runs
-   * just inserted and not yet admitted or parked as well.
+   * also reads the audit totals, storage and workflow counts no admission needs. The {@code quotas}
+   * settings document is read once for every key. {@code queued} counts the runs waiting for a
+   * slot of the workspace, and with {@code withUnadmitted} the runs just inserted and not yet
+   * admitted or parked as well; then the cumulative duration, which is not rechecked, is not read.
    */
   Admission admission(String workspace, boolean withUnadmitted) {
     WorkspaceEntity entity = workspaceRepository.findByIdOrName(workspace).orElse(null);
     if (entity == null) {
       return null;
     }
+    Map<String, String> settings = quotaSettings();
     Quotas stored = (entity.getQuotas() != null) ? entity.getQuotas() : new Quotas();
-    int maxMonthly = limit(stored.getMaxWorkflowRunMonthly(), QUOTA_MAX_WORKFLOWRUN_MONTHLY);
-    int maxConcurrent = limit(stored.getMaxConcurrentRuns(), QUOTA_MAX_WORKFLOWRUN_CONCURRENT);
-    int maxQueued = limit(stored.getMaxQueuedRuns(), QUOTA_MAX_WORKFLOWRUN_QUEUED);
+    int maxMonthly =
+        limitOrDefault(
+            stored.getMaxWorkflowRunMonthly(), settings.get(QUOTA_MAX_WORKFLOWRUN_MONTHLY));
+    int maxCumulative =
+        (stored.getMaxCumulativeDuration() != null)
+            ? stored.getMaxCumulativeDuration()
+            : cumulativeDefault(settings.get(QUOTA_MAX_WORKFLOWRUN_CUMULATIVE));
+    int maxConcurrent =
+        limitOrDefault(
+            stored.getMaxConcurrentRuns(), settings.get(QUOTA_MAX_WORKFLOWRUN_CONCURRENT));
+    int maxQueued =
+        limitOrDefault(stored.getMaxQueuedRuns(), settings.get(QUOTA_MAX_WORKFLOWRUN_QUEUED));
     Integer maxWorkspaceStorage =
         (stored.getMaxWorkspaceStorage() != null)
             ? stored.getMaxWorkspaceStorage()
-            : Integer.valueOf(setting(QUOTA_MAX_WORKSPACE_STORAGE).replace("Gi", ""));
+            : Integer.valueOf(settings.get(QUOTA_MAX_WORKSPACE_STORAGE).replace("Gi", ""));
+    List<String> unmetered =
+        UnmeteredWorkflows.parse(settings.get(UnmeteredWorkflows.SETTING_KEY));
     boolean queueLimited = maxConcurrent > 0 && maxQueued > 0;
     List<String> workflowRefs =
         (maxMonthly > 0 || queueLimited) ? workflowRefs(entity.getId()) : List.of();
     long monthly = 0;
-    if (maxMonthly > 0) {
+    long cumulative = 0;
+    if (maxMonthly > 0 || (maxCumulative > 0 && !withUnadmitted)) {
       MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
-      long audited =
+      AuditQueryService.MonthlyUsage usage =
           auditQueryService
-              .countRunsCreated(List.of(entity.getName()), month.from(), month.to())
-              .getOrDefault(entity.getName(), 0L);
-      monthly = Math.max(audited, liveRunsIn(workflowRefs, month));
+              .monthlyUsage(List.of(entity.getName()), month.from(), month.to())
+              .getOrDefault(entity.getName(), new AuditQueryService.MonthlyUsage(0L, 0L));
+      cumulative = usage.cumulativeMinutes();
+      if (maxMonthly > 0) {
+        monthly = Math.max(usage.runs(), liveRunsIn(workflowRefs, month));
+        // The live count holds the unmetered workflows' runs; it is recounted without them only
+        // when it would refuse, so a run under the limit costs nothing more.
+        if (monthly >= maxMonthly && !unmetered.isEmpty()) {
+          Set<String> free =
+              unmeteredWorkflows.unmeteredRefs(Map.of(entity.getName(), workflowRefs), unmetered);
+          if (!free.isEmpty()) {
+            List<String> metered =
+                workflowRefs.stream().filter(ref -> !free.contains(ref)).toList();
+            monthly = Math.max(usage.runs(), metered.isEmpty() ? 0 : liveRunsIn(metered, month));
+          }
+        }
+      }
     }
     long inFlight = queueLimited ? inFlight(workflowRefs) : 0;
     long queued = queueLimited ? count(queuedForWorkspace(workflowRefs, withUnadmitted)) : 0;
     return new Admission(
-        maxMonthly, maxConcurrent, maxQueued, maxWorkspaceStorage, monthly, inFlight, queued);
+        entity.getName(),
+        unmetered,
+        maxMonthly,
+        maxCumulative,
+        maxConcurrent,
+        maxQueued,
+        maxWorkspaceStorage,
+        monthly,
+        cumulative,
+        inFlight,
+        queued);
   }
 
   /**
@@ -551,6 +654,29 @@ public class QuotaService {
   // The workspace's own stored limit, else the platform default; 0 is unlimited.
   private int limit(Integer stored, String defaultKey) {
     return (stored != null) ? stored : intSetting(defaultKey);
+  }
+
+  // The workspace's own stored limit, else the platform default's value as written.
+  private static int limitOrDefault(Integer stored, String defaultValue) {
+    return (stored != null) ? stored : Integer.parseInt(defaultValue.trim());
+  }
+
+  // The cumulative duration's platform default: an install whose settings predate the key, or a
+  // blank value, has no limit.
+  private static int cumulativeDefault(String value) {
+    return (value == null || value.isBlank()) ? 0 : Integer.parseInt(value.trim());
+  }
+
+  // Every entry of the quotas settings document by key, in one read.
+  private Map<String, String> quotaSettings() {
+    SettingEntity settings = settingsService.getSettingByKey(QUOTAS_SETTINGS_KEY);
+    Map<String, String> values = new HashMap<>();
+    for (SettingConfig config : settings.getConfig()) {
+      if (config.getKey() != null && config.getValue() != null) {
+        values.put(config.getKey(), config.getValue());
+      }
+    }
+    return values;
   }
 
   // The workflows a workspace owns, from its edges alone: no workflow node is read.
@@ -773,6 +899,7 @@ public class QuotaService {
   private String setting(String name) {
     return settingsService.getSettingConfig(QUOTAS_SETTINGS_KEY, name).getValue();
   }
+
 
   private Integer intSetting(String name) {
     return Integer.valueOf(setting(name));

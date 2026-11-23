@@ -392,6 +392,9 @@ components:
         currentConcurrentRuns:
           format: "int32"
           type: "integer"
+        currentCumulativeDuration:
+          format: "int64"
+          type: "integer"
         currentQueuedRuns:
           format: "int32"
           type: "integer"
@@ -411,6 +414,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxCumulativeDuration:
           format: "int32"
           type: "integer"
         maxQueuedRuns:
@@ -1167,6 +1173,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxCumulativeDuration:
           format: "int32"
           type: "integer"
         maxQueuedRuns:
@@ -2390,6 +2399,9 @@ components:
           - "template"
           - "starter"
           type: "string"
+        unmetered:
+          readOnly: true
+          type: "boolean"
         upgradesAvailable:
           type: "boolean"
         version:

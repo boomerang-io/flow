@@ -37,4 +37,4 @@ it grants nothing new (`dispatcher/DispatcherAuthFilter.java:64-101`, `core/Toke
   `/internal/v1`, and proxy identity headers are believed on every prefix the main chain serves
   (`core/security/AuthenticationFilter.java:152-153`).
 - Reads that must not depend on the caller stay caller-free: the artifact quota is read from the run's workspace
-  (`workflow/QuotaService.java:332-345`). Revisit if a dispatcher token ever carries less than a `global` grant.
+  (`workflow/QuotaService.java:365-378`). Revisit if a dispatcher token ever carries less than a `global` grant.

@@ -37,6 +37,7 @@ import io.boomerang.common.util.StorageQuantityUtil;
 import io.boomerang.common.util.StringUtil;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.SettingsService;
+import io.boomerang.core.UnmeteredWorkflows;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.audit.AuditAction;
 import io.boomerang.core.audit.AuditEventEmitter;
@@ -184,6 +185,7 @@ public class WorkflowService {
   private final ParamLayerCache paramLayerCache;
   private final IdentityService identityService;
   private final AuditEventEmitter auditEventEmitter;
+  private final UnmeteredWorkflows unmeteredWorkflows;
 
   // json-path (Configuration/JacksonMappingProvider/JacksonJsonNodeJsonProvider) only ships
   // Jackson 2 SPIs - com.fasterxml.jackson.databind.ObjectMapper, not the Boot-managed Jackson 3
@@ -216,7 +218,8 @@ public class WorkflowService {
       ObjectMapper objectMapper,
       ParamLayerCache paramLayerCache,
       IdentityService identityService,
-      AuditEventEmitter auditEventEmitter) {
+      AuditEventEmitter auditEventEmitter,
+      UnmeteredWorkflows unmeteredWorkflows) {
     this.workflowRepository = workflowRepository;
     this.workflowRevisionRepository = workflowRevisionRepository;
     this.taskRevisionRepository = taskRevisionRepository;
@@ -235,6 +238,7 @@ public class WorkflowService {
     this.paramLayerCache = paramLayerCache;
     this.identityService = identityService;
     this.auditEventEmitter = auditEventEmitter;
+    this.unmeteredWorkflows = unmeteredWorkflows;
   }
 
   // ── Workspace-scoped operations (the /api/v2 surface) ────────────────────────
@@ -424,10 +428,14 @@ public class WorkflowService {
     if (!response.getContent().isEmpty()) {
       // Filter out sensitive values
       filterSensitiveValues(response.getContent());
+      // Whether each one's runs use the workspace's monthly quotas: one settings read for the
+      // page, and a link already carries its template's name.
+      List<String> unmetered = unmeteredWorkflows.names();
       response
           .getContent()
           .forEach(
               w -> {
+                w.setUnmetered(UnmeteredWorkflows.unmetered(unmetered, queryTeam, w));
                 // Convert Workflow TaskRefs to Slugs
                 convertTaskRefsToSlugs(queryTeam, w);
                 w.setId(null);
@@ -824,8 +832,10 @@ public class WorkflowService {
   }
 
   // Admits a run of a workflow whose trigger has taken the request: quotas, then the run itself.
-  // A refusal is the monthly quota, the requested workspace size or a full queue; a run over the
-  // concurrent limit is created and waits in the queue.
+  // A refusal is a monthly quota (runs or cumulative duration, never for an unmetered workflow),
+  // the requested workspace size or a full queue; a run over the concurrent limit is created and
+  // waits in the queue. A child run does not come through here (submit(workflowId, ...)): it is
+  // never held to either monthly quota, and still counts.
   private WorkflowRun admit(
       String workspace, String workflowId, WorkflowSubmitRequest request, boolean start,
       String initiatedByRef) {
@@ -2311,6 +2321,12 @@ public class WorkflowService {
    * stamping lineage - see submit(String, String, WorkflowSubmitRequest, boolean, String)
    *
    * Trigger will be set to 'Engine' if empty
+   *
+   * This is the child run's path (trigger task): it does not pass through admit, so a child run
+   * is never held to either monthly quota, the runs or the cumulative duration, and its parent,
+   * already admitted, is never stopped halfway. It still counts: its CREATE and UPDATE audit
+   * events and its run document are counted like any other run's. Its automatic retry (trigger
+   * retry) goes through WorkflowRunService.retry and is checked.
    */
   public WorkflowRun submit(
       String workflowId, WorkflowSubmitRequest request, boolean start, String initiatedByRef) {

@@ -383,6 +383,36 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByRole("button", { name: "Edit Queued Runs" })).toBeInTheDocument();
   });
 
+  // Minutes of task time a month, beside the month's runs (workspace.js: 412 of 600).
+  test("a Cumulative Duration card shows the month's minutes against the limit", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await screen.findByText("Number of Workflows");
+
+    expect(screen.getByText("Cumulative Duration")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Minutes of task time this workspace can use each month. Tasks running side by side each count, so it can climb faster than run time.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("600 minutes per month")).toBeInTheDocument();
+    expect(screen.getByText("Current usage: 412 of 600 minutes")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Counted when a run ends, rounded up to the minute. Includes workflows and runs that have since been deleted.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Cumulative Duration" })).toBeInTheDocument();
+  });
+
+  test("the Cumulative Duration editor sets minutes, with 0 unlimited", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }), platformAdmin);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Cumulative Duration" }));
+
+    expect(await screen.findByText("Set how many minutes of task time the workspace can use each month.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Maximum cumulative duration/)).toHaveValue(600);
+    expect(screen.getAllByText("0 means unlimited").length).toBeGreaterThan(0);
+  });
+
   // Flow 5 keeps one shared workspace per run: the two storage cards (per Workflow, per Run)
   // collapsed into one bound to `maxWorkspaceStorage` (workspace.js: 5).
   test("one Workspace Storage card replaces the per-Workflow and per-Run capacity cards", async () => {
@@ -437,6 +467,7 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     for (const title of [
       "Number of Workflows",
       "Number of Executions",
+      "Cumulative Duration",
       "Run Duration",
       "Concurrent Runs (executions)",
       "Queued Runs",
@@ -450,6 +481,7 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByText("10 GB per run")).toBeInTheDocument();
     expect(screen.getByText("8GB")).toBeInTheDocument();
     expect(screen.getByText("45 days")).toBeInTheDocument();
+    expect(screen.getByText("900 minutes per month")).toBeInTheDocument();
   });
 });
 

@@ -586,7 +586,8 @@ class V3DumpMigrationTest {
 
     // teams: quota keys renamed to their max.workflow*/max.workflowrun* v5 names, the v3
     // per-workflow storage cap retired, plus the new max.workspace.storage entry, the artifact
-    // storage default and the run queue's limit.
+    // storage default, the run queue's limit, the cumulative duration default and the unmetered
+    // workflows list.
     Document teams = collection("settings").find(Filters.eq("_id", new ObjectId("61393f5966c5eea103dfe134"))).first();
     assertThat(teams.getString("key")).isEqualTo("quotas");
     assertThat(teams.getString("name")).isEqualTo("Quotas");
@@ -596,6 +597,8 @@ class V3DumpMigrationTest {
             "max.workflowrun.queued",
             "max.workflow.count",
             "max.workflowrun.monthly",
+            "max.workflowrun.cumulative.duration",
+            "unmetered.workflows",
             "max.workflowrun.duration",
             "max.workspace.storage",
             "max.artifact.storage");
@@ -867,6 +870,7 @@ class V3DumpMigrationTest {
     Document systemQuotas = (Document) system.get("quotas");
     assertThat(systemQuotas.getInteger("maxWorkflowCount")).isZero();
     assertThat(systemQuotas.getInteger("maxWorkspaceStorage")).isZero();
+    assertThat(systemQuotas.getInteger("maxCumulativeDuration")).isZero();
     assertThat(systemQuotas.containsKey("maxWorkflowRunDuration")).isFalse();
 
     // The 28 migrated v3 teams: type "hobby" (the documented honest default - v3 had no tier

@@ -47,6 +47,10 @@ function defaultQuotaRows(quotas?: QuotasLoaderData["defaultQuotas"]) {
   return [
     { title: "Number of Workflows", value: show((q) => formatQuotaLimit(q.maxWorkflowCount, "Workflows")) },
     { title: "Number of Executions", value: show((q) => formatQuotaLimit(q.maxWorkflowRunMonthly, "per month")) },
+    {
+      title: "Cumulative Duration",
+      value: show((q) => formatQuotaLimit(q.maxCumulativeDuration, "minutes per month")),
+    },
     { title: "Run Duration", value: show((q) => formatQuotaLimit(q.maxWorkflowRunDuration, "minutes")) },
     { title: "Concurrent Runs (executions)", value: show((q) => formatQuotaLimit(q.maxConcurrentRuns, "Workflows")) },
     { title: "Queued Runs", value: show((q) => formatQuotaLimit(q.maxQueuedRuns, "runs")) },

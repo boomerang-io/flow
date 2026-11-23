@@ -290,6 +290,12 @@ export interface Workflow {
    * workflow is saved again.
    */
   legacyWorkflowStorage?: boolean;
+  /**
+   * Read-only, worked out on each list read: true when the workflow's runs use none of the
+   * workspace's monthly quotas (the platform setting quotas/unmetered.workflows), so a spent
+   * month never stops it.
+   */
+  unmetered?: boolean;
 }
 
 export enum WorkflowStatus {
@@ -546,12 +552,16 @@ export interface FlowWorkspaceQuotas {
   currentQueuedRuns: number;
   currentRunTotalDuration: number;
   currentRunAverageDuration: number;
+  // Minutes of task time the month's ended runs used, each run rounded up.
+  currentCumulativeDuration: number;
   // Bytes currently used by this workspace's artifacts (available + expired, not yet purged).
   currentArtifactStorage: number;
-  // For the six max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already
+  // For the seven max* quotas below, 0 is unlimited (Utils/quotaHelper); the API has already
   // resolved an absent stored value to the platform default.
   maxWorkflowCount: number;
   maxWorkflowRunMonthly: number;
+  // Minutes of task time a month: every task's time from start to end, added up.
+  maxCumulativeDuration: number;
   // GB (integer) - the size cap of the shared workspace a run can declare.
   maxWorkspaceStorage: number;
   maxWorkflowRunDuration: number;

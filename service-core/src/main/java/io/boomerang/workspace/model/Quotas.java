@@ -14,6 +14,8 @@ public class Quotas {
 
   private Integer maxWorkflowCount;
   private Integer maxWorkflowRunMonthly;
+  // Minutes of task time a month: each task run's time from start to end, added up.
+  private Integer maxCumulativeDuration;
   // Gi of shared workspace a run may declare.
   private Integer maxWorkspaceStorage;
   private Integer maxWorkflowRunDuration;
@@ -27,7 +29,8 @@ public class Quotas {
   @Override
   public String toString() {
     return "Quotas [maxWorkflowCount=" + maxWorkflowCount + ", maxWorkflowRunMonthly="
-        + maxWorkflowRunMonthly + ", maxWorkspaceStorage=" + maxWorkspaceStorage
+        + maxWorkflowRunMonthly + ", maxCumulativeDuration=" + maxCumulativeDuration
+        + ", maxWorkspaceStorage=" + maxWorkspaceStorage
         + ", maxWorkflowRunDuration="
         + maxWorkflowRunDuration + ", maxConcurrentRuns=" + maxConcurrentRuns
         + ", maxQueuedRuns=" + maxQueuedRuns
@@ -45,6 +48,12 @@ public class Quotas {
   }
   public void setMaxWorkflowRunMonthly(Integer maxWorkflowRunMonthly) {
     this.maxWorkflowRunMonthly = maxWorkflowRunMonthly;
+  }
+  public Integer getMaxCumulativeDuration() {
+    return maxCumulativeDuration;
+  }
+  public void setMaxCumulativeDuration(Integer maxCumulativeDuration) {
+    this.maxCumulativeDuration = maxCumulativeDuration;
   }
   public Integer getMaxWorkspaceStorage() {
     return maxWorkspaceStorage;

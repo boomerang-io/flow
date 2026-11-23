@@ -143,21 +143,26 @@ public class AuditQueryService {
     }
   }
 
-  /** How many runs a workspace's run events cover in a window, and their total duration. */
-  public record RunTotals(long runs, long duration) {}
+  /**
+   * How many runs a workspace's run events cover in a window, how many of them ended in it, and the
+   * total duration of those that ended.
+   */
+  public record RunTotals(long runs, long endedRuns, long duration) {}
 
   /** {@link #runTotals(Collection, Date, Date)} for one workspace. */
   public RunTotals runTotals(String workspaceId, Date from, Date to) {
     return runTotals(List.of(workspaceId), from, to)
-        .getOrDefault(workspaceId, new RunTotals(0L, 0L));
+        .getOrDefault(workspaceId, new RunTotals(0L, 0L, 0L));
   }
 
   /**
    * Total each workspace's runs and their durations over a time window from the run events, keyed
    * by workspace id, so runs of since-deleted Workflows still count - the run-duration figures in
-   * {@code QuotaService.current}. Each run counts once, with the duration its latest event in the
-   * window carries; a workspace with no run events is absent. One aggregation over the {@code
-   * workspace_time} index, however many workspaces are asked for.
+   * {@code QuotaService.current}. Only the engine's CREATE and UPDATE events are read, not a
+   * route's own (a cancel's DELETE): each run counts once, with the duration its UPDATE, its
+   * completion, carries, and as ended when that UPDATE is in the window; a workspace with no run
+   * events is absent. One aggregation over the {@code workspace_time} index, however many
+   * workspaces are asked for.
    */
   public Map<String, RunTotals> runTotals(Collection<String> workspaceIds, Date from, Date to) {
     Aggregation aggregation =
@@ -166,11 +171,26 @@ public class AuditQueryService {
                 new Criteria()
                     .andOperator(
                         Criteria.where("workspaceId").in(workspaceIds),
+                        Criteria.where("action")
+                            .in(AuditAction.CREATE.name(), AuditAction.UPDATE.name()),
                         Criteria.where("resourceType").is("workflowrun"),
                         Criteria.where("time").gte(from).lt(to))),
-            Aggregation.sort(Sort.Direction.ASC, "time"),
-            Aggregation.group("workspaceId", "resourceId").last("payload.duration").as("duration"),
-            Aggregation.group("workspaceId").count().as("runs").sum("duration").as("duration"));
+            context ->
+                new Document(
+                    "$group",
+                    new Document(
+                            "_id",
+                            new Document("workspaceId", "$workspaceId")
+                                .append("resourceId", "$resourceId"))
+                        .append("duration", new Document("$max", "$payload.duration"))
+                        .append("ended", new Document("$max", isAction(AuditAction.UPDATE)))),
+            context ->
+                new Document(
+                    "$group",
+                    new Document("_id", "$_id.workspaceId")
+                        .append("runs", new Document("$sum", 1))
+                        .append("endedRuns", new Document("$sum", "$ended"))
+                        .append("duration", new Document("$sum", "$duration"))));
     Map<String, RunTotals> totals = new HashMap<>();
     for (Document workspace :
         mongoTemplate.aggregate(aggregation, AuditEventEntity.class, Document.class)) {
@@ -178,32 +198,90 @@ public class AuditQueryService {
           workspace.getString("_id"),
           new RunTotals(
               ((Number) workspace.get("runs")).longValue(),
+              ((Number) workspace.get("endedRuns")).longValue(),
               (workspace.get("duration") instanceof Number duration) ? duration.longValue() : 0L));
     }
     return totals;
   }
 
   /**
-   * Count each workspace's run-creation events in a time window, keyed by workspace id - the
-   * monthly quota counter in {@code QuotaService.current}. A workspace with none is absent. One
-   * aggregation over the {@code workspace_time} index.
+   * A workspace's use of its monthly quotas in a window: the runs created, less the unmetered ones,
+   * and the cumulative duration of the runs that ended, in minutes, each run rounded up on its own.
    */
-  public Map<String, Long> countRunsCreated(Collection<String> workspaceIds, Date from, Date to) {
+  public record MonthlyUsage(long runs, long cumulativeMinutes) {}
+
+  /**
+   * Each workspace's {@link MonthlyUsage} in a time window, keyed by workspace id; a workspace with
+   * no run events is absent. A run counts once by its CREATE event, unless that event marks it
+   * unmetered, and its minutes once by its UPDATE event, the completion's only one. One aggregation
+   * over the {@code workspace_time} index, which reads the window's run events as the count of
+   * creations alone did.
+   */
+  public Map<String, MonthlyUsage> monthlyUsage(
+      Collection<String> workspaceIds, Date from, Date to) {
+    Document metered = new Document("$ne", List.of("$payload.unmetered", true));
+    Document minutes =
+        new Document(
+            "$ceil",
+            new Document(
+                "$divide",
+                List.of(
+                    new Document("$ifNull", List.of("$payload.cumulativeDuration", 0)),
+                    MILLIS_PER_MINUTE)));
     Aggregation aggregation =
         Aggregation.newAggregation(
             Aggregation.match(
                 new Criteria()
                     .andOperator(
                         Criteria.where("workspaceId").in(workspaceIds),
-                        Criteria.where("action").is(AuditAction.CREATE.name()),
+                        Criteria.where("action")
+                            .in(AuditAction.CREATE.name(), AuditAction.UPDATE.name()),
                         Criteria.where("resourceType").is("workflowrun"),
                         Criteria.where("time").gte(from).lt(to))),
-            Aggregation.group("workspaceId").count().as("runs"));
-    Map<String, Long> counts = new HashMap<>();
+            context ->
+                new Document(
+                    "$group",
+                    new Document("_id", "$workspaceId")
+                        .append(
+                            "runs",
+                            new Document(
+                                "$sum",
+                                new Document(
+                                    "$cond",
+                                    List.of(
+                                        new Document(
+                                            "$and",
+                                            List.of(
+                                                isActionTest(AuditAction.CREATE), metered)),
+                                        1,
+                                        0))))
+                        .append(
+                            "cumulativeMinutes",
+                            new Document(
+                                "$sum",
+                                new Document(
+                                    "$cond",
+                                    List.of(isActionTest(AuditAction.UPDATE), minutes, 0))))));
+    Map<String, MonthlyUsage> usage = new HashMap<>();
     for (Document workspace :
         mongoTemplate.aggregate(aggregation, AuditEventEntity.class, Document.class)) {
-      counts.put(workspace.getString("_id"), ((Number) workspace.get("runs")).longValue());
+      usage.put(
+          workspace.getString("_id"),
+          new MonthlyUsage(
+              ((Number) workspace.get("runs")).longValue(),
+              ((Number) workspace.get("cumulativeMinutes")).longValue()));
     }
-    return counts;
+    return usage;
+  }
+
+  private static final long MILLIS_PER_MINUTE = 60_000L;
+
+  // 1 for an event of the action, else 0.
+  private static Document isAction(AuditAction action) {
+    return new Document("$cond", List.of(isActionTest(action), 1, 0));
+  }
+
+  private static Document isActionTest(AuditAction action) {
+    return new Document("$eq", List.of("$action", action.name()));
   }
 }

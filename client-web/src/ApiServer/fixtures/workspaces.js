@@ -30,6 +30,7 @@ const workspaces = {
           "quotas": {
               "maxWorkflowCount": 10,
               "maxWorkflowRunMonthly": 20,
+              "maxCumulativeDuration": 0,
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
@@ -38,6 +39,7 @@ const workspaces = {
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
+              "currentCumulativeDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0,
               "currentQueuedRuns": 0
@@ -61,6 +63,7 @@ const workspaces = {
           "quotas": {
               "maxWorkflowCount": 2,
               "maxWorkflowRunMonthly": 10,
+              "maxCumulativeDuration": 0,
               "maxWorkspaceStorage": 0,
               "maxWorkflowRunDuration": 10,
               "maxConcurrentRuns": 1,
@@ -69,6 +72,7 @@ const workspaces = {
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
+              "currentCumulativeDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0,
               "currentQueuedRuns": 0
@@ -92,6 +96,7 @@ const workspaces = {
           "quotas": {
               "maxWorkflowCount": 0,
               "maxWorkflowRunMonthly": 0,
+              "maxCumulativeDuration": 0,
               "maxWorkspaceStorage": 0,
               "maxWorkflowRunDuration": 0,
               "maxConcurrentRuns": 0,
@@ -100,6 +105,7 @@ const workspaces = {
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
+              "currentCumulativeDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0,
               "currentQueuedRuns": 0
@@ -135,6 +141,7 @@ const workspaces = {
           "quotas": {
               "maxWorkflowCount": 10,
               "maxWorkflowRunMonthly": 20,
+              "maxCumulativeDuration": 0,
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
@@ -143,6 +150,7 @@ const workspaces = {
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
+              "currentCumulativeDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0,
               "currentQueuedRuns": 0
@@ -166,6 +174,7 @@ const workspaces = {
           "quotas": {
               "maxWorkflowCount": 10,
               "maxWorkflowRunMonthly": 20,
+              "maxCumulativeDuration": 0,
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
@@ -174,6 +183,7 @@ const workspaces = {
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
+              "currentCumulativeDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0,
               "currentQueuedRuns": 0
@@ -197,6 +207,7 @@ const workspaces = {
           "quotas": {
               "maxWorkflowCount": 2,
               "maxWorkflowRunMonthly": 10,
+              "maxCumulativeDuration": 0,
               "maxWorkspaceStorage": 0,
               "maxWorkflowRunDuration": 10,
               "maxConcurrentRuns": 0,
@@ -205,6 +216,7 @@ const workspaces = {
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
+              "currentCumulativeDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0,
               "currentQueuedRuns": 0
@@ -228,6 +240,7 @@ const workspaces = {
           "quotas": {
               "maxWorkflowCount": 10,
               "maxWorkflowRunMonthly": 20,
+              "maxCumulativeDuration": 0,
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
@@ -236,6 +249,7 @@ const workspaces = {
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
+              "currentCumulativeDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
               "currentConcurrentRuns": 0,
               "currentQueuedRuns": 0
