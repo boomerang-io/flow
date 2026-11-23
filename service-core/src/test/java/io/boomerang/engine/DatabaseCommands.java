@@ -68,6 +68,11 @@ public final class DatabaseCommands implements CommandListener {
 
   private DatabaseCommands() {}
 
+  /** The listener to register on a MongoDB client a test builds itself. */
+  public static CommandListener listener() {
+    return LISTENER;
+  }
+
   /** Run the operation on this thread and return what it issued. */
   public static <T> Recorded<T> record(Supplier<T> operation) {
     List<Command> commands = new ArrayList<>();

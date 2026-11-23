@@ -8,6 +8,7 @@ import java.util.List;
 import java.util.Optional;
 import org.springframework.data.domain.Pageable;
 import org.springframework.data.mongodb.repository.MongoRepository;
+import org.springframework.data.mongodb.repository.Query;
 
 public interface WorkflowRepository extends MongoRepository<WorkflowEntity, String> {
 
@@ -24,6 +25,12 @@ public interface WorkflowRepository extends MongoRepository<WorkflowEntity, Stri
 
   // Whether any workflow not yet deleted runs this template by reference.
   boolean existsByTemplateRefRefAndStatusNot(String ref, WorkflowStatus status);
+
+  // The links among the workflows of these ids that are not yet deleted, as their template
+  // reference alone: which templates a workspace already runs, without loading its workflows.
+  @Query(fields = "{'templateRef': 1}")
+  List<WorkflowEntity> findByIdInAndTemplateRefNotNullAndStatusNot(
+      Collection<String> ids, WorkflowStatus status);
 
   // A workspace's link to a template: among the workspace's workflows (ids from the relationship
   // walk), the one naming the template and still active.

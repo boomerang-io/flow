@@ -1,8 +1,9 @@
 import { vi } from "vitest";
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { server } from "ApiServer/msw/node";
 import { createRequestTrace } from "ApiServer/msw/requestTrace";
 import { serviceUrl } from "Config/servicesConfig";
+import { loader as rootLoader } from "Features/App/App";
 import { ATTENTION_LIMIT, RECENT_RUNS_LIMIT, loader } from "./homeLoader";
 
 // Loader-only spec (no render), the same shape as Actions.loader.spec.ts. The profile fixture
@@ -220,5 +221,81 @@ describe("Home --- loader", () => {
 
     expect(captured).toHaveLength(2 * WORKSPACE_COUNT);
     expect(captured[0]).not.toBe(captured[WORKSPACE_COUNT]);
+  });
+});
+
+// A document request runs the root loader and Home's loader side by side, and both need the
+// profile. They share the one read; a later load still reads it again, so Home never shows a
+// stale profile.
+describe("Home --- profile read", () => {
+  function countProfileReads() {
+    const reads = { count: 0 };
+    server.use(
+      http.get(serviceUrl.getUserProfile(), async () => {
+        reads.count += 1;
+        await delay(20);
+        return HttpResponse.json({ id: "user-1", workspaces: [] });
+      }),
+      http.get(serviceUrl.getFeatureFlags(), () => HttpResponse.json({ features: {} })),
+      http.get(serviceUrl.getContext(), () => HttpResponse.json({})),
+      http.get(serviceUrl.getNavigation({ query: "" }), () => HttpResponse.json([])),
+    );
+    return reads;
+  }
+
+  test("reads the profile once for the root loader and Home's loader together", async () => {
+    const reads = countProfileReads();
+    const cookieRequest = () => new Request("http://localhost/home", { headers: { Cookie: "session=abc" } });
+
+    await Promise.all([rootLoader({ request: cookieRequest() }), loader({ request: cookieRequest() })]);
+
+    expect(reads.count).toBe(1);
+  });
+
+  test("never shares a read between two callers", async () => {
+    const seen: Array<string | null> = [];
+    server.use(
+      http.get(serviceUrl.getUserProfile(), async ({ request: profileRequest }) => {
+        const cookie = profileRequest.headers.get("cookie");
+        seen.push(cookie);
+        await delay(20);
+        return HttpResponse.json({ id: cookie, workspaces: [] });
+      }),
+      http.get(serviceUrl.getFeatureFlags(), () => HttpResponse.json({ features: {} })),
+      http.get(serviceUrl.getContext(), () => HttpResponse.json({})),
+      http.get(serviceUrl.getNavigation({ query: "" }), () => HttpResponse.json([])),
+    );
+    const as = (cookie: string) => new Request("http://localhost/home", { headers: { Cookie: cookie } });
+
+    const [one, two] = await Promise.all([
+      rootLoader({ request: as("session=one") }),
+      rootLoader({ request: as("session=two") }),
+    ]);
+
+    expect(seen.sort()).toEqual(["session=one", "session=two"]);
+    expect(one.user?.id).toBe("session=one");
+    expect(two.user?.id).toBe("session=two");
+  });
+
+  // With no Cookie header there is no caller to tell apart: service-core is sent the same request
+  // by both, and answers both the same (a 401, or the one identity it serves with security off).
+  test("shares a read between two requests that carry no cookie", async () => {
+    const reads = countProfileReads();
+    const anonymous = () => new Request("http://localhost/home");
+
+    const [one, two] = await Promise.all([rootLoader({ request: anonymous() }), rootLoader({ request: anonymous() })]);
+
+    expect(reads.count).toBe(1);
+    expect(one.user?.id).toBe("user-1");
+    expect(two.user?.id).toBe("user-1");
+  });
+
+  test("reads it again on a later load", async () => {
+    const reads = countProfileReads();
+
+    await loader({ request: request() });
+    await loader({ request: request() });
+
+    expect(reads.count).toBe(2);
   });
 });

@@ -5,13 +5,20 @@ import static org.assertj.core.api.Assertions.assertThat;
 import io.boomerang.core.RelationshipService;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
+import io.boomerang.engine.DatabaseCommands;
+import io.boomerang.engine.DatabaseCommands.Recorded;
 import io.boomerang.integrations.entity.IntegrationsEntity;
 import io.boomerang.integrations.repository.IntegrationsRepository;
+import io.boomerang.workflow.WorkflowService;
+import io.boomerang.workflow.repository.WorkflowRepository;
 import io.boomerang.workspace.entity.ApproverGroupEntity;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import io.boomerang.workspace.repository.ApproverGroupRepository;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
 import java.util.UUID;
 import org.junit.jupiter.api.Test;
@@ -28,6 +35,10 @@ class WorkspaceDeleteLinkedRecordsTest extends AbstractEngineIntegrationTest {
   @Autowired private IntegrationsRepository integrationsRepository;
   @Autowired private ApproverGroupRepository approverGroupRepository;
   @Autowired private RelationshipService relationshipService;
+  @Autowired private WorkflowService workflowService;
+  @Autowired private WorkflowRepository workflowRepository;
+
+  private static final String TASK_SLUG = "workspace-delete-task";
 
   @Test
   void deletingAWorkspaceRemovesItsApproverGroupsAndTheInstallationsOnlyItLinked() {
@@ -59,6 +70,47 @@ class WorkspaceDeleteLinkedRecordsTest extends AbstractEngineIntegrationTest {
             relationshipService.doesSlugOrRefExistForType(
                 RelationshipType.APPROVERGROUP, group.getId()))
         .isFalse();
+  }
+
+  /**
+   * Deleting a workspace deletes each of its workflows - tombstoned, its relationship node gone -
+   * and finds them in one walk: the relationship edges read grow by one for each workflow more,
+   * not by one for each workflow still there at each delete.
+   */
+  @Test
+  void deletingAWorkspaceDeletesEachWorkflowAndResolvesThemOnce() {
+    String suffix = UUID.randomUUID().toString().substring(0, 8);
+    seedGlobalTask(TASK_SLUG);
+    Map<Integer, Long> edgesRead = new HashMap<>();
+    for (int workflows : List.of(3, 9)) {
+      String workspace = createWorkspace("cascade-" + workflows + "-" + suffix);
+      for (int i = 0; i < workflows; i++) {
+        workflowService.create(workspace, runnableWorkflow("cascade-wf-" + i, TASK_SLUG));
+      }
+      List<String> refs =
+          relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty());
+      assertThat(refs).hasSize(workflows);
+
+      Recorded<Boolean> delete =
+          DatabaseCommands.record(
+              () -> {
+                workspaceService.delete(workspace);
+                return true;
+              });
+
+      for (String ref : refs) {
+        assertThat(workflowRepository.findById(ref))
+            .hasValueSatisfying(
+                workflow -> assertThat(workflow.getStatus()).isEqualTo(WorkflowStatus.deleted));
+        assertThat(relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKFLOW, ref))
+            .isFalse();
+      }
+      assertThat(relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, workspace))
+          .isFalse();
+      edgesRead.put(workflows, delete.documentsRead("rel_edges"));
+    }
+    System.out.printf("DB COMMANDS | workspace delete | rel_edges read %s%n", edgesRead);
+    assertThat(edgesRead.get(9) - edgesRead.get(3)).isEqualTo(6);
   }
 
   private String createWorkspace(String name) {

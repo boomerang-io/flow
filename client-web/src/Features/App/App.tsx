@@ -12,7 +12,7 @@ import { AppContextProvider, useAppContext } from "State/context";
 import SignedOut from "Features/Auth/SignedOut";
 import type { AuthConfig } from "Features/Auth/authClient";
 import { APP_ROOT, CORE_ENV_URL, FeatureFlag } from "Config/appConfig";
-import { serverFetch } from "Config/serverFetch";
+import { serverFetch, sharedGet } from "Config/serverFetch";
 import { serviceUrl } from "Config/servicesConfig";
 import {
   FlowFeatures,
@@ -148,7 +148,7 @@ export async function loader({ request }: { request: Request }): Promise<Bootstr
 
   let user: FlowUser | null = null;
   try {
-    const response = await api.get<FlowUser>(getUserUrl);
+    const response = await sharedGet<FlowUser>(request, getUserUrl);
     user = response.data;
   } catch (error) {
     if (axios.isAxiosError(error) && error.response?.status === 423) {

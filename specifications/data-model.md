@@ -31,13 +31,13 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 | `events_outbox`, `events_inbox` | Outbound CloudEvents awaiting delivery (the transactional outbox): `status`, `attempts`, `retry.after`, `sentAt`, and on a failure `lastError` (at most 1024 characters, `event/OutboxDispatcher.java:46`) and `deadAt`; inbound event receipts with their processing status | `EventOutboxEntity`, `EventInboxEntity` (`event`) |
 | `dispatchers` | Registered dispatchers, the task types they serve, and where the engine reads their live task logs (`logsUrl`) with which bearer (`logsToken`, stored as sent); removed after 7 days without a connection (`execution-model.md`, "The watcher sweeps") | `DispatcherEntity` (`dispatcher`) |
 | `workspaces` | Workspaces (`type` `personal`, `hobby`, `pro`, `enterprise` or `system`): status, labels, annotations, parameters, quotas | `WorkspaceEntity` (`workspace`) |
-| `approver_groups` | Named approver sets used by approval tasks; deleted with their workspace, and a user leaves every group on deletion and a workspace's groups on leaving it (`workspace/WorkspaceService.java:420,599`, `core/UserService.java:530-533`) | `ApproverGroupEntity` (`workspace`) |
+| `approver_groups` | Named approver sets used by approval tasks; deleted with their workspace, and a user leaves every group on deletion and a workspace's groups on leaving it (`workspace/WorkspaceService.java:415,594`, `core/UserService.java:530-533`) | `ApproverGroupEntity` (`workspace`) |
 | `users`, `tokens`, `roles` | User accounts, with per-user interface `settings` (`isFirstVisit`, `isShowHelp`, `hasConsented`, `isShowGetStarted`; `core/model/UserSettings.java:8-12`), which `PATCH /api/v2/profile` merges key by key; hashed bearer tokens with principal, permissions and expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
 | `settings` | Instance settings grouped by `key`, each with a `config` list | `SettingEntity` (`core`) |
 | `audit` | One flat event per audited attempt: a CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`, `actorName`, `actorType`), `workspaceId`, `action`, resource (`resourceType`, `resourceId`, `resourceName`), `outcome`, `level`, `payload` (request discriminators, and on a secret write `detail.secretsChanged` and `secretsCleared` names, never values). Run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) come from the engine's transitions (`core/audit/WorkflowRunAuditBridge.java:62`). Expires by time to live | `AuditEventEntity` (`core.audit`) |
 | `rel_nodes`, `rel_edges` | The relationship graph (below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
 | `parameters` | Global parameters | `GlobalParamEntity` (`workflow`) |
-| `integrations`, `integration_templates` | Installed integrations, each typed as its template is (`github_app`, `slack_auth`) with `ref` the provider's id for it (a GitHub installation id, a Slack team id), and their catalogue; a template's `fields` are the workspace parameters it manages while its credentials are shared with tasks, and its `kind` whether Flow installs it and fills them (`app`: GitHub, Slack) or the workspace enters them (`form`: Google, Microsoft), which links it with no `integrations` record (`parameters.md`); deleting a workspace deletes each installation no other workspace links (`workspace/WorkspaceService.java:437`) | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
+| `integrations`, `integration_templates` | Installed integrations, each typed as its template is (`github_app`, `slack_auth`) with `ref` the provider's id for it (a GitHub installation id, a Slack team id), and their catalogue; a template's `fields` are the workspace parameters it manages while its credentials are shared with tasks, and its `kind` whether Flow installs it and fills them (`app`: GitHub, Slack) or the workspace enters them (`form`: Google, Microsoft), which links it with no `integrations` record (`parameters.md`); deleting a workspace deletes each installation no other workspace links (`workspace/WorkspaceService.java:432`) | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
 | `sys_migration_changelog`, `sys_migration_lock`, `sys_migration_state` | Flamingock's change log and lock; the recorded install generation | migrations only (`migration/MigrationConfiguration.java:42-43`, `migration/LegacyGenerationMarker.java:27`) |
 
 A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflowRunMonthly`,
@@ -54,11 +54,11 @@ enforced as a limit of zero, so that workspace inherits instead (`migration/_000
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1501-1528,2552-2577`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1519-1546,2574-2599`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1640-1644,2555-2574`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1658-1662,2577-2596`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -105,11 +105,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1633,2072,2225`, `workflow/TaskService.java:718,806` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1300` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1651,2090,2243`, `workflow/TaskService.java:718,806` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1318` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:793-799`, `workflow/WorkflowRunService.java:906-913`). The engine
+it dropped (`workflow/WorkflowService.java:803-809`, `workflow/WorkflowRunService.java:906-913`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -156,7 +156,7 @@ decrypt is kept as stored, on load and on the next save of its group, never writ
 | Collection | Document | Notes |
 | --- | --- | --- |
 | `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`core/entity/RelationshipNodeEntity.java:32`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `workspacetask` (a workspace's own task), `task` (the global catalogue) (`core/enums/RelationshipType.java:12-23`). |
-| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:328-382`). |
+| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:389-443`). |
 
 The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelationshipRoot` and
 `_0004__SeedSystemWorkspace`.
