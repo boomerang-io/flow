@@ -29,8 +29,8 @@ definition label, and the engine claims at most a page of 20 (`QueuePoller.java:
 filter under each type on its own `Condition`, and an admission signals the matching waiters
 (`dispatcher/PollWakeups.java:36-251`). The Kubernetes dispatcher fails a stuck image pull `ImagePull` after a grace and a pod not running by the deadline
 `StartTimeout` (`executor/PodStartWatch.java:43-70`). The engine requeues on the shared budget only reasons meaning the task never ran: `ExceededQuota`,
-`StartTimeout`, `RateLimited`, `ClusterUnavailable`, `DispatcherStopping` (`common/model/StatusReason.java:53-59`, `TaskRunService.java:1189-1208`). A failed
-provisioning is reported with its cause, retried a minute later and failed on the third attempt (`engine/WorkflowExecutionService.java:467-503`).
+`StartTimeout`, `RateLimited`, `ClusterUnavailable`, `DispatcherStopping` (`common/model/StatusReason.java:57-63`, `TaskRunService.java:1189-1208`). A failed
+provisioning is reported with its cause, retried a minute later and failed on the third attempt (`engine/WorkflowExecutionService.java:591-627`).
 
 ## Consequences
 

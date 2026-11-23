@@ -14,6 +14,8 @@ interface WorkflowInputModalContentProps {
   inputs: Array<DataDrivenInput>;
   isExecuting: boolean;
   errorMessage: { title: string; message: string } | null;
+  // Said when every run slot is busy, so the run will wait in the queue.
+  queueNote?: string | null;
 }
 
 const WorkflowInputModalContent: React.FC<WorkflowInputModalContentProps> = ({
@@ -23,6 +25,7 @@ const WorkflowInputModalContent: React.FC<WorkflowInputModalContentProps> = ({
   inputs,
   isExecuting,
   errorMessage,
+  queueNote,
 }) => {
   const [isRedirectEnabled, setIsRedirectEnabled] = React.useState(false);
 
@@ -60,6 +63,9 @@ const WorkflowInputModalContent: React.FC<WorkflowInputModalContentProps> = ({
         <ModalFlowForm className={styles.container}>
           <ModalBody aria-label="inputs">
             {inputs}
+            {queueNote && !executeError && (
+              <InlineNotification lowContrast hideCloseButton kind="info" title="Heads up" subtitle={queueNote} />
+            )}
             {executeError && (
               <InlineNotification
                 lowContrast

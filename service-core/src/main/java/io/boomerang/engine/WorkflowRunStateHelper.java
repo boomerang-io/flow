@@ -165,9 +165,11 @@ public class WorkflowRunStateHelper {
             .is(observedSeq));
   }
 
-  // Admission Compare-And-Set: a submitted run, or one parked for a slot of its workflow, becomes
-  // ready. The parked message goes with it.
-  public WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams) {
+  // Admission Compare-And-Set: a submitted run, or one parked for a slot, becomes ready. The
+  // parked message goes with it. A run a dispatcher must provision before it starts takes its
+  // deadline here, so the sweep bounds the wait for a dispatcher from admission and never the time
+  // spent parked; any other run starts at once and takes its deadline from its start.
+  public WorkflowRunEntity tryAdmit(String id, List<RunParam> resolvedParams, Date timeoutAt) {
     Query query =
         Query.query(
             Criteria.where("_id")
@@ -181,13 +183,19 @@ public class WorkflowRunStateHelper {
             .set("status", RunStatus.ready)
             .set("params", secretValues.sealRunParams(resolvedParams))
             .unset("statusMessage");
+    if (timeoutAt != null) {
+      update.set("timeoutAt", timeoutAt);
+    } else {
+      update.unset("timeoutAt");
+    }
     return cas(query, update, RunStatus.ready, null);
   }
 
-  // Park Compare-And-Set: a run over its workflow's concurrency limit waits for a slot as
-  // waiting/pending - neither claimable nor started - with the message saying so. Guarded on the
-  // unadmitted and the just-admitted shapes alike, so the post-admission recount can step a run
-  // back; a run a dispatcher has claimed or started is past parking.
+  // Park Compare-And-Set: a run over its workflow's concurrency limit, or its workspace's, waits
+  // for a slot as waiting/pending - neither claimable nor started - with the message saying so,
+  // and with no deadline: time parked is not the run's. Guarded on the unadmitted and the
+  // just-admitted shapes alike, so the post-admission recount can step a run back; a run a
+  // dispatcher has claimed or started is past parking.
   public WorkflowRunEntity tryPark(String id, String statusMessage) {
     Query query =
         Query.query(
@@ -200,14 +208,22 @@ public class WorkflowRunStateHelper {
                 .and("claim.by")
                 .exists(false));
     Update update =
-        new Update().set("status", RunStatus.waiting).set("statusMessage", statusMessage);
+        new Update()
+            .set("status", RunStatus.waiting)
+            .set("statusMessage", statusMessage)
+            .unset("timeoutAt");
     return cas(query, update, RunStatus.waiting, null);
   }
 
   // The runs of a workflow holding a slot: admitted and not terminal. A parked run holds none.
   // Served by workflow_ref_status.
   public long countInFlight(String workflowRef) {
-    return mongoTemplate.count(Query.query(inFlight(workflowRef)), WorkflowRunEntity.class);
+    return countInFlight(List.of(workflowRef));
+  }
+
+  // The same over several workflows: the runs holding a slot of their workspace's limit.
+  public long countInFlight(Collection<String> workflowRefs) {
+    return mongoTemplate.count(Query.query(inFlight(workflowRefs)), WorkflowRunEntity.class);
   }
 
   // Whether the run is among the oldest `limit` runs of its workflow in flight: the ones that keep
@@ -215,8 +231,13 @@ public class WorkflowRunStateHelper {
   // millisecond tie on creationDate, so the id breaks the tie the same way for every caller;
   // otherwise two concurrent recounts could each see a different oldest run and both keep a slot.
   public boolean holdsSlot(String id, String workflowRef, int limit) {
+    return holdsSlot(id, List.of(workflowRef), limit);
+  }
+
+  // The same over several workflows: the oldest `limit` runs in flight of a workspace.
+  public boolean holdsSlot(String id, Collection<String> workflowRefs, int limit) {
     Query query =
-        Query.query(inFlight(workflowRef))
+        Query.query(inFlight(workflowRefs))
             .with(Sort.by(Sort.Direction.ASC, "creationDate").and(Sort.by(Sort.Direction.ASC, "_id")))
             .limit(limit);
     query.fields().include("_id");
@@ -226,38 +247,85 @@ public class WorkflowRunStateHelper {
 
   // Admitted or executing, or in the finally stage, which carries the final status while its
   // finally tasks still run; a run parked for a slot or waiting at a gate holds none.
-  private static Criteria inFlight(String workflowRef) {
+  private static Criteria inFlight(Collection<String> workflowRefs) {
     return new Criteria()
         .andOperator(
-            Criteria.where("workflowRef").is(workflowRef),
+            Criteria.where("workflowRef").in(workflowRefs),
             new Criteria()
                 .orOperator(
                     Criteria.where("status").in(RunStatus.ready, RunStatus.running),
                     Criteria.where("phase").is(RunPhase.running).and("graphEndedAt").exists(true)));
   }
 
-  // The parked run of a workflow that has waited longest for a slot, if any.
-  public WorkflowRunEntity findOldestParked(String workflowRef) {
+  // The parked run among the given workflows that has waited longest for a slot, if any; the id
+  // breaks a tie on creationDate as it does for the runs in flight.
+  public WorkflowRunEntity findOldestParked(Collection<String> workflowRefs) {
     Query query =
-        Query.query(parked().and("workflowRef").is(workflowRef))
-            .with(Sort.by(Sort.Direction.ASC, "creationDate"))
+        Query.query(parked().and("workflowRef").in(workflowRefs))
+            .with(Sort.by(Sort.Direction.ASC, "creationDate").and(Sort.by(Sort.Direction.ASC, "_id")))
             .limit(1);
+    query.fields().include("_id").include("workflowRef");
     return mongoTemplate.findOne(query, WorkflowRunEntity.class);
   }
 
-  // The page of parked runs across workflows, longest waiting first: the sweep's re-check that
-  // catches a re-admission lost with the instance that owed it. Served by claim_page.
-  public List<WorkflowRunEntity> findParked(int limit) {
+  // Whether any run is parked: the one read a completion makes before it looks for a run to
+  // re-admit. Served by claim_page.
+  public boolean existsParked() {
+    return mongoTemplate.exists(Query.query(parked()), WorkflowRunEntity.class);
+  }
+
+  // The workflows with a parked run, in a fixed order: what the re-admission sweep visits. Served
+  // by claim_page.
+  public List<String> parkedWorkflowRefs() {
+    return mongoTemplate
+        .findDistinct(
+            Query.query(parked()).maxTimeMsec(5000), "workflowRef", WorkflowRunEntity.class, String.class)
+        .stream()
+        .sorted()
+        .toList();
+  }
+
+  // The page of runs parked since before the cutoff, longest waiting first: the ones past the
+  // queue's age limit. Served by claim_page.
+  public List<WorkflowRunEntity> findParkedBefore(Date cutoff, int limit) {
     Query query =
-        Query.query(parked())
+        Query.query(parked().and("creationDate").lte(cutoff))
             .with(Sort.by(Sort.Direction.ASC, "creationDate"))
             .limit(limit)
             .maxTimeMsec(5000);
+    query.fields().include("_id");
     return mongoTemplate.find(query, WorkflowRunEntity.class);
   }
 
   private static Criteria parked() {
     return Criteria.where("status").is(RunStatus.waiting).and("phase").is(RunPhase.pending);
+  }
+
+  // Expiry Compare-And-Set: a run still parked, and parked since before the cutoff, ends cancelled
+  // with the reason. Guarded on the parked shape itself, not the phase alone: a run admitted a
+  // moment earlier is ready/pending and must not be cancelled.
+  public WorkflowRunEntity tryExpireParked(
+      String id, Date cutoff, String statusReason, String statusMessage) {
+    Query query =
+        Query.query(
+            Criteria.where("_id")
+                .is(id)
+                .and("status")
+                .is(RunStatus.waiting)
+                .and("phase")
+                .is(RunPhase.pending)
+                .and("creationDate")
+                .lte(cutoff));
+    Update update =
+        new Update()
+            .set("status", RunStatus.cancelled)
+            .set("phase", RunPhase.completed)
+            .set("duration", 0L)
+            .set("statusReason", statusReason)
+            .set("statusMessage", statusMessage)
+            .unset("timeoutAt")
+            .unset("waitingSince");
+    return cas(query, update, RunStatus.cancelled, RunPhase.completed);
   }
 
   public WorkflowRunEntity tryStart(String id, Date startTime, Long timeoutMinutes) {
@@ -446,7 +514,9 @@ public class WorkflowRunStateHelper {
   // A pending run past its deadline is one with a workspace that no dispatcher claimed in time;
   // a claimed one is queued and left to the stale-claim sweep. Paused and waiting runs are
   // excluded: their clock is stopped, and the deadline moves forward by the time stopped when
-  // they resume, so neither is reaped on resume for time it did not spend executing.
+  // they resume, so neither is reaped on resume for time it did not spend executing. So is a run
+  // parked for a slot: it carries no deadline, and one stored with a deadline before parking
+  // cleared it is left for its admission to stamp afresh.
   public List<WorkflowRunEntity> findTimedOut(Date now, int limit) {
     Query query =
         Query.query(
@@ -454,6 +524,8 @@ public class WorkflowRunStateHelper {
                     .lte(now)
                     .and("phase")
                     .in(RunPhase.pending, RunPhase.running)
+                    .and("status")
+                    .ne(RunStatus.waiting)
                     .and("pauseRequestedAt")
                     .exists(false)
                     .and("waitingSince")

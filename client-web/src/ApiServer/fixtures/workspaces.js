@@ -33,12 +33,14 @@ const workspaces = {
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
+              "maxQueuedRuns": 20,
               "currentWorkflowCount": 6,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
-              "currentConcurrentRuns": 0
+              "currentConcurrentRuns": 0,
+              "currentQueuedRuns": 0
           },
           "approverGroups": [],
           "members": [
@@ -62,12 +64,14 @@ const workspaces = {
               "maxWorkspaceStorage": 0,
               "maxWorkflowRunDuration": 10,
               "maxConcurrentRuns": 1,
+              "maxQueuedRuns": 20,
               "currentWorkflowCount": 1,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
-              "currentConcurrentRuns": 0
+              "currentConcurrentRuns": 0,
+              "currentQueuedRuns": 0
           },
           "approverGroups": [],
           "members": [
@@ -91,12 +95,14 @@ const workspaces = {
               "maxWorkspaceStorage": 0,
               "maxWorkflowRunDuration": 0,
               "maxConcurrentRuns": 0,
+              "maxQueuedRuns": 0,
               "currentWorkflowCount": 1,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
-              "currentConcurrentRuns": 0
+              "currentConcurrentRuns": 0,
+              "currentQueuedRuns": 0
           },
           "approverGroups": [],
           "members": [
@@ -132,12 +138,14 @@ const workspaces = {
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
+              "maxQueuedRuns": 20,
               "currentWorkflowCount": 18,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
-              "currentConcurrentRuns": 0
+              "currentConcurrentRuns": 0,
+              "currentQueuedRuns": 0
           },
           "approverGroups": [],
           "members": [
@@ -161,12 +169,14 @@ const workspaces = {
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
+              "maxQueuedRuns": 20,
               "currentWorkflowCount": 2,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
-              "currentConcurrentRuns": 0
+              "currentConcurrentRuns": 0,
+              "currentQueuedRuns": 0
           },
           "approverGroups": [],
           "members": [
@@ -190,12 +200,14 @@ const workspaces = {
               "maxWorkspaceStorage": 0,
               "maxWorkflowRunDuration": 10,
               "maxConcurrentRuns": 0,
+              "maxQueuedRuns": 0,
               "currentWorkflowCount": 18,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
-              "currentConcurrentRuns": 0
+              "currentConcurrentRuns": 0,
+              "currentQueuedRuns": 0
           },
           "approverGroups": [],
           "members": [
@@ -219,12 +231,14 @@ const workspaces = {
               "maxWorkspaceStorage": 25,
               "maxWorkflowRunDuration": 30,
               "maxConcurrentRuns": 4,
+              "maxQueuedRuns": 20,
               "currentWorkflowCount": 5,
               "currentRuns": 0,
               "currentRunTotalDuration": 0,
               "currentRunAverageDuration": 0,
               "monthlyResetDate": "2023-10-01T00:00:00.000+00:00",
-              "currentConcurrentRuns": 0
+              "currentConcurrentRuns": 0,
+              "currentQueuedRuns": 0
           },
           "approverGroups": [],
           "members": [

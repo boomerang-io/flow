@@ -1734,6 +1734,105 @@ class MigrationChainTest {
   }
 
 
+  /**
+   * The run queue's settings. An empty database has both keys, the monthly default of 100 and the
+   * index from the seed and the index unit. An install from before them gains the two keys from the
+   * seed, its monthly default moves from the earlier seed's 20 to 100, and the index is built; a
+   * value an operator chose and a workspace's own stored quota are left as they are, and a second
+   * run changes nothing.
+   */
+  @Test
+  void anInstallFromBeforeTheRunQueueGainsItsSettingsItsMonthlyDefaultAndItsIndex() {
+    MongoDatabase db = migrate("run-queue-settings");
+    MongoCollection<Document> settings = collection(db, "settings");
+    Environment environment = MigrationRunner.environment(PREFIX);
+    Document seededQueued = settingEntry(settings, "quotas", "max.workflowrun.queued");
+    Document seededAge = settingEntry(settings, "workflowrun", "queue.max.age");
+    assertThat(seededQueued.getString("value")).isEqualTo("20");
+    assertThat(seededQueued.getString("type")).isEqualTo("number");
+    assertThat(seededAge.getString("value")).isEqualTo("24");
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.monthly").getString("value"))
+        .isEqualTo("100");
+    assertThat(indexesOf(db, "workflow_runs")).containsKey("refused_submit_month");
+
+    // The install as an earlier release left it, with a workspace that stores its own 20.
+    settings.updateOne(
+        Filters.eq("key", "quotas"),
+        Updates.pull("config", new Document("key", "max.workflowrun.queued")));
+    settings.updateOne(
+        Filters.eq("key", "workflowrun"), Updates.pull("config", new Document("key", "queue.max.age")));
+    setSettingValue(settings, "quotas", "max.workflowrun.monthly", "20");
+    collection(db, "workflow_runs").dropIndex("refused_submit_month");
+    collection(db, "workspaces")
+        .insertOne(
+            new Document("name", "keeps-its-own-twenty")
+                .append("quotas", new Document("maxWorkflowRunMonthly", 20)));
+
+    new _0051__SeedRunQueueSettings().execute(db, environment);
+    new _0052__MonthlyRunQuotaDefault100().execute(db, environment);
+    new _0053__RefusedSubmitMonthIndex().execute(db, environment);
+
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.queued")).isEqualTo(seededQueued);
+    assertThat(settingEntry(settings, "workflowrun", "queue.max.age")).isEqualTo(seededAge);
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.monthly").getString("value"))
+        .isEqualTo("100");
+    assertThat(
+            collection(db, "workspaces")
+                .find(Filters.eq("name", "keeps-its-own-twenty"))
+                .first()
+                .get("quotas", Document.class)
+                .getInteger("maxWorkflowRunMonthly"))
+        .as("a workspace's own stored quota is never touched")
+        .isEqualTo(20);
+    Document index = indexesOf(db, "workflow_runs").get("refused_submit_month");
+    assertThat(index.get("key", Document.class).keySet())
+        .containsExactly("workflowRef", "creationDate", "statusReason");
+    assertThat(index.get("partialFilterExpression"))
+        .isEqualTo(new Document("statusReason", "SubmitRefused"));
+    assertThat(indexesOf(db, "workflow_runs")).containsKey("workflow_ref_creation");
+
+    // A second run changes nothing.
+    List<Document> before = settings.find().sort(new Document("key", 1)).into(new ArrayList<>());
+    new _0051__SeedRunQueueSettings().execute(db, environment);
+    new _0052__MonthlyRunQuotaDefault100().execute(db, environment);
+    new _0053__RefusedSubmitMonthIndex().execute(db, environment);
+    assertThat(settings.find().sort(new Document("key", 1)).into(new ArrayList<>())).isEqualTo(before);
+    assertIndexInventory(db);
+
+    // What an operator set stays: a monthly default of 50, a queue of 7, no age limit.
+    setSettingValue(settings, "quotas", "max.workflowrun.monthly", "50");
+    setSettingValue(settings, "quotas", "max.workflowrun.queued", "7");
+    setSettingValue(settings, "workflowrun", "queue.max.age", "0");
+    new _0051__SeedRunQueueSettings().execute(db, environment);
+    new _0052__MonthlyRunQuotaDefault100().execute(db, environment);
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.monthly").getString("value"))
+        .isEqualTo("50");
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.queued").getString("value"))
+        .isEqualTo("7");
+    assertThat(settingEntry(settings, "workflowrun", "queue.max.age").getString("value"))
+        .isEqualTo("0");
+    assertThat(
+            settings.find(Filters.eq("key", "quotas")).first().getList("config", Document.class).stream()
+                .filter(entry -> "max.workflowrun.queued".equals(entry.getString("key")))
+                .count())
+        .isEqualTo(1);
+  }
+
+  private static Document settingEntry(MongoCollection<Document> settings, String group, String key) {
+    return settings.find(Filters.eq("key", group)).first().getList("config", Document.class).stream()
+        .filter(entry -> key.equals(entry.getString("key")))
+        .findFirst()
+        .orElseThrow(() -> new AssertionError("no setting " + group + "." + key));
+  }
+
+  private static void setSettingValue(
+      MongoCollection<Document> settings, String group, String key, String value) {
+    settings.updateOne(
+        Filters.eq("key", group),
+        Updates.set("config.$[entry].value", value),
+        new UpdateOptions().arrayFilters(List.of(new Document("entry.key", key))));
+  }
+
   private static Object defaultImage(MongoCollection<Document> settings) {
     return settings.find(Filters.eq("key", "task")).first().getList("config", Document.class).stream()
         .filter(entry -> "default.image".equals(entry.getString("key")))

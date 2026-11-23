@@ -34,6 +34,10 @@ public abstract class StatusReason {
   public static final String CONCURRENCY_LIMIT = "ConcurrencyLimit";
   public static final String WORKFLOW_INVALID = "WorkflowInvalid";
   public static final String FINALLY_FAILED = "FinallyFailed";
+  // A run that waited for a slot past the queue's age limit, and the entry a refused submit leaves
+  // when nothing else would record it (a schedule's dropped fire).
+  public static final String QUEUE_EXPIRED = "QueueExpired";
+  public static final String SUBMIT_REFUSED = "SubmitRefused";
 
   // Written by the engine.
   public static final String DISPATCH_PREPARE_FAILED = "DispatchPrepareFailed";

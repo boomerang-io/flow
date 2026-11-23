@@ -18,10 +18,10 @@ be a status value. Pause also has to say what happens to work already admitted, 
 ## Decision
 
 C. `pauseRequestedAt` is a timestamp on the workflow run (`service-core/src/main/java/io/boomerang/common/entity/WorkflowRunEntity.java:66`),
-set by compare-and-set on a running, unpaused run (`engine/WorkflowRunStateHelper.java:363-377`). The single gate is
+set by compare-and-set on a running, unpaused run (`engine/WorkflowRunStateHelper.java:431-445`). The single gate is
 `TaskExecutionService.queue`, which returns before admission while the run is paused (`engine/TaskExecutionService.java:179-184`).
 Resume clears the flag, moves the run deadline forward by the time paused, and calls `advance`, which queues whatever
-the gate held back (`WorkflowRunStateHelper.java:392-397`, `:433-444`; `workflow/WorkflowRunService.java:970-985`). One
+the gate held back (`WorkflowRunStateHelper.java:460-465`, `:501-512`; `workflow/WorkflowRunService.java:966-981`). One
 gate is enough because every path that creates new work passes through `queue`.
 
 ## Consequences
@@ -29,6 +29,6 @@ gate is enough because every path that creates new work passes through `queue`.
 - Tasks already claimed or running finish, and time out on their own deadlines, regardless of pause
   (`engine/TaskRunService.java:647-658`).
 - The run clock stops while paused: the run-timeout sweep skips a paused run and resume extends its deadline
-  (`WorkflowRunStateHelper.java:429-465`); the stalled-run and for-each recovery sweeps skip it too
-  (`:467-489`, `engine/WorkflowWatcher.java:319-323`).
+  (`WorkflowRunStateHelper.java:497-537`); the stalled-run and for-each recovery sweeps skip it too
+  (`:539-561`, `engine/WorkflowWatcher.java:333-337`).
 - `RunStatus` stays a closed ten-value enum (`common/enums/RunStatus.java:6-16`); `PAUSED` and `SUPERSEDED` MUST NOT be added.

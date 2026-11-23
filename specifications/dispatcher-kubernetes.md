@@ -234,8 +234,8 @@ workspace enters the engine, because a Kubernetes quantity would read it as byte
 alike, a blank size takes the platform's `max.workspace.storage` value, lowered to the owning workspace's own storage
 quota when quotas are enforced and it is smaller (0 is unlimited), and a blank mount path becomes `/workspace`; a size
 above that workspace quota is refused with `QUOTA_EXCEEDED` when quotas are enforced
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:599-618`), and the same check runs
-when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:417-427`). A
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:607-626`), and the same check runs
+when a run is submitted with its own workspace (`service-core/src/main/java/io/boomerang/workflow/QuotaService.java:587-596`). A
 size, class or access mode still blank here takes `kube.workspace.storage.*` (`1Gi`, the cluster's default class,
 `ReadWriteMany`; `dispatcher/WorkspaceService.java:53-60`); a blank class leaves `storageClassName` unset, because an
 empty string disables dynamic provisioning (`kube/KubeServiceImpl.java:127-130`). After creating a claim the
@@ -247,7 +247,7 @@ A workflow upgraded from v3 keeps its mount path, written as `/workspace/workflo
 (`service-core/src/main/java/io/boomerang/migration/_0010__V3MigrateWorkflows.java:226`), so its tasks need no
 change. One that declared v3's workflow storage, the volume keyed by the workflow, carries `legacyWorkflowStorage` on
 its revision and is refused at submit with `WORKFLOW_STORAGE_REMOVED` until it is saved again
-(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2203-2207`).
+(`service-core/src/main/java/io/boomerang/workflow/WorkflowService.java:2342-2346`).
 
 ## Isolation and placement
 

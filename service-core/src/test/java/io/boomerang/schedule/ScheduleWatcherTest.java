@@ -24,7 +24,10 @@ import io.boomerang.core.RelationshipService;
 import io.boomerang.core.TokenService;
 import io.boomerang.schedule.repository.WorkflowScheduleRepository;
 import io.boomerang.workflow.WorkflowService;
+import java.time.Instant;
+import java.time.ZoneOffset;
 import java.time.ZonedDateTime;
+import java.time.format.DateTimeFormatter;
 import java.util.Date;
 import java.util.List;
 import java.util.concurrent.CyclicBarrier;
@@ -36,6 +39,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
+import org.mockito.ArgumentCaptor;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
@@ -516,6 +520,113 @@ class ScheduleWatcherTest {
     assertEquals(
         WorkflowScheduleStatus.completed,
         scheduleRepository.findById(s.getId()).orElseThrow().getStatus());
+  }
+
+  @Test
+  void aRecurringFireDroppedOnItsLastAttemptIsRecordedWithWhatRefusedIt() {
+    WorkflowScheduleEntity s = activeCron(new Date(System.currentTimeMillis() - 1000));
+    s.setName("nightly");
+    scheduleRepository.save(s);
+    ScheduleWatcher refused = watcherSubmittingThrough(service);
+    when(workflowService.submit(any(), any(), any(), eq(true), any()))
+        .thenThrow(new BoomerangException(BoomerangError.QUOTA_EXCEEDED, "Queued runs", 20, 20));
+    String hourBefore = hourUtc();
+
+    sweep(refused);
+    makeDue(s.getId());
+    sweep(refused);
+    verify(workflowService, never()).recordRefusedSubmit(any(), any(), any(), any(), any(), any());
+    makeDue(s.getId());
+    sweep(refused);
+
+    // The fire of an hourly schedule was due on the hour, whichever attempt dropped it.
+    ArgumentCaptor<String> message = ArgumentCaptor.forClass(String.class);
+    verify(workflowService, times(1))
+        .recordRefusedSubmit(eq("t1"), eq("w1"), any(), eq(s.getId()), message.capture(), any());
+    assertTrue(
+        List.of(droppedMessage(hourBefore), droppedMessage(hourUtc())).contains(message.getValue()),
+        message.getValue());
+    assertEquals(
+        WorkflowScheduleStatus.active,
+        scheduleRepository.findById(s.getId()).orElseThrow().getStatus());
+  }
+
+  private static String droppedMessage(String firedAt) {
+    return "Schedule \"nightly\" fired at "
+        + firedAt
+        + " UTC and no run started after 3 attempts. QUOTA_EXCEEDED: maximum queued runs";
+  }
+
+  private static String hourUtc() {
+    return DateTimeFormatter.ofPattern("HH:00").withZone(ZoneOffset.UTC).format(Instant.now());
+  }
+
+  @Test
+  void aRunOnceFireDroppedOnItsLastAttemptMovesToErrorAndIsRecorded() {
+    WorkflowScheduleEntity s = activeRunOnce(Date.from(Instant.parse("2026-03-04T02:00:00Z")));
+    s.setName("one-off");
+    s.setRetryCount(2);
+    scheduleRepository.save(s);
+    ScheduleWatcher refused = watcherSubmittingThrough(service);
+    when(workflowService.submit(any(), any(), any(), eq(true), any()))
+        .thenThrow(new BoomerangException(BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED));
+
+    sweep(refused);
+
+    assertEquals(
+        WorkflowScheduleStatus.error,
+        scheduleRepository.findById(s.getId()).orElseThrow().getStatus());
+    verify(workflowService, times(1))
+        .recordRefusedSubmit(
+            eq("t1"),
+            eq("w1"),
+            any(),
+            eq(s.getId()),
+            eq(
+                "Schedule \"one-off\" fired at 02:00 UTC and no run started after 3 attempts."
+                    + " WORKFLOWRUN_TRIGGER_DISABLED: trigger disabled"),
+            any());
+  }
+
+  @Test
+  void aDroppedFireThatFailedWithoutACodeNamesTheExceptionClassOnly() {
+    WorkflowScheduleEntity s = activeRunOnce(Date.from(Instant.parse("2026-03-04T02:00:00Z")));
+    s.setName("one-off");
+    s.setRetryCount(2);
+    scheduleRepository.save(s);
+    ScheduleWatcher failing = watcherSubmittingThrough(service);
+    when(workflowService.submit(any(), any(), any(), eq(true), any()))
+        .thenThrow(new IllegalStateException("connection to db-internal:27017 refused"));
+
+    sweep(failing);
+
+    verify(workflowService, times(1))
+        .recordRefusedSubmit(
+            any(),
+            any(),
+            any(),
+            any(),
+            eq(
+                "Schedule \"one-off\" fired at 02:00 UTC and no run started after 3 attempts."
+                    + " IllegalStateException"),
+            any());
+  }
+
+  @Test
+  void aDroppedFireThatCannotBeRecordedStillSettlesTheSchedule() {
+    WorkflowScheduleEntity s = activeCron(new Date(System.currentTimeMillis() - 1000));
+    s.setRetryCount(2);
+    scheduleRepository.save(s);
+    ScheduleWatcher refused = watcherSubmittingThrough(service);
+    refuseEverySubmit();
+    when(workflowService.recordRefusedSubmit(any(), any(), any(), any(), any(), any()))
+        .thenThrow(new IllegalStateException("cannot write"));
+
+    sweep(refused);
+
+    WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
+    assertEquals(WorkflowScheduleStatus.active, after.getStatus());
+    assertEquals(0, after.getRetryCount());
   }
 
   // Force a schedule due again (a re-arm sets nextFireAt to the near future), preserving its state.

@@ -17,6 +17,7 @@ export default function WorkflowQuotaModalContent({
   // null when the quota is unlimited: no bar, since there is no limit to measure against.
   const workflowLimitPercentage = quotaUsagePercent(quotas.currentWorkflowCount, quotas.maxWorkflowCount);
   const concurrentLimitPercentage = quotaUsagePercent(quotas.currentConcurrentRuns, quotas.maxConcurrentRuns);
+  const queuedLimitPercentage = quotaUsagePercent(quotas.currentQueuedRuns, quotas.maxQueuedRuns);
   const monthlyExecutionPercentage = quotaUsagePercent(quotas.currentRuns, quotas.maxWorkflowRunMonthly);
 
   return (
@@ -37,7 +38,7 @@ export default function WorkflowQuotaModalContent({
       </QuotaSection>
       <QuotaSection
         title="Concurrent runs (executions)"
-        description="Number of Workflows able to run at the same time"
+        description="Number of Workflows able to run at the same time. One more than that waits in the queue."
         value={quotas.maxConcurrentRuns}
         valueUnit="Workflows"
       >
@@ -46,6 +47,19 @@ export default function WorkflowQuotaModalContent({
         )}
         <p className={styles.currentUsage}>
           {`Current usage: ${formatQuotaUsage(quotas.currentConcurrentRuns, quotas.maxConcurrentRuns)}`}
+        </p>
+      </QuotaSection>
+      <QuotaSection
+        title="Queued runs"
+        description="Runs that can wait for a slot once the concurrent limit is reached"
+        value={quotas.maxQueuedRuns}
+        valueUnit="runs"
+      >
+        {queuedLimitPercentage !== null && (
+          <ProgressBar maxValue={quotas.maxQueuedRuns} value={queuedLimitPercentage} />
+        )}
+        <p className={styles.currentUsage}>
+          {`Current usage: ${formatQuotaUsage(quotas.currentQueuedRuns, quotas.maxQueuedRuns)}`}
         </p>
       </QuotaSection>
       <QuotaSection

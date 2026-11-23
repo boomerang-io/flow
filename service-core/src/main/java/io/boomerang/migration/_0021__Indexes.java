@@ -89,6 +89,14 @@ public class _0021__Indexes {
               new IndexOptions()),
           new Index(
               "workflow_runs", "workflow_ref_status", keys("workflowRef", "status"), new IndexOptions()),
+          // The entries a refused submit left, which the monthly run count takes back out. The reason
+          // is a key so the keys differ from workflow_ref_creation's.
+          new Index(
+              "workflow_runs",
+              "refused_submit_month",
+              keys("workflowRef", "creationDate", "statusReason"),
+              new IndexOptions()
+                  .partialFilterExpression(new Document("statusReason", "SubmitRefused"))),
           // The child runs a cascade cancel pages through.
           new Index(
               "workflow_runs", "initiated_by_phase", keys("initiatedByRef", "phase"), new IndexOptions()),

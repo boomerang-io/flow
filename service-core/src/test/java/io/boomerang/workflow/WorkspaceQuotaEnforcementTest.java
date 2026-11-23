@@ -224,8 +224,8 @@ class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
   }
 
   // With quotas on, a run passes the quota recheck before it is queued; once admitted it starts
-  // like any other: a run with a workspace takes its deadline from its creation and waits ready
-  // for the dispatcher, so the timeout sweep can end it when no dispatcher claims.
+  // like any other: a run with a workspace takes its deadline at admission and waits ready for
+  // the dispatcher, so the timeout sweep can end it when no dispatcher claims.
   @Test
   void aRunAdmittedUnderQuotasTakesItsDeadlineWhileItWaitsForADispatcher() {
     String workspace = createWorkspace("standalone-quota-deadline", quotasWithRunDuration(5));
@@ -243,7 +243,7 @@ class WorkspaceQuotaEnforcementTest extends AbstractEngineIntegrationTest {
     assertEquals(RunStatus.ready, run.getStatus(), "a run with a workspace waits for the dispatcher");
     assertNotNull(
         workflowRunRepository.findById(run.getId()).orElseThrow().getTimeoutAt(),
-        "the deadline runs from submit while no dispatcher claims, quotas on or off");
+        "the deadline runs from admission while no dispatcher claims, quotas on or off");
   }
 
   private String createWorkspace(String name, Quotas quotas) {

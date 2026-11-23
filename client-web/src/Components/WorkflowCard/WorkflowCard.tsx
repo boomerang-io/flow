@@ -22,7 +22,15 @@ import { swapValue } from "Utils";
 import { WorkflowView } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { resourceRoute } from "Config/resourceRoutes";
-import { FlowWorkspaceQuotas, ModalTriggerProps, Workflow, WorkflowRun, WorkflowViewType, DataDrivenInput } from "Types";
+import {
+  FlowWorkspaceQuotas,
+  ModalTriggerProps,
+  RunStatus,
+  Workflow,
+  WorkflowRun,
+  WorkflowViewType,
+  DataDrivenInput,
+} from "Types";
 import { isActionError, type ActionError } from "Utils/actionResult";
 import { isQuotaLimited } from "Utils/quotaHelper";
 import { isFromTemplate, isReadOnlyTasks, isSystemWorkspace, isTemplate } from "Utils/workflowTemplate";
@@ -75,6 +83,25 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   const [isUpdateWorkflowModalOpen, setIsUpdateWorkflowModalOpen] = useState(false);
   const workspaceQuotasEnabled = useFeature(FeatureFlag.WorkspaceQuotasEnabled);
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
+
+  // A quota of 0 is unlimited, so it is never reached. Every slot busy means a new run waits in
+  // the queue, and the queue has a limit of its own.
+  const hasReachedMonthlyRunLimit =
+    Boolean(quotas) && isQuotaLimited(quotas?.maxWorkflowRunMonthly) && quotas!.maxWorkflowRunMonthly <= quotas!.currentRuns;
+  const areSlotsBusy =
+    Boolean(quotas) && isQuotaLimited(quotas?.maxConcurrentRuns) && quotas!.maxConcurrentRuns <= quotas!.currentConcurrentRuns;
+  const queuedRuns = quotas?.currentQueuedRuns ?? 0;
+  const isQueueLimited = isQuotaLimited(quotas?.maxQueuedRuns);
+  const isQueueFull = areSlotsBusy && isQueueLimited && quotas!.maxQueuedRuns <= queuedRuns;
+  const willQueue = areSlotsBusy && !isQueueFull;
+  const slots = quotas?.maxConcurrentRuns ?? 0;
+  const slotsBusyCopy = slots === 1 ? "The one run slot is busy." : `All ${slots} run slots are busy.`;
+  const runWillWaitNote = `${slotsBusyCopy} Run it anyway and it'll wait its turn (${queuedRuns}${
+    isQueueLimited ? ` of ${quotas?.maxQueuedRuns}` : ""
+  } in the queue).`;
+  const queuedToastSubtitle = areSlotsBusy
+    ? `${slotsBusyCopy} This one starts as soon as one frees up.`
+    : "This workflow's at its own limit. This one starts as soon as a run of it wraps up.";
 
   const navigate = useNavigate();
   const [errorMessage, seterrorMessage] = useState<{ title: string; message: string } | null>(null);
@@ -146,13 +173,18 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
 
     if (data.intent === "execute") {
       if (!isActionError(data)) {
-        notify(
-          <ToastNotification
-            kind="success"
-            title={`Run ${viewType}`}
-            subtitle={`Successfully started ${viewType.toLowerCase()} execution`}
-          />,
-        );
+        // A run over a concurrency limit is created and waits its turn: that is not "started".
+        if (data.execution?.status === RunStatus.Waiting) {
+          notify(<ToastNotification kind="info" title="In the queue" subtitle={queuedToastSubtitle} />);
+        } else {
+          notify(
+            <ToastNotification
+              kind="success"
+              title={`Run ${viewType}`}
+              subtitle={`Successfully started ${viewType.toLowerCase()} execution`}
+            />,
+          );
+        }
         seterrorMessage(null);
         if (data.redirect) {
           navigate(appLink.execution({ workspace: workspaceName, runId: data.execution.id }), {
@@ -298,22 +330,13 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
 
   const formattedProperties = formatPropertiesForEdit();
   const { name, Icon = Bee } = workflowIcons.find((icon) => icon.name === workflow.icon) ?? {};
-  let hasReachedMonthlyRunLimit = false;
-  let hasReachedConcurrentLimit = false;
-
-  // A quota of 0 is unlimited, so it is never reached.
-  if (quotas) {
-    hasReachedMonthlyRunLimit =
-      isQuotaLimited(quotas.maxWorkflowRunMonthly) && quotas.maxWorkflowRunMonthly <= quotas.currentRuns;
-    hasReachedConcurrentLimit =
-      isQuotaLimited(quotas.maxConcurrentRuns) && quotas.maxConcurrentRuns <= quotas.currentConcurrentRuns;
-  }
-
   const canRunManually = workflow?.triggers?.manual?.enabled ?? false;
   const isDisabledViaRunQuota = workspaceQuotasEnabled && hasReachedMonthlyRunLimit;
-  const isDisabledViaConcurrentQuota = workspaceQuotasEnabled && hasReachedConcurrentLimit;
+  // Busy slots alone never stop a run: it waits in the queue. Only a full queue does.
+  const isDisabledViaQueueQuota = workspaceQuotasEnabled && isQueueFull;
   const isDisabledViaTrigger = canRunManually === false;
-  const isDisabled = isDisabledViaRunQuota || isDisabledViaConcurrentQuota || isDisabledViaTrigger;
+  const isDisabled = isDisabledViaRunQuota || isDisabledViaQueueQuota || isDisabledViaTrigger;
+  const queueNote = workspaceQuotasEnabled && willQueue ? runWillWaitNote : null;
 
   let loadingText = "";
 
@@ -393,6 +416,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
                   /* @ts-ignore-next-line */
                   inputs={formattedProperties}
                   errorMessage={errorMessage}
+                  queueNote={queueNote}
                 />
               )}
             </ComposedModal>
@@ -422,6 +446,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
                   executeWorkflow={handleExecuteWorkflow}
                   isExecuting={isExecuting}
                   errorMessage={errorMessage}
+                  queueNote={queueNote}
                 />
               )}
             </ComposedModal>
@@ -456,10 +481,12 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
             >
               <InformationFilled className={styles.warningIcon} style={{ fill: "#ff832b" }} />
             </TooltipHover>
-          ) : isDisabledViaConcurrentQuota ? (
+          ) : isDisabledViaQueueQuota ? (
             <TooltipHover
               direction="top"
-              tooltipText="This workspace has reached the maximum number of concurrent runs (executions) allowed. Contact your administrator or workspace owner to increase the quota, or wait until a run has completed execution."
+              tooltipText={`The queue's full: ${queuedRuns} ${
+                queuedRuns === 1 ? "run is" : "runs are"
+              } already waiting. Give it another go once one starts, or ask an admin to raise the quota.`}
             >
               <InformationFilled className={styles.warningIcon} style={{ fill: "#ff832b" }} />
             </TooltipHover>

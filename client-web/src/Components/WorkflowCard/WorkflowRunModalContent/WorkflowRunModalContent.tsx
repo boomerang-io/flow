@@ -7,6 +7,8 @@ interface WorkflowRunModalContentProps {
   executeWorkflow: (closeModal: () => void, redirect: boolean) => void;
   isExecuting: boolean;
   errorMessage: { title: string; message: string } | null;
+  // Said when every run slot is busy, so the run will wait in the queue.
+  queueNote?: string | null;
 }
 
 const WorkflowRunModalContent: React.FC<WorkflowRunModalContentProps> = ({
@@ -15,9 +17,15 @@ const WorkflowRunModalContent: React.FC<WorkflowRunModalContentProps> = ({
   executeWorkflow,
   isExecuting,
   errorMessage,
+  queueNote,
 }) => {
   return (
     <ModalForm>
+      {queueNote && !executeError && (
+        <ModalBody>
+          <InlineNotification lowContrast hideCloseButton kind="info" title="Heads up" subtitle={queueNote} />
+        </ModalBody>
+      )}
       {executeError && (
         <ModalBody>
           <InlineNotification lowContrast kind="error" title={errorMessage?.title} subtitle={errorMessage?.message} />

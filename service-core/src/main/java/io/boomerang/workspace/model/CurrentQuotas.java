@@ -7,7 +7,10 @@ public class CurrentQuotas extends Quotas {
   
   private Integer currentWorkflowCount;
   private Integer currentRuns;
+  // Runs holding a slot: admitted, running or in their finally stage.
   private Integer currentConcurrentRuns;
+  // Runs waiting for a slot.
+  private Integer currentQueuedRuns;
   private Long currentRunTotalDuration;
   private Long currentRunAverageDuration;
   // Bytes held by the workspace's available and uploading artifacts.
@@ -26,6 +29,7 @@ public class CurrentQuotas extends Quotas {
   public String toString() {
     return "CurrentQuotas [currentWorkflowCount=" + currentWorkflowCount + ", currentRuns="
         + currentRuns + ", currentConcurrentRuns=" + currentConcurrentRuns
+        + ", currentQueuedRuns=" + currentQueuedRuns
         + ", currentRunTotalDuration=" + currentRunTotalDuration + ", currentRunAverageDuration="
         + currentRunAverageDuration + ", currentArtifactStorage=" + currentArtifactStorage
         + ", monthlyResetDate=" + monthlyResetDate + "]";
@@ -48,6 +52,12 @@ public class CurrentQuotas extends Quotas {
   }
   public void setCurrentConcurrentRuns(Integer currentConcurrentRuns) {
     this.currentConcurrentRuns = currentConcurrentRuns;
+  }
+  public Integer getCurrentQueuedRuns() {
+    return currentQueuedRuns;
+  }
+  public void setCurrentQueuedRuns(Integer currentQueuedRuns) {
+    this.currentQueuedRuns = currentQueuedRuns;
   }
   public Long getCurrentRunTotalDuration() {
     return currentRunTotalDuration;

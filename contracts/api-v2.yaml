@@ -392,6 +392,9 @@ components:
         currentConcurrentRuns:
           format: "int32"
           type: "integer"
+        currentQueuedRuns:
+          format: "int32"
+          type: "integer"
         currentRunAverageDuration:
           format: "int64"
           type: "integer"
@@ -408,6 +411,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxQueuedRuns:
           format: "int32"
           type: "integer"
         maxWorkflowCount:
@@ -1161,6 +1167,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxQueuedRuns:
           format: "int32"
           type: "integer"
         maxWorkflowCount:

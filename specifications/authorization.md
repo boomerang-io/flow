@@ -189,7 +189,7 @@ IDPZero (`docker-compose.yml`, `application-local.properties`).
 stores the declared `actorKind` and answers a mismatch with `TOKEN_INVALID_ACTOR` (400): `global` takes none, `SERVICE` or `AGENT`, `key` any, `user`
 none (`TokenService.assertActorKindFitsType`); Admin › Tokens offers Service (default), Agent or none. A `WORKFLOW` token's principal is the
 workflow's id (editor tab or `createWorkflowSchedulerToken`); a workflow name is only unique within its workspace. Deleting the workflow revokes every
-token of that principal (`workflow/WorkflowService.java:957`), and deleting a workspace revokes every token whose principal is the workspace's name,
+token of that principal (`workflow/WorkflowService.java:1096`), and deleting a workspace revokes every token whose principal is the workspace's name,
 its reference everywhere (`workspace/WorkspaceService.java:397`). Only the SHA-256 hash of a raw token is stored
 (`core/TokenService.java:226-227,472-480`), and a token that does not match `^bf[gkus]_.+` (`core/enums/TokenTypePrefix.java:35,57-59`) is rejected
 before any database lookup on both paths — `AuthenticationFilter.getTokenAuthentication` for every source in the table above
@@ -325,16 +325,16 @@ granularity is layer 1's job. A failed `check()` returns `false` and counts `flo
 `layer=relationship` (`:522-544`). Most callers answer with the object's not-found error, so a hidden object reads as a
 missing one (for example `WORKSPACE_INVALID_REF`, HTTP 404); a few raise `PERMISSION_DENIED`, HTTP 403
 (`common/error/BoomerangError.java:27`). Workspace-scoped routes confine the object to the `{workspace}` path
-segment, as an intermediate containment (for example `workflow/WorkflowRunService.java:742-753`) or a walk from the
+segment, as an intermediate containment (for example `workflow/WorkflowRunService.java:741-752`) or a walk from the
 workspace itself (`schedule/ScheduleService.java:89-99`, `workflow/ActionService.java:361-372`); a run purge follows the
 run's lineage only through runs the path workspace owns (`workflow/WorkflowRetentionService.java:182-221`). `filter()`
 for `TASK` always anchors at `root` — the task catalogue is global (`core/RelationshipService.java:883-887`).
 
 Ownership edges are written when a run is created: `WorkflowService.internalSubmit` writes
 `workspace → hasWorkflowRun → workflowrun` from the path workspace after `submit` has confirmed that
-workspace contains the workflow (`workflow/WorkflowService.java:731-740,861-871`); retries — including the
+workspace contains the workflow (`workflow/WorkflowService.java:739-748,872-882`); retries — including the
 engine's automatic retry — resolve the owner from the original run's edge, falling back to the workflow's
-parent (`workflow/WorkflowRunService.java:682-735,1045-1048,1112-1122`); child runs get the edge from
+parent (`workflow/WorkflowRunService.java:681-734,1041-1044,1108-1118`); child runs get the edge from
 `RelationshipEventListener` (`core/RelationshipEventListener.java:37-49`).
 
 ## Security off: the synthetic admin

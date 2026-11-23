@@ -20,9 +20,9 @@ returns only one run's task runs.
 ## Decision
 
 A: `GET /api/v2/workspace/{workspace}/taskrun/query` (`workflow/WorkspaceTaskRunControllerV2.java:34`,
-`workflow/WorkflowRunService.java:333-392`), shaped like the run query. It needs `labels` or `workflowruns`, the two ways
-task runs are indexed (`:354-358`), and a row leaves out params, results, spec, annotations and status message, so no
-row is scrubbed (`:379-382,425-434`). A task name also matches its for-each items. The public task run carries
+`workflow/WorkflowRunService.java:332-391`), shaped like the run query. It needs `labels` or `workflowruns`, the two ways
+task runs are indexed (`:353-357`), and a row leaves out params, results, spec, annotations and status message, so no
+row is scrubbed (`:378-381,424-433`). A task name also matches its for-each items. The public task run carries
 `attempt`, derived from the hidden retry count (`common/model/TaskRun.java:63-80`), so a row shows how often a task was
 requeued.
 

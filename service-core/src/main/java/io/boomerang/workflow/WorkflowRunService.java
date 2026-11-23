@@ -30,7 +30,6 @@ import io.boomerang.dispatcher.PollWakeups;
 import io.boomerang.event.entity.EventInboxEntity;
 import io.boomerang.event.enums.InboxStatus;
 import io.boomerang.engine.EngineConstants;
-import io.boomerang.engine.RunTimeouts;
 import io.boomerang.engine.TaskExecutionService;
 import io.boomerang.engine.TaskRunService;
 import io.boomerang.engine.WorkflowExecutionService;
@@ -860,22 +859,19 @@ public class WorkflowRunService {
    * and the dispatcher starts it itself once provisioned (PUT .../workflowrun/{id}/start). Only a
    * run with no workspace - nothing to provision - starts on this call.
    *
-   * A run waiting for its provisioning claim has no start to bake its deadline from, so it takes
-   * one from its creation: the timeout sweep bounds the wait for a dispatcher as it bounds the
-   * run, and the start re-stamps the deadline from the start time.
+   * A run waiting for its provisioning claim has no start to bake its deadline from, so its
+   * admission stamps one: the timeout sweep bounds the wait for a dispatcher as it bounds the
+   * run, and the start re-stamps the deadline from the start time. A run waiting for a slot
+   * carries none.
    */
   public WorkflowRun run(WorkflowRunEntity wfRunEntity, boolean start) {
     boolean hasWorkspace = wfRunEntity.getWorkspace() != null;
-    if (start && hasWorkspace) {
-      wfRunEntity.setTimeoutAt(
-          RunTimeouts.deadline(wfRunEntity.getCreationDate(), wfRunEntity.getTimeout()));
-    }
     workflowRunRepository.save(wfRunEntity);
     workflowExecutionService.queue(wfRunEntity.getId());
 
-    // Only an admitted run goes on: one parked for a slot of its workflow, skipped over the
-    // workflow's limit, or found invalid is returned as it stands, and the response carries that
-    // status truthfully.
+    // Only an admitted run goes on: one parked for a slot of its workflow or its workspace,
+    // skipped over the workflow's limit, or found invalid is returned as it stands, and the
+    // response carries that status truthfully. A parked run starts when it is admitted.
     WorkflowRunEntity queued = workflowRunRepository.findById(wfRunEntity.getId()).get();
     boolean admitted = RunStatus.ready.equals(queued.getStatus());
     if (start && hasWorkspace && admitted) {
@@ -1143,13 +1139,13 @@ public class WorkflowRunService {
         workflowExecutionService.cancel(workflowRunId);
       }
 
-      if (start) {
+      // Only an admitted clone is started: one parked for a slot is returned as it stands, and
+      // its admission starts it.
+      WorkflowRunEntity queued = workflowRunRepository.findById(wfRunEntity.getId()).get();
+      if (start && RunStatus.ready.equals(queued.getStatus())) {
         return this.start(wfRunEntity.getId(), Optional.empty());
-      } else {
-        // Retrieve the refreshed status
-        return ConvertUtil.entityToModel(
-            workflowRunRepository.findById(wfRunEntity.getId()).get(), WorkflowRun.class);
       }
+      return ConvertUtil.entityToModel(queued, WorkflowRun.class);
     } else {
       throw new BoomerangException(BoomerangError.WORKFLOWRUN_INVALID_REF);
     }

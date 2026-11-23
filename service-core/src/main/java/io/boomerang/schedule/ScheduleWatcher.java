@@ -132,6 +132,7 @@ public class ScheduleWatcher {
    * retry time, ahead of the occurrence tryClaimFire already advanced to. Once exhausted, a
    * recurring schedule's counter clears and the skipped-to occurrence stands; a run-once schedule
    * has no other occurrence, so it moves to error rather than staying active with nothing to fire.
+   * Either way the dropped fire is recorded as a cancelled run of the Workflow.
    */
   private void fireWithRetry(WorkflowScheduleEntity schedule) {
     try {
@@ -159,6 +160,7 @@ public class ScheduleWatcher {
             attempts,
             marked ? "marked error" : "left as changed since the fire",
             reason(ex));
+        recordDropped(schedule, attempts, ex);
       } else {
         scheduleService.clearRetryCount(schedule.getId());
         LOGGER.error(
@@ -166,7 +168,24 @@ public class ScheduleWatcher {
             schedule.getId(),
             attempts,
             reason(ex));
+        recordDropped(schedule, attempts, ex);
       }
+    }
+  }
+
+  // Best effort: the schedule's own state is already settled, and a fire that cannot be recorded
+  // is still in the log above.
+  private void recordDropped(WorkflowScheduleEntity schedule, int attempts, Exception ex) {
+    try {
+      scheduleJob.recordDropped(
+          resolveWorkspace(schedule),
+          schedule.getWorkflowRef(),
+          schedule.getId(),
+          scheduleService.firedAt(schedule),
+          attempts,
+          (ex instanceof RuntimeException refusal) ? refusal : new IllegalStateException(ex));
+    } catch (RuntimeException e) {
+      LOGGER.warn("[{}] The dropped fire could not be recorded: {}", schedule.getId(), e.toString());
     }
   }
 
