@@ -135,6 +135,9 @@ tag's release notes.
 
 ### Fixed
 
+- **A dispatcher built on the SDK stops quietly.** A long poll the stop cuts off is logged at debug, not as a
+  failed poll, and a poll still held at the drain deadline is logged at info, saying its claim is handed out again
+  when its lease lapses. A poll that fails while the dispatcher runs is still a warning.
 - **A run that cannot start now ends `invalid` instead of waiting forever.** A run admitted but never started, such
   as one whose graph names a task it does not have, was tried again on every recovery sweep and stayed `ready`.
   Fifty of them filled the sweep's page, so no later run whose start was lost was ever started. Such a run now ends

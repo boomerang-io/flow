@@ -193,7 +193,9 @@ public final class Dispatcher implements AutoCloseable {
   private void awaitPolls(List<QueuePoller<?>> polls, long deadline) {
     for (QueuePoller<?> poll : polls) {
       if (!poll.awaitStopped(Duration.ofNanos(Math.max(0, deadline - System.nanoTime())))) {
-        LOGGER.warn("A poll was still held when the dispatcher stopped; abandoning it.");
+        LOGGER.info(
+            "A poll was still held when the dispatcher stopped; abandoning it. A claim the engine"
+                + " makes for it is handed out again when its lease lapses.");
         poll.abandon();
       }
     }
