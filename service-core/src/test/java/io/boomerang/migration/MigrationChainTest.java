@@ -1934,7 +1934,13 @@ class MigrationChainTest {
                 .append("workspaceId", systemId)
                 .append("workspaceName", "system-then")
                 .append("action", "UPDATE"),
-            new Document("_id", "instance").append("action", "TOKEN_CREATE")));
+            new Document("_id", "instance").append("action", "TOKEN_CREATE"),
+            // A route addressed by id before the upgrade: the id is kept, the name now added.
+            new Document("_id", "by-id").append("workspaceId", systemId).append("action", "UPDATE"),
+            // A name two workspaces hold, as a 3.5 upgrade can carry over: left under the name.
+            new Document("_id", "twin-event").append("workspaceId", "twin").append("action", "CREATE")));
+    collection(db, "workspaces")
+        .insertMany(List.of(new Document("name", "twin"), new Document("name", "twin")));
 
     new _0056__AuditWorkspaceById().execute(db, environment);
 
@@ -1947,6 +1953,12 @@ class MigrationChainTest {
     assertThat(audit.find(Filters.eq("_id", "keyed")).first())
         .containsEntry("workspaceId", systemId)
         .containsEntry("workspaceName", "system-then");
+    assertThat(audit.find(Filters.eq("_id", "by-id")).first())
+        .containsEntry("workspaceId", systemId)
+        .containsEntry("workspaceName", "system");
+    assertThat(audit.find(Filters.eq("_id", "twin-event")).first())
+        .containsEntry("workspaceId", "twin")
+        .containsEntry("workspaceName", "twin");
     assertThat(audit.find(Filters.eq("_id", "instance")).first())
         .doesNotContainKey("workspaceId")
         .doesNotContainKey("workspaceName");

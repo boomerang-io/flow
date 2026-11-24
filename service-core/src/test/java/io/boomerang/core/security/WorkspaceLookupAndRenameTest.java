@@ -1,11 +1,13 @@
 package io.boomerang.core.security;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.delete;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.patch;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 
 import io.boomerang.core.TokenService;
+import io.boomerang.core.audit.AuditWorkspace;
 import io.boomerang.core.entity.UserEntity;
 import io.boomerang.core.model.Token;
 import io.boomerang.core.model.TokenCreateRequest;
@@ -44,9 +46,11 @@ import tools.jackson.databind.ObjectMapper;
 /**
  * A workspace is read and patched by its id or its name, by a member and a global token alike. A
  * rename moves the workspace to the new name; a new name, like a created one, is lower-case
- * letters, numbers and hyphens, else it is refused with the form it should take. A workspace token
- * issued for the workspace's id keeps working across a rename, the token list finds tokens issued
- * for the id and for the name, and deleting the workspace revokes both.
+ * letters, numbers and hyphens and never shaped like an id, else it is refused; the system
+ * workspace keeps its name. A rename addressed by id touches that workspace alone, even beside one
+ * of the same name. A token issued for the name follows a rename to the id, so it is listed and
+ * revoked with the workspace and never passes to the next holder of the name, and a key token works
+ * on the workspace by id or by name whichever its grants name.
  */
 class WorkspaceLookupAndRenameTest extends AbstractEngineIntegrationTest {
 
@@ -57,6 +61,8 @@ class WorkspaceLookupAndRenameTest extends AbstractEngineIntegrationTest {
   @Autowired private UserRepository userRepository;
   @Autowired private TokenRepository tokenRepository;
   @Autowired private ObjectMapper objectMapper;
+  @Autowired private org.springframework.data.mongodb.core.MongoTemplate mongoTemplate;
+  @Autowired private io.boomerang.core.audit.AuditEventEmitter auditEventEmitter;
 
   @Autowired
   @Qualifier("springSecurityFilterChain")
@@ -141,25 +147,204 @@ class WorkspaceLookupAndRenameTest extends AbstractEngineIntegrationTest {
     assertThat(workspaceRepository.findByNameIgnoreCase(workspace)).isPresent();
   }
 
+  // A token issued for the name follows the workspace through a rename to its id, is listed and
+  // revoked with it, and never wakes for the next workspace to take the old name.
   @Test
-  void aTokenIssuedForTheIdKeepsWorkingAcrossARename() throws Exception {
+  void aTokenIssuedForTheNameFollowsARenameAndNeverPassesToTheNextHolderOfTheName() throws Exception {
     String id = idOf(workspace);
     String byId = mintKey(id);
     String byName = mintKey(workspace);
-    String renamed = workspace + "-moved";
+    String moved = workspace + "-moved";
     asAdmin(
         () -> {
           WorkspaceRequest request = new WorkspaceRequest();
-          request.setName(renamed);
+          request.setName(moved);
           return workspaceService.patch(workspace, request);
         });
 
-    assertThat(bearer(byId, get("/api/v2/workspace/" + renamed)).getResponse().getStatus())
+    assertThat(bearer(byId, get("/api/v2/workspace/" + moved)).getResponse().getStatus())
         .as("issued for the id")
         .isEqualTo(200);
-    assertThat(bearer(byName, get("/api/v2/workspace/" + renamed)).getResponse().getStatus())
-        .as("issued for the old name")
-        .isNotEqualTo(200);
+    assertThat(bearer(byName, get("/api/v2/workspace/" + moved)).getResponse().getStatus())
+        .as("issued for the old name, now the id's")
+        .isEqualTo(200);
+    assertThat(keyTokenPrincipals(moved)).containsExactly(id, id);
+
+    asAdmin(
+        () -> {
+          workspaceService.delete(moved);
+          return null;
+        });
+    assertThat(tokenRepository.findAll().stream().map(TokenEntity::getPrincipal))
+        .doesNotContain(id, workspace, moved);
+
+    String reused = workspace;
+    asAdmin(
+        () -> {
+          WorkspaceRequest request = new WorkspaceRequest();
+          request.setName(reused);
+          request.setDisplayName(reused);
+          return workspaceService.create(request);
+        });
+    assertThat(bearer(byName, get("/api/v2/workspace/" + reused)).getResponse().getStatus())
+        .as("the next workspace of the old name")
+        .isIn(401, 403);
+  }
+
+  // Two workspaces holding one name, as a 3.5 upgrade can carry over: a change addressed by one's
+  // id touches that one alone, its graph node and its members.
+  @Test
+  void aRenameByIdOfOneOfTwoSameNamedWorkspacesLeavesTheOtherAlone() throws Exception {
+    String other = workspace();
+    String otherId = idOf(other);
+    String id = idOf(workspace);
+    sameName(id, other);
+    String global = mint(List.of("**/**"));
+
+    // Members first, while the two still share the name, then the rename.
+    MvcResult joined =
+        bearer(
+            global,
+            json(
+                patch("/api/v2/workspace/" + id),
+                Map.of("members", List.of(Map.of("email", email(), "role", "reader")))));
+    MvcResult renamed = bearer(global, json(patch("/api/v2/workspace/" + id), Map.of("name", other + "-b")));
+
+    assertThat(renamed.getResponse().getStatus()).isEqualTo(200);
+    assertThat(joined.getResponse().getStatus()).isEqualTo(200);
+    assertThat(workspaceRepository.findById(id).orElseThrow().getName()).isEqualTo(other + "-b");
+    assertThat(relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, id)).isEqualTo(other + "-b");
+    assertThat(workspaceRepository.findById(otherId).orElseThrow().getName()).isEqualTo(other);
+    assertThat(relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, otherId)).isEqualTo(other);
+    assertThat(relationshipService.membersAndRoles(otherId)).doesNotContainValue("reader");
+    assertThat(relationshipService.membersAndRoles(id)).containsValue("reader");
+  }
+
+  // A key token whose grants name the workspace by id or by name works on paths naming it either
+  // way, for grants that name no workspace action.
+  @Test
+  void aNarrowKeyTokenWorksOnTheWorkspaceByIdAndByName() throws Exception {
+    asAdmin(
+        () -> {
+          seedGlobalTask("workspace-lookup-task");
+          return null;
+        });
+    String id = idOf(workspace);
+    for (String principal : List.of(id, workspace)) {
+      String token = mintKey(principal, List.of("workflow/write", "workflow/read"));
+      for (String key : List.of(id, workspace)) {
+        MvcResult created =
+            bearer(
+                token,
+                json(
+                    post("/api/v2/workspace/" + key + "/workflow"),
+                    runnableWorkflow(
+                        "narrow-" + UUID.randomUUID().toString().substring(0, 8), "workspace-lookup-task")));
+        assertThat(created.getResponse().getStatus())
+            .as("issued for " + principal + ", addressed by " + key)
+            .isEqualTo(200);
+      }
+    }
+  }
+
+  // A name two workspaces share names neither: the trail records it as given, and the listing asks
+  // for an id instead of guessing.
+  @Test
+  void aNameTwoWorkspacesShareIsRecordedAsGivenAndRefusedAsAListingFilter() throws Exception {
+    String other = workspace();
+    String otherId = idOf(other);
+    sameName(idOf(workspace), other);
+    String global = mint(List.of("**/**"));
+
+    assertThat(auditEventEmitter.workspace(other)).isEqualTo(new AuditWorkspace(other, other));
+    MvcResult listed = bearer(global, get("/api/v2/audit").param("workspaceId", other));
+
+    assertThat(listed.getResponse().getStatus()).isEqualTo(400);
+    assertThat(reasonOf(listed)).isEqualTo("QUERY_INVALID_FILTERS");
+    assertThat(bearer(global, get("/api/v2/audit").param("workspaceId", otherId)).getResponse().getStatus())
+        .isEqualTo(200);
+  }
+
+  @Test
+  void theSystemWorkspaceAndANameShapedLikeAnIdAreRefused() throws Exception {
+    String global = mint(List.of("**/**"));
+    String idShaped = new org.bson.types.ObjectId().toHexString();
+
+    MvcResult system = bearer(global, json(patch("/api/v2/workspace/system"), Map.of("name", "system-renamed")));
+    MvcResult renamed = bearer(global, json(patch(path()), Map.of("name", idShaped)));
+    MvcResult created =
+        bearer(global, json(post("/api/v2/workspace"), Map.of("name", idShaped, "displayName", "Shaped")));
+
+    assertThat(system.getResponse().getStatus()).isEqualTo(400);
+    assertThat(reasonOf(system)).isEqualTo("WORKSPACE_NAME_RESERVED");
+    assertThat(workspaceRepository.findByNameIgnoreCase("system")).isPresent();
+    assertThat(reasonOf(renamed)).isEqualTo("WORKSPACE_NAME_RESERVED");
+    assertThat(reasonOf(created)).isEqualTo("WORKSPACE_NAME_RESERVED");
+  }
+
+  // A workspace is reached through the graph node the access check reads: a name equal to another
+  // workspace's id, which only a database written by hand could hold, reaches neither.
+  @Test
+  void theAccessCheckAndTheLookupReadTheSameWorkspace() throws Exception {
+    String victim = workspace();
+    String victimId = idOf(victim);
+    String editor = signedInMember("editor");
+    sameName(idOf(workspace), victimId);
+
+    MvcResult read = as(editor, get("/api/v2/workspace/" + victimId));
+    MvcResult patched =
+        as(editor, json(patch("/api/v2/workspace/" + victimId), Map.of("displayName", "Not yours")));
+
+    assertThat(read.getResponse().getStatus()).isNotEqualTo(200);
+    assertThat(patched.getResponse().getStatus()).isNotEqualTo(200);
+    assertThat(workspaceRepository.findById(victimId).orElseThrow().getDisplayName()).isEqualTo(victim);
+  }
+
+  @Test
+  void aWorkspaceIsDeletedByItsId() throws Exception {
+    String id = idOf(workspace);
+    String global = mint(List.of("**/**"));
+
+    assertThat(bearer(global, delete("/api/v2/workspace/" + id)).getResponse().getStatus()).isEqualTo(200);
+    assertThat(workspaceRepository.findById(id)).isEmpty();
+  }
+
+  // Gives the workspace of the id the name, in its record and its graph node.
+  private void sameName(String id, String name) {
+    mongoTemplate
+        .getCollection(mongoTemplate.getCollectionName(io.boomerang.workspace.entity.WorkspaceEntity.class))
+        .updateOne(
+            new org.bson.Document("_id", new org.bson.types.ObjectId(id)),
+            new org.bson.Document("$set", new org.bson.Document("name", name)));
+    long moved =
+        mongoTemplate
+            .getCollection(mongoTemplate.getCollectionName(io.boomerang.core.entity.RelationshipNodeEntity.class))
+            .updateOne(
+                new org.bson.Document("type", "workspace").append("ref", id),
+                new org.bson.Document("$set", new org.bson.Document("slug", name)))
+            .getModifiedCount();
+    assertThat(moved).as("the workspace's graph node takes the name").isEqualTo(1);
+    // The test's request memo holds the nodes as they were; the next request reads them afresh.
+    org.springframework.web.context.request.RequestContextHolder.resetRequestAttributes();
+  }
+
+  private List<String> keyTokenPrincipals(String workspace) {
+    return asAdmin(
+        () ->
+            tokenService
+                .query(
+                    java.util.Optional.empty(),
+                    java.util.Optional.empty(),
+                    java.util.Optional.empty(),
+                    java.util.Optional.empty(),
+                    java.util.Optional.empty(),
+                    java.util.Optional.empty(),
+                    java.util.Optional.of(List.of(AuthScope.key)),
+                    java.util.Optional.of(List.of(workspace)))
+                .getContent()
+                .stream()
+                .map(Token::getPrincipal)
+                .toList());
   }
 
   @Test
@@ -282,11 +467,15 @@ class WorkspaceLookupAndRenameTest extends AbstractEngineIntegrationTest {
   }
 
   private String mintKey(String principal) {
+    return mintKey(principal, List.of("workspace/read", "workspace/write"));
+  }
+
+  private String mintKey(String principal, List<String> permissions) {
     TokenCreateRequest request = new TokenCreateRequest();
     request.setType(AuthScope.key);
     request.setName("workspace-lookup-key");
     request.setPrincipal(principal);
-    request.setPermissions(List.of("workspace/read", "workspace/write"));
+    request.setPermissions(permissions);
     return asAdmin(() -> tokenService.create(request).getToken());
   }
 

@@ -605,6 +605,25 @@ public class TokenService {
     lookupCache.evict(tokenEntity.getToken());
   }
 
+  /**
+   * Move every token issued for {@code from} to {@code to}, its principal and the grants it holds
+   * there: a renamed workspace's tokens issued for its old name follow it to its id, so none is left
+   * for the next workspace to take the name. The cache goes, as on a revoke.
+   */
+  public void moveToPrincipal(String from, String to) {
+    mongoTemplate.updateMulti(
+        Query.query(Criteria.where("principal").is(from)),
+        new Update().set("principal", to),
+        TokenEntity.class);
+    mongoTemplate.updateMulti(
+        Query.query(Criteria.where("permissions.principal").is(from)),
+        new Update()
+            .set("permissions.$[grant].principal", to)
+            .filterArray(Criteria.where("grant.principal").is(from)),
+        TokenEntity.class);
+    lookupCache.evictAll();
+  }
+
   /** Revoke every token of {@code principal}; the hashes are not in hand, so the whole cache goes. */
   public void deleteAllForPrincipal(String principal) {
     this.tokenRepository.deleteAllByPrincipal(principal);

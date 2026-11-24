@@ -5,7 +5,7 @@ import { formatErrorMessage } from "@boomerang-io/utils";
 import { Add, Api, ArrowRight, Close, Parameter } from "@carbon/react/icons";
 import { PlayerFlow, Workflows } from "@carbon/pictograms-react";
 import { useFeature } from "flagged";
-import kebabcase from "lodash/kebabCase";
+import { toWorkspaceName } from "Utils/workspaceName";
 import sortBy from "lodash/sortBy";
 import queryString from "query-string";
 import { Link, useFetcher, useLoaderData, useLocation, useNavigate, useRevalidator } from "react-router-dom";
@@ -142,7 +142,7 @@ export async function action({ request }: { request: Request }) {
     await serverFetch(request)({
       url: serviceUrl.postWorkspace(),
       data: {
-        name: kebabcase(name.replace(`'`, "-")),
+        name: toWorkspaceName(name),
         displayName,
         members,
       },

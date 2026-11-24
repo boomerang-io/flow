@@ -646,7 +646,7 @@ describe("WorkspaceDetailed --- basic details", () => {
     await save();
 
     expect(await screen.findByText("Rename this workspace?")).toBeInTheDocument();
-    expect(screen.getByText(/Anything that uses the old name stops working/)).toBeInTheDocument();
+    expect(screen.getByText(/Anything still using "ibm-services-engineering" stops working/)).toBeInTheDocument();
     // The confirmation opens over the edit form, so its Cancel is the last one on the page.
     await userEvent.click(screen.getAllByText("Cancel").at(-1)!);
     await waitFor(() => expect(screen.queryByText("Rename this workspace?")).not.toBeInTheDocument());

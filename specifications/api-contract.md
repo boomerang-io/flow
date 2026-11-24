@@ -22,7 +22,7 @@ paths are relative to `service-core/src/main/java/io/boomerang/`.
 | Artifacts | `/api/v2/workspace/{workspace}/workflowrun/{id}/artifacts[/{name}]`, `/api/v2/workspace/{workspace}/artifacts[/{artifactId}]` | `workflow/WorkspaceArtifactControllerV2.java:43` |
 | Workspaces | `/api/v2/workspace[/{workspace}]` | `workspace/WorkspaceControllerV2.java:37` |
 | Global | `/api/v2/{user,profile,token,task,taskrun,parameters,insights,integration,webhook,event,callback}` | `core/UserControllerV2.java:31`, `workspace/UserWorkspaceControllerV2.java:31`, `workspace/ProfileControllerV2.java:35`, `core/TokenControllerV2.java:35`, `workflow/TaskControllerV2.java:35`, `workflow/TaskRunControllerV2.java:24`, `workflow/ParameterControllerV2.java:30`, `integrations/IntegrationControllerV2.java:51`, `event/WebhookEventControllerV2.java:34` |
-| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:39`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:46` |
+| System | `/api/v2/{settings,activate,context,features,navigation}`, `/api/v2/system/outbox`, `/api/v2/audit` | `core/SystemControllerV2.java:39`, `event/OutboxControllerV2.java:31`, `core/audit/AuditControllerV2.java:48` |
 | Dispatcher | `/dispatcher/v1` | `dispatcher/DispatcherControllerV1.java:54` |
 | Webapp server only | `/internal/v1/auth/{config,exchange,logout}` | `core/InternalAuthControllerV1.java:35` |
 
@@ -57,7 +57,7 @@ workspace's alone, a link is refused one, and a template that workspaces still l
 **Workspaces.** `externalRef` is an embedding product's own id for the record a workspace mirrors: set once at create, never patched (a `PATCH`
 carrying one is ignored), read by every reader. `GET /api/v2/workspace/query?externalRef=` answers the one carrying it within the caller's access; a
 create naming one already carried is `409 WORKSPACE_EXTERNAL_REF_TAKEN` with that workspace's name, whatever name it asks for, so a retried
-create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:188-203,334-335,510-513`; unique sparse index `external_ref`). `GET` and `PATCH /api/v2/workspace/{workspace}` take the workspace's id or its name (`:157-166,295-301`). A name, on create or on a rename, is already in its canonical form, lower-case letters, numbers and hyphens, the form the uniqueness check compares; any other is `400 WORKSPACE_NAME_NOT_CANONICAL`, whose message names the form to send, and is never rewritten (`:202,321-324,865-875`). A rename takes a name no other workspace holds and no reserved one, checked as create checks it: `422 WORKSPACE_NON_UNIQUE_NAME` (`:325-327`); the stored name sent back unchanged renames nothing. A rename changes the workspace's URLs: webhook and event URLs, links and tokens issued for the old name stop working. A workspace token is issued for the workspace's id, which a rename never changes; `GET /api/v2/token/query?principals=` lists a workspace's tokens issued for its id and for its name alike, whichever form is asked for (`core/TokenService.java:436-451,634-637`). `DELETE` on a workspace that does not exist or is out of reach is `404 WORKSPACE_INVALID_REF` (`:387-393`); a delete removes its workflows, tokens, approver groups and any integration installation no other workspace links (`:395-439`).
+create reads it instead; the reference is checked before the name (`workspace/WorkspaceService.java:188-203,334-335,510-513`; unique sparse index `external_ref`). `GET`, `PATCH` and `DELETE /api/v2/workspace/{workspace}` take the workspace's id or its name, read from the graph node the access check reads, so the two always agree; a name two workspaces hold, as a 3.5 upgrade can carry over, names neither and is `404 WORKSPACE_INVALID_REF`, while each id still names its own (`workspace/WorkspaceService.java:159-184`). A name, on create or on a rename, is already in its canonical form, lower-case letters, numbers and hyphens, the form the uniqueness check compares; any other is `400 WORKSPACE_NAME_NOT_CANONICAL`, whose message names the form to send, and is never rewritten; a name shaped like an id is `400 WORKSPACE_NAME_RESERVED` (`:872-881`). A rename takes a name no other workspace holds and no reserved one: `422 WORKSPACE_NON_UNIQUE_NAME`; the `system` workspace, and any holding a reserved name, keeps its name, `400 WORKSPACE_NAME_RESERVED`; the stored name sent back unchanged renames nothing (`:888-897`). A rename changes the workspace's URLs, so webhook and event URLs, links, API clients, dispatcher claim filters and exported task references naming the old name stop working; it moves the workspace's tokens issued for the old name to its id in the same patch (`:377-382`, `core/TokenService.java:613-628`). A workspace token is issued for the workspace's id; `GET /api/v2/token/query?principals=` lists a workspace's tokens issued for its id and, for one never renamed, its name, whichever form is asked for (`core/TokenService.java:437-451,656`). `DELETE` on a workspace that does not exist or is out of reach is `404 WORKSPACE_INVALID_REF`; a delete removes its workflows, tokens, approver groups and any integration installation no other workspace links (`:395-439`).
 
 **Task catalogue.** `/api/v2/task` has the same operations as a workspace's catalogue, `DELETE` included
 (`workflow/TaskControllerV2.java:294`); a delete is `409 TASK_DELETE_IN_USE` while a pending, queued or running task run references the task (`workflow/TaskService.java:989-996`).
@@ -68,18 +68,18 @@ create reads it instead; the reference is checked before the name (`workspace/Wo
 
 **Event outbox.** `GET /api/v2/system/outbox` lists outbound event rows (`status`, default `dead`; `limit`, default 100). `PUT /api/v2/system/outbox/replay` requeues rows with a fresh retry budget, the named `ids` whatever their status or else every row in `status` (default `dead`), either narrowed by `olderThan` (epoch milliseconds), and answers `{"replayed": n}` (`event/OutboxControllerV2.java:44-97`, `event/OutboxService.java:58-82`). A row that failed delivery carries `lastError` (exception type and message, at most 1,024 characters) and a dead row `deadAt`; a replay clears both (`event/OutboxDispatcher.java:165-171`). Both routes need a `global` token with `system` permission.
 
-**Audit trail.** `GET /api/v2/audit` returns a `Page<AuditEvent>`, newest first; `GET /api/v2/audit/stats` counts the same filters and window by outcome and adds the configured `captureEnabled`, `level` and `retentionDays` (`core/audit/AuditControllerV2.java:93,172-206`). Both read every workspace, so they need a global `system/read` grant; a workspace-scoped one is `PERMISSION_DENIED` (`:225-243`).
+**Audit trail.** `GET /api/v2/audit` returns a `Page<AuditEvent>`, newest first; `GET /api/v2/audit/stats` counts the same filters and window by outcome and adds the configured `captureEnabled`, `level` and `retentionDays` (`core/audit/AuditControllerV2.java:98,177-211`). Both read every workspace, so they need a global `system/read` grant; a workspace-scoped one is `PERMISSION_DENIED` (`:239-257`).
 
 | Parameter | Accepts | Default |
 | --- | --- | --- |
 | `actor` | any part of an actor id or display name, ignoring case | none |
 | `action`, `outcome`, `level` | comma-separated `AuditAction` / `AuditOutcome` / `AuditLevel` names | none (all) |
-| `resourceType`, `workspaceId` | comma-separated resource types (`workflow`, `token`, …); workspaces, each by id or by name, a name read as the workspace that holds it now (`core/audit/AuditControllerV2.java:219-223`) | none |
+| `resourceType`, `workspaceId` | comma-separated resource types (`workflow`, `token`, …); workspaces, each by id or by name, a name read as the workspace that holds it now; a name two workspaces hold is `400 QUERY_INVALID_FILTERS`, ask by id (`core/audit/AuditControllerV2.java:224-238`) | none |
 | `resourceId` | a single resource id | none |
 | `from`, `to` | ISO-8601 instants, `to` exclusive | `from` = 30 days ago; `to` = no bound |
 | `page`, `limit`, `order` (listing only) | 0-based page; page size, at most 100; `ASC`/`DESC` on `time` | `0`, `25`, `DESC` |
 
-The default `from` keeps the page and its count on the `time` index (`core/audit/AuditControllerV2.java:52-59`). Each event carries `workspaceId`, the workspace's id, and `workspaceName`, its name when the event was recorded; a renamed workspace's history stays with it, and a workspace created under a deleted one's name starts with none (`core/audit/AuditEvent.java:20-37`). An event's `payload` holds request discriminators, never request or response content, and a write that changed a secret adds `payload.detail.secretsChanged` or `secretsCleared`, naming secrets, never values (`core/audit/AuditEvent.java:8-17`, `core/audit/SecretChangeHolder.java:15-24`). A write is level `WRITE` unless marked `DESTRUCTIVE` (`core/audit/Audited.java:45`), as deleting a workspace, a parameter, a workflow, a schedule, an artifact or a run and revoking a token are; deleting a catalogue task is not audited. The engine records each run's admission (`CREATE`) and completion (`UPDATE`), the completion with the run's `cumulativeDuration` in milliseconds and both with `unmetered: true` for a run of an unmetered workflow (`core/audit/WorkflowRunAuditBridge.java:74-157`); the monthly quotas count the `CREATE` events not marked unmetered and the `UPDATE` events' minutes (`core/audit/AuditQueryService.java:211-274`).
+The default `from` keeps the page and its count on the `time` index (`core/audit/AuditControllerV2.java:54-61`). Each event carries `workspaceId`, the workspace's id, and `workspaceName`, its name when the event was recorded; a renamed workspace's history stays with it, and a workspace created under a deleted one's name starts with none (`core/audit/AuditEvent.java:20-37`). An event's `payload` holds request discriminators, never request or response content, and a write that changed a secret adds `payload.detail.secretsChanged` or `secretsCleared`, naming secrets, never values (`core/audit/AuditEvent.java:8-17`, `core/audit/SecretChangeHolder.java:15-24`). A write is level `WRITE` unless marked `DESTRUCTIVE` (`core/audit/Audited.java:45`), as deleting a workspace, a parameter, a workflow, a schedule, an artifact or a run and revoking a token are; deleting a catalogue task is not audited. The engine records each run's admission (`CREATE`) and completion (`UPDATE`), the completion with the run's `cumulativeDuration` in milliseconds and both with `unmetered: true` for a run of an unmetered workflow (`core/audit/WorkflowRunAuditBridge.java:74-157`); the monthly quotas count the `CREATE` events not marked unmetered and the `UPDATE` events' minutes (`core/audit/AuditQueryService.java:211-274`).
 
 ## Error response
 
@@ -92,7 +92,7 @@ An error the application raises is a `RestErrorResponse` (`service-core/src/main
 
 | Field | Source |
 | --- | --- |
-| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:24-145`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact, 21xx dispatcher (`:17-20,121,135,144`). Every code names one reason and a published code never moves, pinned by `BoomerangErrorTest` (`:21-22`) |
+| `code`, `reason`, HTTP status | The `BoomerangError` constant (`common/error/BoomerangError.java:24-146`). Ranges: below 1000 mirror HTTP, 10xx generic, 11xx workspace, 12xx workflow, 13xx workflow run, 14xx task, 15xx task run, 16xx action, 17xx schedule, 18xx parameter, 19xx integration, 20xx artifact, 21xx dispatcher (`:17-20,122,136,145`). Every code names one reason and a published code never moves, pinned by `BoomerangErrorTest` (`:21-22`) |
 | `message` | `service-core/src/main/resources/messages.properties`, keyed by `reason`, with `{0}` arguments (`:14`); an explicit exception message wins (`core/RestExceptionHandler.java:56-65`) |
 | `cause` | Set only when `flow.error.include-cause=true` (default `false`) and the exception has a cause (`core/RestExceptionHandler.java:44-45,67-69`) |
 
@@ -110,17 +110,17 @@ changelog or delete naming a task that does not exist or is out of reach is `TAS
 
 Every list takes `page` (0-based), `limit` and `order` (`ASC`/`DESC`) as query parameters, none required, and
 returns a Spring Data `Page<T>`. A missing `limit` returns every match in sort order (`common/util/PagingUtil.java:26-35`),
-except on the audit trail, which pages 25 by default and at most 100 (`core/audit/AuditControllerV2.java:58-59,140`), and the
+except on the audit trail, which pages 25 by default and at most 100 (`core/audit/AuditControllerV2.java:60-61,145`), and the
 event outbox, 100 by default (`event/OutboxControllerV2.java:64-66`).
 
 | List | Sorted on | Default `order` |
 | --- | --- | --- |
 | Runs, task runs | `creationDate` (task runs then `_id`, so pages stay stable) | `DESC` (`workflow/WorkflowRunService.java:307,358-360`) |
-| Tokens, actions | `sort=<field>`, default `creationDate` | `DESC` (`core/TokenService.java:624`, `workflow/WorkspaceActionControllerV2.java:159`) |
-| Workspaces, users | `sort=<field>`, default `name` | `ASC` (`workspace/WorkspaceService.java:516`, `core/UserService.java:422`) |
+| Tokens, actions | `sort=<field>`, default `creationDate` | `DESC` (`core/TokenService.java:643`, `workflow/WorkspaceActionControllerV2.java:159`) |
+| Workspaces, users | `sort=<field>`, default `name` | `ASC` (`workspace/WorkspaceService.java:518`, `core/UserService.java:422`) |
 | Workflows, tasks, schedules | `creationDate` | `ASC` (`workflow/WorkflowService.java:1743`, `workflow/TaskService.java:864`, `schedule/WorkspaceScheduleControllerV2.java:134`) |
 | Workspace artifacts | `size` | `DESC` (`workflow/ArtifactService.java:542`) |
-| Audit trail | `time` | `DESC` (`core/audit/AuditControllerV2.java:140`) |
+| Audit trail | `time` | `DESC` (`core/audit/AuditControllerV2.java:145`) |
 
 The workflow and task lists also take the direction under its pre-5.0.0 name, `sort=ASC|DESC`, when `order` is absent;
 any other `sort` there is ignored (`common/util/PagingUtil.java:42-44`). The run, task run, action and token lists take
@@ -134,13 +134,13 @@ on every route that takes it, and no filter matches everything (`:119-123`):
 | `labels` | URL-encoded `key=value` entries, comma-separated, all of which must match. Each entry is split once, on its first `=`, so `a%3Db%3Dc` matches the value `b=c`; a dot in a key matches its stored form, `#`. An entry without a key or a value is `400 QUERY_INVALID_FILTERS` (`:41-57`) |
 | `fromDate`, `toDate` | Half-open: `fromDate` included, `toDate` excluded (`:25-33`) |
 | `statuses`, `phase`, `types` | Read ignoring case; a value that names no constant is `400 QUERY_INVALID_FILTERS` (`:75-79,99-111`). On a field whose absent value reads as a constant, that constant also matches no stored value (`:86-97`) |
-| `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:508-518`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
+| `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:510-520`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
 
 The task and workflow `/{name}/changelog` routes are not paged: they return every version in ascending order, so the
 last entry is the latest (`workflow/TaskControllerV2.java:233`, `workflow/WorkspaceTaskControllerV2.java:299`,
 `workflow/WorkspaceWorkflowControllerV2.java:214`; sorted by `workflow/repository/TaskRevisionRepository.java:13` and
 `workflow/repository/WorkflowRevisionRepository.java:16`). A version's `author` is the server's record of who made it, a user's display name or a token's name, never the request's (`workflow/TaskService.java:457`, `workflow/WorkflowService.java:1879-1882`).
-`GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once, and each of its `workspaces` carries the caller's `role` there (`workspace/ProfileControllerV2.java:69`, `workspace/WorkspaceService.java:928`). `PATCH /api/v2/profile` and `PATCH /api/v2/user/{userId}` leave a field the body omits as it is; a blank `displayName` clears it, so the user reads by `name` again (`core/UserService.java:485-489`).
+`GET /api/v2/profile` adds `workspaceMemberCount`, the people in any of the caller's workspaces counted once, and each of its `workspaces` carries the caller's `role` there (`workspace/ProfileControllerV2.java:69`, `workspace/WorkspaceService.java:950`). `PATCH /api/v2/profile` and `PATCH /api/v2/user/{userId}` leave a field the body omits as it is; a blank `displayName` clears it, so the user reads by `name` again (`core/UserService.java:485-489`).
 
 ## Public run models
 
@@ -340,7 +340,7 @@ keeps the stored value, because there a missing member and a `null` member canno
 `labels` are a `Map<String,String>` and `annotations` a `Map<String,Object>` (`common/model/Workflow.java:53-54`,
 `common/model/WorkflowRun.java:42-43`). Keys under `boomerang.io/` are the server's; every other key is the
 client's, free-form, and MAY carry a `prefix/name` form. A dot in a label key is stored as `#`. Label updates differ
-by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:337-341`), while `PUT /workflow` merges unless `replace=true`.
+by resource: `PATCH /workspace/{workspace}` replaces the whole map (`workspace/WorkspaceService.java:342-346`), while `PUT /workflow` merges unless `replace=true`.
 
 | Aspect | Rule | Where |
 | --- | --- | --- |

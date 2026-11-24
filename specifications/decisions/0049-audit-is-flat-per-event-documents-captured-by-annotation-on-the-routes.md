@@ -34,4 +34,5 @@ the route cannot drift from the route.
 - A reader of the trail, the monthly quotas among them, must allow for an event not written yet; they pair it with a live count. Raising the level is
   not retroactive, and a v3 database's per-object records are not carried over.
 - A renamed workspace keeps its trail and the figures read from it; a workspace created under a deleted one's name starts with none of its history,
-  which stays under the deleted workspace's id. Events recorded before 5.0.1 were re-keyed from names to ids on upgrade.
+  which stays under the deleted workspace's id. Events recorded before 5.0.1 were re-keyed from names to ids on upgrade, except under a name two
+  workspaces held, which names neither. During a rolling upgrade an older instance still writes names: run one instance while upgrading.

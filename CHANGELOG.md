@@ -7,6 +7,9 @@ tag's release notes.
 
 ### Upgrading
 
+- **Run one instance while upgrading to 5.0.1**, or the runs recorded by older instances during the roll-out drop out
+  of this month's counts: the upgrade moves the audit trail to workspace ids, while an older instance still records
+  workspace names.
 - **`start` on submit is removed: a submit always starts its run, or queues it.** `POST …/workflow/{name}/submit`
   takes no `start` query parameter, and `PUT …/workflowrun/{id}/start` and the Java SDK's `Runs.start` and
   `Runs.submit(…, boolean)` are gone: nothing stages a run for later. A retry starts the run it creates as well, so
@@ -93,14 +96,17 @@ tag's release notes.
   history and monthly usage, and a workspace created under a deleted one's name starts fresh. The upgrade re-keys the
   existing trail; the audit listing's `workspaceId` filter takes an id or a name, and each event shows the workspace's
   name as it was then.
-- **Workspace tokens are now issued for the workspace's id.** A token created on a workspace's Tokens tab names the
-  workspace by its id, so it keeps working when the workspace is renamed. Tokens issued earlier name the workspace
-  and keep working until it is renamed; the Tokens tab lists both.
+- **Workspace tokens are now issued for the workspace's id, and follow a rename.** A token created on a workspace's
+  Tokens tab names the workspace by its id. A token issued earlier for the workspace's name moves to its id when the
+  workspace is renamed, so it keeps working, is listed and revoked with the workspace, and never passes to a new
+  workspace that later takes the old name. A token works on the workspace's paths by id or by name alike.
 - **A workspace's name is lower-case letters, numbers and hyphens.** A create or a rename whose name is in any other
   form is refused `400 WORKSPACE_NAME_NOT_CANONICAL`, and the message says the form to send: `Platform Team` would be
-  `platform-team`. Workspaces already stored with another form keep it.
+  `platform-team`. A name shaped like a workspace id is refused `400 WORKSPACE_NAME_RESERVED`, and the `system`
+  workspace keeps its name. Workspaces already stored with another form keep it.
 - **A rename is confirmed first, and the display name changes on its own.** The workspace's Settings edit the
-  display name and the name in separate fields; a new name asks before it is saved, saying what stops working.
+  display name and the name in separate fields; a new name asks before it is saved, saying what stops working. The
+  name the webapp shows is the one the server takes, accented and non-Latin letters dropped.
 - **Retries queue at the concurrent limit.** Retrying a run from the webapp or the API at the concurrent limit
   answers `200` with a `waiting` run, which starts when a slot frees; it is refused with `429` only when the month's
   runs are spent or the queue is full. A run's automatic retry after a timeout queues the same way.
@@ -127,6 +133,9 @@ tag's release notes.
 
 ### Fixed
 
+- **`DELETE /api/v2/workspace/{workspace}` takes the workspace's id as well as its name**, as `GET` and `PATCH` do.
+- **A change to a workspace addressed by id touches that workspace alone**, even where a 3.5 upgrade left another
+  workspace of the same name: its graph node, its members and its name.
 - **`GET` and `PATCH /api/v2/workspace/{workspace}` take the workspace's id as well as its name.** An id passed
   the access check and was then answered `404 WORKSPACE_INVALID_REF`.
 - **Only an administrator or a global token can set a workspace's quotas.** The webapp has only ever offered the

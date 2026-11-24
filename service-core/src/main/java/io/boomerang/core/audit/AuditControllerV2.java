@@ -1,5 +1,7 @@
 package io.boomerang.core.audit;
 
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.RelationshipService;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.model.Token;
@@ -62,16 +64,19 @@ public class AuditControllerV2 {
   private final AuditEventEmitter auditEventEmitter;
   private final AuditRetentionService auditRetentionService;
   private final IdentityService identityService;
+  private final RelationshipService relationshipService;
 
   public AuditControllerV2(
       AuditQueryService auditQueryService,
       AuditEventEmitter auditEventEmitter,
       AuditRetentionService auditRetentionService,
-      IdentityService identityService) {
+      IdentityService identityService,
+      RelationshipService relationshipService) {
     this.auditQueryService = auditQueryService;
     this.auditEventEmitter = auditEventEmitter;
     this.auditRetentionService = auditRetentionService;
     this.identityService = identityService;
+    this.relationshipService = relationshipService;
   }
 
   @GetMapping(value = "")
@@ -217,9 +222,18 @@ public class AuditControllerV2 {
   }
 
   // Events are keyed on the workspace's id: a name asked for is read as the workspace holding it
-  // now, and one no workspace holds, a deleted workspace's, as the reference its events kept.
+  // now, and one no workspace holds, a deleted workspace's, as the reference its events kept. A
+  // name two workspaces hold names neither, so it is refused: ask by id.
   private List<String> workspaceIds(List<String> idsOrNames) {
-    return idsOrNames.stream().map(value -> auditEventEmitter.workspace(value).id()).toList();
+    return idsOrNames.stream()
+        .map(
+            value -> {
+              if (relationshipService.isAmbiguous(RelationshipType.WORKSPACE, value)) {
+                throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "workspaceId");
+              }
+              return auditEventEmitter.workspace(value).id();
+            })
+        .toList();
   }
 
   /**

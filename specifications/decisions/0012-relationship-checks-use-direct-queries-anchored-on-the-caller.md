@@ -20,11 +20,11 @@ workspace as leaves and outnumber every other node, so a walk that reads them co
 ## Decision
 
 B. `check` and `filter` read live MongoDB on every request; only node resolutions are memoised, for one HTTP request
-(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:96-189`). `findNodes` (`:958-1026`) reads a
-named run from its own incoming edge and the caller's edge to that run's workspace (`:1044-1092`), starts a walk
-confined to named workspaces at those workspaces (`:995-1003,1021-1042`), reads the task catalogue from the root's
-`hasTask` edges (`:1094-1124`), and otherwise walks level by level with the `hasWorkflowRun` edges left out on the
-`from_label` index (`:1126-1132`). No answer depends on the number of runs. `RelationshipLookupEquivalenceTest` pins
+(`service-core/src/main/java/io/boomerang/core/RelationshipService.java:97-207`). `findNodes` (`:994-1062`) reads a
+named run from its own incoming edge and the caller's edge to that run's workspace (`:1080-1128`), starts a walk
+confined to named workspaces at those workspaces (`:1031-1039,1057-1078`), reads the task catalogue from the root's
+`hasTask` edges (`:1130-1160`), and otherwise walks level by level with the `hasWorkflowRun` edges left out on the
+`from_label` index (`:1162-1168`). No answer depends on the number of runs. `RelationshipLookupEquivalenceTest` pins
 every lookup to the full walk's answer for every token class; `RelationshipServiceTest` pins that two instances on
 one database agree at once.
 

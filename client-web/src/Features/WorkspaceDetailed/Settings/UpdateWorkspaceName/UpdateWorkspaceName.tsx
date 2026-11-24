@@ -11,7 +11,7 @@ import {
   Loading,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { checkWorkspaceNameAvailable } from "Config/resourceRoutes";
-import kebabcase from "lodash/kebabCase";
+import { toWorkspaceName, workspaceNameProblem } from "Utils/workspaceName";
 import * as Yup from "yup";
 import { appLink } from "Config/appConfig";
 import styles from "./UpdateWorkspaceName.module.scss";
@@ -27,10 +27,6 @@ interface UpdateWorkspaceNameProps {
 
 type BasicDetails = { name: string; displayName: string };
 
-// The workspace name as the server stores it: lower-case letters, numbers and hyphens.
-function toName(value: string) {
-  return kebabcase(value.replace(`'`, "-"));
-}
 
 /**
  * The workspace's display name and its name, edited apart. The display name changes on its own;
@@ -76,7 +72,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
 
   // The name as entered, unless it is the one the workspace has: a stored name is sent back as it
   // is, so a display-name change never renames.
-  const nameOf = (value: string) => (value === workspace.name ? workspace.name : toName(value));
+  const nameOf = (value: string) => (value === workspace.name ? workspace.name : toWorkspaceName(value));
 
   const save = (values: BasicDetails) => {
     const details = { name: nameOf(values.name), displayName: values.displayName };
@@ -108,14 +104,19 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
           name: Yup.string()
             .required("Enter a workspace name")
             .max(100, "Enter workspace name that is at most 100 characters in length")
+            .test(
+              "usableName",
+              ({ value }) => workspaceNameProblem(value) ?? "",
+              (value) => !value || value === workspace.name || !workspaceNameProblem(value),
+            )
             .test("isUnique", "TAKEN", async (value) => {
-              if (!value || nameOf(value) === workspace.name) {
+              if (!value || nameOf(value) === workspace.name || workspaceNameProblem(value)) {
                 return true;
               }
               setPendingProbes((count) => count + 1);
               try {
                 // Never rejects: unavailable/unreachable both read as `false` -> TAKEN.
-                return await checkWorkspaceNameAvailable(toName(value));
+                return await checkWorkspaceNameAvailable(toWorkspaceName(value));
               } finally {
                 setPendingProbes((count) => count - 1);
               }
@@ -203,7 +204,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
           onCloseModal={() => setPendingRename(null)}
           title="Rename this workspace?"
         >
-          {`Its URLs change to use the new name, "${pendingRename.name}". Anything that uses the old name stops working: webhook and event URLs, bookmarked links, and workspace tokens issued before 5.0.1. Tokens issued since then keep working.`}
+          {`Its URLs change to use the new name, "${pendingRename.name}". Anything still using "${workspace.name}" stops working: webhook and event URLs, bookmarked links, API clients set up with the name, dispatcher claim filters written as "${workspace.name}/<task>", and exported workflows whose tasks read "${workspace.name}/<task>". Its tokens, usage and history come along for the ride.`}
         </ConfirmModal>
       )}
     </>
