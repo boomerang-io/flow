@@ -569,8 +569,21 @@ class WorkspaceRunQueueTest extends AbstractEngineIntegrationTest {
   void anAdmittedRunThatCannotStartEndsInvalidAndFreesItsSlot() {
     String workspace = workspace("run-queue-unstartable", 5, null);
     createWorkflow(workspace, "run-queue-unstartable-workflow", 1);
+    // Other classes' admitted runs can fill the sweep's page in a shared database: clear room first,
+    // so this run is on the page for both sightings.
+    awaitEngine("the sweep's page to have room")
+        .until(
+            () -> {
+              workflowWatcher.startAdmittedRuns();
+              return workflowRunStateHelper.findAdmittedNotStarted(SWEEP_PAGE_SIZE).size()
+                  < SWEEP_PAGE_SIZE;
+            });
     WorkflowRun broken = submit(workspace, "run-queue-unstartable-workflow", false);
     breakGraphOf(List.of(broken.getId()));
+    assertTrue(
+        workflowRunStateHelper.findAdmittedNotStarted(SWEEP_PAGE_SIZE).stream()
+            .anyMatch(r -> r.getId().equals(broken.getId())),
+        "the sweep's page holds the run");
     WorkflowRun parked = submit(workspace, "run-queue-unstartable-workflow", true);
     assertParked(parked.getId(), WORKFLOW_FULL_OF_ONE);
     List<WorkflowRunTransition> completions = new CopyOnWriteArrayList<>();
