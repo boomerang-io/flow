@@ -95,6 +95,32 @@ const settings = [
     tool: null,
     type: "ValuesList",
   },
+  {
+    config: [
+      {
+        description:
+          "Minutes of task time a workspace may use in a month: each task's time from start to end, added up, so tasks running side by side each count. Counted when a run ends, rounded up to the minute per run. 0 means unlimited.",
+        key: "max.workflowrun.cumulative.duration",
+        label: "Max Cumulative Duration per month",
+        type: "number",
+        value: "0",
+        readOnly: false,
+      },
+      {
+        description:
+          "Names of workflows in the system workspace, separated by commas. Their runs, and runs of the template links to them, use none of a workspace's monthly runs or cumulative duration. Exact names only.",
+        key: "unmetered.workflows",
+        label: "Unmetered Workflows",
+        type: "text",
+        value: "",
+        readOnly: false,
+      },
+    ],
+    description: "The limits every workspace starts with; a workspace can override them.",
+    key: "quotas",
+    name: "Quotas",
+    type: "ValuesList",
+  },
 ];
 
 export default settings;

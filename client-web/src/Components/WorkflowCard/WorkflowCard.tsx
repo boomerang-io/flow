@@ -85,9 +85,20 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   const activityEnabled = useFeature(FeatureFlag.ActivityEnabled);
 
   // A quota of 0 is unlimited, so it is never reached. Every slot busy means a new run waits in
-  // the queue, and the queue has a limit of its own.
+  // the queue, and the queue has a limit of its own. An unmetered workflow uses none of the
+  // month's runs or minutes, so a spent month never stops it.
+  const isMetered = !workflow.unmetered;
   const hasReachedMonthlyRunLimit =
-    Boolean(quotas) && isQuotaLimited(quotas?.maxWorkflowRunMonthly) && quotas!.maxWorkflowRunMonthly <= quotas!.currentRuns;
+    isMetered &&
+    Boolean(quotas) &&
+    isQuotaLimited(quotas?.maxWorkflowRunMonthly) &&
+    quotas!.maxWorkflowRunMonthly <= quotas!.currentRuns;
+  const hasReachedCumulativeLimit =
+    isMetered &&
+    Boolean(quotas) &&
+    isQuotaLimited(quotas?.maxCumulativeDuration) &&
+    quotas!.maxCumulativeDuration <= (quotas!.currentCumulativeDuration ?? 0);
+  const cumulativeSpentNote = `This workspace has used its ${quotas?.maxCumulativeDuration} minutes of task time this month. Runs already going will finish. Ask an admin to raise the quota, or try again when it resets.`;
   const areSlotsBusy =
     Boolean(quotas) && isQuotaLimited(quotas?.maxConcurrentRuns) && quotas!.maxConcurrentRuns <= quotas!.currentConcurrentRuns;
   const queuedRuns = quotas?.currentQueuedRuns ?? 0;
@@ -332,11 +343,35 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   const { name, Icon = Bee } = workflowIcons.find((icon) => icon.name === workflow.icon) ?? {};
   const canRunManually = workflow?.triggers?.manual?.enabled ?? false;
   const isDisabledViaRunQuota = workspaceQuotasEnabled && hasReachedMonthlyRunLimit;
+  const isDisabledViaCumulativeQuota = workspaceQuotasEnabled && hasReachedCumulativeLimit;
   // Busy slots alone never stop a run: it waits in the queue. Only a full queue does.
   const isDisabledViaQueueQuota = workspaceQuotasEnabled && isQueueFull;
   const isDisabledViaTrigger = canRunManually === false;
-  const isDisabled = isDisabledViaRunQuota || isDisabledViaQueueQuota || isDisabledViaTrigger;
+  const isDisabled =
+    isDisabledViaRunQuota || isDisabledViaCumulativeQuota || isDisabledViaQueueQuota || isDisabledViaTrigger;
   const queueNote = workspaceQuotasEnabled && willQueue ? runWillWaitNote : null;
+
+  // A disabled button raises no hover events, so the tooltip that says why hangs off a wrapper.
+  const renderRunButton = (openModal: () => void) => {
+    const button = (
+      <Button
+        disabled={isDeleting || isDisabled}
+        iconDescription={`Run ${viewType}`}
+        renderIcon={Run}
+        size="md"
+        onClick={openModal}
+      >
+        Run it
+      </Button>
+    );
+    return isDisabledViaCumulativeQuota ? (
+      <TooltipHover direction="top" tooltipContent={cumulativeSpentNote}>
+        <div data-testid="workflow-card-run-quota">{button}</div>
+      </TooltipHover>
+    ) : (
+      button
+    );
+  };
 
   let loadingText = "";
 
@@ -395,17 +430,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
                 title: `Workflow Parameters`,
                 subtitle: `Provide parameter values for your Workflow`,
               }}
-              modalTrigger={({ openModal }: ModalTriggerProps) => (
-                <Button
-                  disabled={isDeleting || isDisabled}
-                  iconDescription={`Run ${viewType}`}
-                  renderIcon={Run}
-                  size="md"
-                  onClick={openModal}
-                >
-                  Run it
-                </Button>
-              )}
+              modalTrigger={({ openModal }: ModalTriggerProps) => renderRunButton(openModal)}
             >
               {({ closeModal }) => (
                 <WorkflowInputModalContent
@@ -427,17 +452,7 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
                 title: `Execute ${viewType}`,
                 subtitle: `"Run and View" will navigate you to the ${viewType.toLowerCase()} execution view.`,
               }}
-              modalTrigger={({ openModal }: ModalTriggerProps) => (
-                <Button
-                  disabled={isDeleting || isDisabled}
-                  iconDescription={`Run ${viewType}`}
-                  renderIcon={Run}
-                  size="md"
-                  onClick={openModal}
-                >
-                  Run it
-                </Button>
-              )}
+              modalTrigger={({ openModal }: ModalTriggerProps) => renderRunButton(openModal)}
             >
               {({ closeModal }) => (
                 <WorkflowRunModalContent

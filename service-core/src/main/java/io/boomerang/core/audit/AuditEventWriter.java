@@ -50,6 +50,7 @@ public class AuditEventWriter {
       event.setActorType(actor.type());
     }
     event.setWorkspaceId(record.workspaceId());
+    event.setWorkspaceName(record.workspaceName());
     event.setAction(record.action().name());
     event.setResourceType(record.resourceType());
     event.setResourceId(record.resourceId());

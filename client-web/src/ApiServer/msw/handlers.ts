@@ -89,6 +89,7 @@ export const handlers: HttpHandler[] = [
     HttpResponse.json({
       maxWorkflowCount: 20,
       maxWorkflowRunMonthly: 150,
+      maxCumulativeDuration: 900,
       maxWorkspaceStorage: 10,
       maxWorkflowRunDuration: 30,
       maxConcurrentRuns: 4,

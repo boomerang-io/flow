@@ -419,9 +419,14 @@ class ScheduleWatcherTest {
     WorkflowScheduleEntity after = scheduleRepository.findById(s.getId()).orElseThrow();
     assertEquals(WorkflowScheduleStatus.active, after.getStatus());
     assertEquals(0, after.getRetryCount());
-    assertTrue(
-        after.getNextFireAt().after(new Date(System.currentTimeMillis() + 45000)),
-        "past any retry backoff: the next hourly occurrence stands");
+    // The next hourly occurrence, not a retry: an occurrence falls on the hour, a retry backoff
+    // lands at an arbitrary second. Comparing with "now + backoff" failed within 45 s of the hour,
+    // when the next occurrence is itself that close.
+    assertTrue(after.getNextFireAt().after(new Date()), "the next occurrence is in the future");
+    assertEquals(
+        0,
+        after.getNextFireAt().getTime() % 3_600_000L,
+        "the next hourly occurrence stands, not a retry backoff");
     verify(workflowService, times(3)).submit(any(), any(), any(), eq(true), any());
   }
 

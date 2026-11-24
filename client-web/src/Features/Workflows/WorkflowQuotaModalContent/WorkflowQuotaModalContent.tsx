@@ -19,6 +19,8 @@ export default function WorkflowQuotaModalContent({
   const concurrentLimitPercentage = quotaUsagePercent(quotas.currentConcurrentRuns, quotas.maxConcurrentRuns);
   const queuedLimitPercentage = quotaUsagePercent(quotas.currentQueuedRuns, quotas.maxQueuedRuns);
   const monthlyExecutionPercentage = quotaUsagePercent(quotas.currentRuns, quotas.maxWorkflowRunMonthly);
+  const currentCumulativeDuration = quotas.currentCumulativeDuration ?? 0;
+  const cumulativeDurationPercentage = quotaUsagePercent(currentCumulativeDuration, quotas.maxCumulativeDuration);
 
   return (
     <ModalBody className={styles.container}>
@@ -73,6 +75,22 @@ export default function WorkflowQuotaModalContent({
         )}
         <p className={styles.detailedText}>
           {`Current usage: ${formatQuotaUsage(quotas.currentRuns, quotas.maxWorkflowRunMonthly)}`}
+        </p>
+        <time className={styles.detailedText}>
+          {`Resets on ${moment.utc(quotas.monthlyResetDate).format(DATE_LONG_DISPLAY_FORMAT)}`}
+        </time>
+      </QuotaSection>
+      <QuotaSection
+        description="Minutes of task time per month. Tasks running side by side each count, so it can climb faster than run time."
+        title="Cumulative Duration"
+        value={quotas.maxCumulativeDuration}
+        valueUnit="minutes per month"
+      >
+        {cumulativeDurationPercentage !== null && (
+          <ProgressBar maxValue={quotas.maxCumulativeDuration} value={cumulativeDurationPercentage} />
+        )}
+        <p className={styles.detailedText}>
+          {`Current usage: ${formatQuotaUsage(currentCumulativeDuration, quotas.maxCumulativeDuration)} minutes`}
         </p>
         <time className={styles.detailedText}>
           {`Resets on ${moment.utc(quotas.monthlyResetDate).format(DATE_LONG_DISPLAY_FORMAT)}`}

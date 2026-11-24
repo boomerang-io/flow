@@ -11,6 +11,7 @@
       "quotas": {
         "maxWorkflowCount": 0,
         "maxWorkflowRunMonthly": 0,
+        "maxCumulativeDuration": 0,
         "maxWorkspaceStorage": 0,
         "maxConcurrentRuns": 0
       },

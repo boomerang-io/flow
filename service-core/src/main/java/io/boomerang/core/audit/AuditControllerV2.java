@@ -1,5 +1,7 @@
 package io.boomerang.core.audit;
 
+import io.boomerang.core.enums.RelationshipType;
+import io.boomerang.core.RelationshipService;
 import io.boomerang.common.error.BoomerangError;
 import io.boomerang.common.error.BoomerangException;
 import io.boomerang.core.model.Token;
@@ -62,16 +64,19 @@ public class AuditControllerV2 {
   private final AuditEventEmitter auditEventEmitter;
   private final AuditRetentionService auditRetentionService;
   private final IdentityService identityService;
+  private final RelationshipService relationshipService;
 
   public AuditControllerV2(
       AuditQueryService auditQueryService,
       AuditEventEmitter auditEventEmitter,
       AuditRetentionService auditRetentionService,
-      IdentityService identityService) {
+      IdentityService identityService,
+      RelationshipService relationshipService) {
     this.auditQueryService = auditQueryService;
     this.auditEventEmitter = auditEventEmitter;
     this.auditRetentionService = auditRetentionService;
     this.identityService = identityService;
+    this.relationshipService = relationshipService;
   }
 
   @GetMapping(value = "")
@@ -112,7 +117,11 @@ public class AuditControllerV2 {
       @Parameter(name = "resourceId", description = "A single resource id")
           @RequestParam(required = false)
           Optional<String> resourceId,
-      @Parameter(name = "workspaceId", description = "Owning workspace ids to filter for")
+      @Parameter(
+              name = "workspaceId",
+              description =
+                  "Owning workspaces to filter for, each by id or name; a name is read as the"
+                      + " workspace that holds it now")
           @RequestParam(required = false)
           Optional<List<String>> workspaceId,
       @Parameter(name = "from", description = "ISO-8601 instant; defaults to 30 days ago", example = "2026-09-01T00:00:00Z")
@@ -137,7 +146,7 @@ public class AuditControllerV2 {
     return auditQueryService
         .query(
             pageable,
-            workspaceId,
+            workspaceId.map(this::workspaceIds),
             actor,
             names(action),
             names(level),
@@ -182,7 +191,7 @@ public class AuditControllerV2 {
     Date end = to.map(Date::from).orElse(null);
     Map<AuditOutcome, Long> counts =
         auditQueryService.outcomeCounts(
-            workspaceId,
+            workspaceId.map(this::workspaceIds),
             actor,
             names(action),
             names(level),
@@ -210,6 +219,21 @@ public class AuditControllerV2 {
     return values
         .filter(list -> !list.isEmpty())
         .map(list -> list.stream().map(Enum::name).toList());
+  }
+
+  // Events are keyed on the workspace's id: a name asked for is read as the workspace holding it
+  // now, and one no workspace holds, a deleted workspace's, as the reference its events kept. A
+  // name two workspaces hold names neither, so it is refused: ask by id.
+  private List<String> workspaceIds(List<String> idsOrNames) {
+    return idsOrNames.stream()
+        .map(
+            value -> {
+              if (relationshipService.isAmbiguous(RelationshipType.WORKSPACE, value)) {
+                throw new BoomerangException(BoomerangError.QUERY_INVALID_FILTERS, "workspaceId");
+              }
+              return auditEventEmitter.workspace(value).id();
+            })
+        .toList();
   }
 
   /**

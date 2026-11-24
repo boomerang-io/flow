@@ -15,6 +15,7 @@ import io.boomerang.common.util.DataAdapterUtil.FieldType;
 import io.boomerang.common.util.ParameterUtil;
 import io.boomerang.common.util.StringUtil;
 import io.boomerang.core.RelationshipService;
+import io.boomerang.core.entity.RelationshipNodeEntity;
 import io.boomerang.core.SettingsService;
 import io.boomerang.core.TokenService;
 import io.boomerang.core.UserService;
@@ -35,6 +36,7 @@ import io.boomerang.workspace.model.ApproverGroup;
 import io.boomerang.workspace.model.ApproverGroupRequest;
 import io.boomerang.workspace.model.CurrentQuotas;
 import io.boomerang.workspace.model.Quotas;
+import io.boomerang.workspace.model.WorkspaceType;
 import io.boomerang.workspace.model.Workspace;
 import io.boomerang.workspace.model.WorkspaceMember;
 import io.boomerang.workspace.model.WorkspaceNameCheckRequest;
@@ -47,6 +49,7 @@ import io.boomerang.workspace.repository.WorkspaceRepository;
 import io.boomerang.workflow.QuotaService;
 import io.boomerang.workflow.TaskService;
 import java.util.ArrayList;
+import org.bson.types.ObjectId;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.LinkedList;
@@ -155,15 +158,29 @@ public class WorkspaceService {
    */
   public Workspace get(String workspace) {
     if (!Objects.isNull(workspace) && !workspace.isBlank()) {
-      if (relationshipService.check(
-          RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-        Optional<WorkspaceEntity> entity = workspaceRepository.findByNameIgnoreCase(workspace);
-        if (entity.isPresent()) {
-          return convertWorkspaceEntityToWorkspace(entity.get());
-        }
-      }
+      return convertWorkspaceEntityToWorkspace(reachable(workspace));
     }
     throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+  }
+
+  /*
+   * The workspace a path names, by id or name, read from the graph node the access check reads, so
+   * the two always agree: the check runs on that node's id. A name two workspaces hold, as a 3.5
+   * upgrade can carry over, names neither; the id names one.
+   */
+  private WorkspaceEntity reachable(String workspace) {
+    String id =
+        relationshipService
+            .findNode(RelationshipType.WORKSPACE, workspace)
+            .map(RelationshipNodeEntity::getRef)
+            .orElseThrow(() -> new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF));
+    if (!relationshipService.check(
+        RelationshipType.WORKSPACE, id, Optional.empty(), Optional.empty())) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+    }
+    return workspaceRepository
+        .findById(id)
+        .orElseThrow(() -> new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF));
   }
 
   /*
@@ -182,6 +199,9 @@ public class WorkspaceService {
     if (!userService.isCurrentUserAdmin() && !settingsService.workspaceCreationAllowed()) {
       throw new BoomerangException(BoomerangError.PERMISSION_DENIED);
     }
+    if (request.getQuotas() != null) {
+      requireQuotaAuthority();
+    }
     if (!request.getName().isBlank() && !request.getDisplayName().isBlank()) {
       // An embedding product's own id is carried once: a create retried after a crash, or for a
       // record that already has its mirror, is answered with the workspace that holds it. Checked
@@ -195,6 +215,7 @@ public class WorkspaceService {
                       BoomerangError.WORKSPACE_EXTERNAL_REF_TAKEN, existing.getName());
                 });
       }
+      requireCanonicalName(request.getName());
       // Validate name - will throw exception if not valid
       WorkspaceNameCheckRequest checkRequest = new WorkspaceNameCheckRequest(request.getName());
       this.validateName(checkRequest);
@@ -285,18 +306,22 @@ public class WorkspaceService {
       if (workspace == null || workspace.isBlank()) {
         throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
       }
-      if (!relationshipService.check(
-          RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+      // From here on the workspace is its id: a name another workspace shares names neither.
+      WorkspaceEntity workspaceEntity = reachable(workspace);
+      String id = workspaceEntity.getId();
+      String name = workspaceEntity.getName();
+      // Checked before anything is written, so a refused patch changes nothing.
+      if (request.getQuotas() != null) {
+        requireQuotaAuthority();
       }
-      Optional<WorkspaceEntity> optWorkspaceEntity = workspaceRepository.findByNameIgnoreCase(workspace);
-      if (!optWorkspaceEntity.isPresent()) {
-        throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
+      boolean renaming =
+          request.getName() != null && !request.getName().isBlank() && !request.getName().equals(name);
+      if (renaming) {
+        requireRenamable(workspaceEntity, request.getName());
       }
-      WorkspaceEntity workspaceEntity = optWorkspaceEntity.get();
       if (request.getMembers() != null && !request.getMembers().isEmpty()) {
-        requireMemberManager(workspace);
-        Map<String, String> before = relationshipService.membersAndRoles(workspace);
+        requireMemberManager(id);
+        Map<String, String> before = relationshipService.membersAndRoles(id);
         Map<String, String> after = new HashMap<>(before);
         request.getMembers().forEach(
             member ->
@@ -305,15 +330,8 @@ public class WorkspaceService {
                     .ifPresent(user -> after.put(user.getId(), member.getRole())));
         requireAnOwnerRemains(before, after);
       }
-      boolean updatedName = false;
-      String originalName = workspaceEntity.getName();
-      if (request.getName() != null && !request.getName().isBlank()) {
-        // A rename takes a name no other workspace holds, checked as create checks it.
-        if (!request.getName().equalsIgnoreCase(originalName)) {
-          validateName(new WorkspaceNameCheckRequest(request.getName()));
-        }
+      if (renaming) {
         workspaceEntity.setName(request.getName());
-        updatedName = true;
       }
       if (request.getDisplayName() != null && !request.getDisplayName().isBlank()) {
         workspaceEntity.setDisplayName(request.getDisplayName());
@@ -356,14 +374,15 @@ public class WorkspaceService {
       workspaceRepository.save(workspaceEntity);
       paramLayerCache.evictAll();
 
-      // Update any existing relationships if the name has changed
-      if (updatedName) {
-        relationshipService.updateNodeByRefOrSlug(
-            RelationshipType.WORKSPACE, originalName, request.getName());
+      // A rename moves the workspace's graph node, by its id, and the tokens issued for the old name
+      // to the id, so none is left behind for the next workspace to take the name.
+      if (renaming) {
+        relationshipService.updateNodeByRefOrSlug(RelationshipType.WORKSPACE, id, request.getName());
+        tokenService.moveToPrincipal(name, id);
       }
 
       // Create / Update Relationships for Users
-      createOrUpdateUserRelationships(workspaceEntity.getName(), request.getMembers());
+      createOrUpdateUserRelationships(id, request.getMembers());
       return convertWorkspaceEntityToWorkspace(workspaceEntity);
     }
     throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
@@ -379,22 +398,22 @@ public class WorkspaceService {
 
     // A workspace that does not exist, or that the caller cannot reach, is not there to delete; a
     // global caller passes the reachability check, so existence is checked on its own.
-    if (workspaceRepository.findByNameIgnoreCase(workspace).isEmpty()
-        || !relationshipService.check(
-            RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
-      throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);
-    }
+    WorkspaceEntity entity = reachable(workspace);
+    // From here on the workspace is its id: a name another workspace shares names neither.
+    String id = entity.getId();
 
     // Get and delete all Workflows (this cascade deletes the Workflows, WorkflowRevisions,
     // Schedules, Actions, WorkflowRuns, and TaskRuns
     // The workspace's workflows are found once, by ref, and each is deleted as found.
     List<String> workflowRefs =
-        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.empty());
+        relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, id, Optional.empty());
     LOGGER.debug("Workspace Workflow Refs: {}", workflowRefs.toString());
     workflowRefs.forEach(workflowService::deleteFound);
 
-    // Delete all Tokens
-    tokenService.deleteAllForPrincipal(workspace);
+    // Delete all Tokens: a workspace token names the workspace by its id, or by its name when it
+    // was issued for the name and the workspace has not been renamed since.
+    tokenService.deleteAllForPrincipal(id);
+    tokenService.deleteAllForPrincipal(entity.getName());
 
     // Delete all Workspace Tasks. WORKSPACETASK is the relationship type that anchors a task under
     // a workspace - TASK anchors the global catalogue under root and would never match here.
@@ -403,30 +422,29 @@ public class WorkspaceService {
             RelationshipType.WORKSPACETASK,
             Optional.empty(),
             Optional.of(RelationshipType.WORKSPACE),
-            Optional.of(List.of(workspace)));
+            Optional.of(List.of(id)));
     if (templateNames.size() > 0) {
-      templateNames.forEach(name -> taskService.delete(workspace, name));
+      templateNames.forEach(name -> taskService.delete(id, name));
     }
 
     // The workspace's approver groups belong to it alone.
     for (String ref :
         relationshipService.refsInWorkspace(
-            RelationshipType.APPROVERGROUP, workspace, Optional.empty())) {
+            RelationshipType.APPROVERGROUP, id, Optional.empty())) {
       approverGroupRepository.deleteById(ref);
       relationshipService.removeNodeAndEdgeByRef(RelationshipType.APPROVERGROUP, ref);
     }
 
     // Read before the node goes: removing it removes the members' and installations' edges too.
-    Set<String> memberRefs = relationshipService.membersAndRoles(workspace).keySet();
+    Set<String> memberRefs = relationshipService.membersAndRoles(id).keySet();
     List<String> integrationRefs =
-        relationshipService.refsInWorkspace(
-            RelationshipType.INTEGRATION, workspace, Optional.empty());
+        relationshipService.refsInWorkspace(RelationshipType.INTEGRATION, id, Optional.empty());
 
     // Delete Workspace
-    workspaceRepository.deleteByName(workspace);
+    workspaceRepository.deleteById(id);
 
     // Delete Workspace relationship node
-    relationshipService.removeNodeAndEdgeByRefOrSlug(RelationshipType.WORKSPACE, workspace);
+    relationshipService.removeNodeAndEdgeByRef(RelationshipType.WORKSPACE, id);
 
     memberRefs.forEach(userService::deleteUnusedInvitation);
     integrationService.deleteUnlinked(integrationRefs);
@@ -847,12 +865,54 @@ public class WorkspaceService {
   }
 
   /*
+   * A workspace's name is its key in URLs and tokens, so it is stored exactly as callers will
+   * address it: already in the form the uniqueness check compares, lower-case letters, numbers and
+   * hyphens. A name in any other form is refused with that form named, never rewritten.
+   */
+  private static void requireCanonicalName(String name) {
+    String canonical = StringUtil.kebabCase(name);
+    if (!canonical.equals(name)) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_NAME_NOT_CANONICAL, name, canonical);
+    }
+    // A name that reads as an id would make a path naming it ambiguous.
+    if (ObjectId.isValid(name)) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_NAME_RESERVED, name);
+    }
+  }
+
+  /*
+   * A rename takes a name in its canonical form that no other workspace holds, as create does. The
+   * system workspace, and any holding a reserved name, keeps its name: the application finds the
+   * system workspace by it, and a reserved name could not be taken back.
+   */
+  private void requireRenamable(WorkspaceEntity workspace, String newName) {
+    if (WorkspaceType.system.equals(workspace.getType())
+        || RESERVED_WORKSPACE_NAMES.contains(workspace.getName().toLowerCase())) {
+      throw new BoomerangException(BoomerangError.WORKSPACE_NAME_RESERVED, workspace.getName());
+    }
+    requireCanonicalName(newName);
+    if (!newName.equalsIgnoreCase(workspace.getName())) {
+      validateName(new WorkspaceNameCheckRequest(newName));
+    }
+  }
+
+  /*
+   * A workspace's quotas are the platform's to set, not its members': setting or resetting them
+   * takes a global grant to write workspaces, which an administrator's session and a global token
+   * carry. The route admits any caller with write access to the workspace, so the check is here.
+   */
+  private void requireQuotaAuthority() {
+    identityService.requireGlobalGrant(PermissionResource.WORKSPACE, PermissionAction.WRITE);
+  }
+
+  /*
    * Delete custom quotas on the team and reset back to default
    */
   public void deleteCustomQuotas(String workspace) {
     if (workspace == null || workspace.isBlank()) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REQ);
     }
+    requireQuotaAuthority();
     if (!relationshipService.check(
         RelationshipType.WORKSPACE, workspace, Optional.empty(), Optional.empty())) {
       throw new BoomerangException(BoomerangError.WORKSPACE_INVALID_REF);

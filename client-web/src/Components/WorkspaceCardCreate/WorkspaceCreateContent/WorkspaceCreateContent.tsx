@@ -2,7 +2,7 @@ import React from "react";
 import { Button, InlineNotification, ModalBody, ModalFooter } from "@carbon/react";
 import { ModalForm, TextInput, Loading } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Formik } from "formik";
-import kebabcase from "lodash/kebabCase";
+import { toWorkspaceName, workspaceNameProblem } from "Utils/workspaceName";
 import * as Yup from "yup";
 import { checkWorkspaceNameAvailable } from "Config/resourceRoutes";
 import styles from "./WorkspaceCreateContent.module.scss";
@@ -42,14 +42,19 @@ export default function WorkspaceCreateContent({ closeModal, createWorkspace, is
         name: Yup.string()
           .required("Enter a workspace name")
           .max(100, "Enter workspace name that is at most 100 characters in length")
+          .test(
+            "usableName",
+            ({ value }) => workspaceNameProblem(value) ?? "",
+            (value) => !value || !workspaceNameProblem(value),
+          )
           .test("isUnique", "TAKEN", async (value) => {
-            if (!value) {
+            if (!value || workspaceNameProblem(value)) {
               return true;
             }
             setPendingProbes((count) => count + 1);
             try {
               // Never rejects: unavailable/unreachable both read as `false` -> TAKEN.
-              return await checkWorkspaceNameAvailable(kebabcase(value.replace(`'`, "-")));
+              return await checkWorkspaceNameAvailable(toWorkspaceName(value));
             } finally {
               setPendingProbes((count) => count - 1);
             }
@@ -91,8 +96,8 @@ export default function WorkspaceCreateContent({ closeModal, createWorkspace, is
                   {values.name ? (
                     <p>
                       Your unique workspace name identifier will be "
-                      <b>{kebabcase(values ? values.name.replace(`'`, "-") : "")}</b>", which has been adjusted to
-                      remove spaces and special characters.
+                      <b>{toWorkspaceName(values.name)}</b>", which has been adjusted to remove spaces and special
+                      characters. It's in the workspace's web address and can be changed later, carefully.
                     </p>
                   ) : (
                     <p>Your unique workspace name identifier will be adjusted to remove spaces and special characters.</p>

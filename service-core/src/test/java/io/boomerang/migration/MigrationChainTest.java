@@ -1840,6 +1840,138 @@ class MigrationChainTest {
         .isEqualTo("20");
   }
 
+  /**
+   * The cumulative duration quota. An empty database has both settings from the seed and a system
+   * workspace with no cumulative limit. An install from before them gains the two settings from the
+   * seed and the system workspace its {@code 0}; a value an operator chose, another workspace's
+   * quotas and a system workspace's own limit are left as they are, and a second run changes nothing.
+   */
+  @Test
+  void anInstallFromBeforeTheCumulativeDurationQuotaGainsItsSettingsAndTheSystemWorkspacesZero() {
+    MongoDatabase db = migrate("cumulative-duration");
+    MongoCollection<Document> settings = collection(db, "settings");
+    MongoCollection<Document> workspaces = collection(db, "workspaces");
+    Environment environment = MigrationRunner.environment(PREFIX);
+    Document seededLimit = settingEntry(settings, "quotas", "max.workflowrun.cumulative.duration");
+    Document seededList = settingEntry(settings, "quotas", "unmetered.workflows");
+    assertThat(seededLimit.getString("value")).isEqualTo("0");
+    assertThat(seededLimit.getString("type")).isEqualTo("number");
+    assertThat(seededList.getString("value")).isEmpty();
+    assertThat(seededList.getString("type")).isEqualTo("text");
+    assertThat(systemQuotas(workspaces).getInteger("maxCumulativeDuration")).isZero();
+
+    // The install as an earlier release left it, with a workspace of its own quotas.
+    settings.updateOne(
+        Filters.eq("key", "quotas"),
+        Updates.pull(
+            "config",
+            new Document(
+                "key",
+                new Document("$in", List.of("max.workflowrun.cumulative.duration", "unmetered.workflows")))));
+    workspaces.updateOne(Filters.eq("name", "system"), Updates.unset("quotas.maxCumulativeDuration"));
+    workspaces.insertOne(
+        new Document("name", "keeps-its-own").append("quotas", new Document("maxWorkflowRunMonthly", 20)));
+
+    new _0054__SeedCumulativeDurationSettings().execute(db, environment);
+    new _0055__SystemWorkspaceUnmeteredDuration().execute(db, environment);
+
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.cumulative.duration")).isEqualTo(seededLimit);
+    assertThat(settingEntry(settings, "quotas", "unmetered.workflows")).isEqualTo(seededList);
+    assertThat(systemQuotas(workspaces).getInteger("maxCumulativeDuration")).isZero();
+    assertThat(systemQuotas(workspaces).getInteger("maxWorkflowRunMonthly"))
+        .as("the system workspace's other quotas are untouched")
+        .isZero();
+    assertThat(workspaces.find(Filters.eq("name", "keeps-its-own")).first().get("quotas", Document.class))
+        .as("another workspace inherits the default")
+        .isEqualTo(new Document("maxWorkflowRunMonthly", 20));
+
+    // A second run changes nothing.
+    List<Document> before = settings.find().sort(new Document("key", 1)).into(new ArrayList<>());
+    new _0054__SeedCumulativeDurationSettings().execute(db, environment);
+    new _0055__SystemWorkspaceUnmeteredDuration().execute(db, environment);
+    assertThat(settings.find().sort(new Document("key", 1)).into(new ArrayList<>())).isEqualTo(before);
+
+    // What an operator set stays: a default of 600 minutes, a list, and a system workspace limit.
+    setSettingValue(settings, "quotas", "max.workflowrun.cumulative.duration", "600");
+    setSettingValue(settings, "quotas", "unmetered.workflows", "index-rebuild, nightly");
+    workspaces.updateOne(Filters.eq("name", "system"), Updates.set("quotas.maxCumulativeDuration", 50));
+    new _0054__SeedCumulativeDurationSettings().execute(db, environment);
+    new _0055__SystemWorkspaceUnmeteredDuration().execute(db, environment);
+    assertThat(settingEntry(settings, "quotas", "max.workflowrun.cumulative.duration").getString("value"))
+        .isEqualTo("600");
+    assertThat(settingEntry(settings, "quotas", "unmetered.workflows").getString("value"))
+        .isEqualTo("index-rebuild, nightly");
+    assertThat(systemQuotas(workspaces).getInteger("maxCumulativeDuration")).isEqualTo(50);
+    assertThat(
+            settings.find(Filters.eq("key", "quotas")).first().getList("config", Document.class).stream()
+                .filter(entry -> "unmetered.workflows".equals(entry.getString("key")))
+                .count())
+        .isEqualTo(1);
+  }
+
+  /**
+   * The audit trail moves to the workspace's id. An empty database has no events to move. An
+   * install's events named by a workspace's name move to its id with the name kept beside it; one
+   * whose name no workspace holds keeps it as its key; one already keyed by id is left; and a
+   * second run changes nothing.
+   */
+  @Test
+  void auditEventsAreReKeyedOnTheWorkspacesId() {
+    MongoDatabase db = migrate("audit-by-id");
+    MongoCollection<Document> audit = collection(db, "audit");
+    Environment environment = MigrationRunner.environment(PREFIX);
+    assertThat(audit.countDocuments()).as("an empty database has no events").isZero();
+    new _0056__AuditWorkspaceById().execute(db, environment);
+    assertThat(audit.countDocuments()).isZero();
+
+    String systemId =
+        collection(db, "workspaces").find(Filters.eq("name", "system")).first().get("_id").toString();
+    audit.insertMany(
+        List.of(
+            new Document("_id", "by-name").append("workspaceId", "system").append("action", "CREATE"),
+            new Document("_id", "orphan").append("workspaceId", "deleted-team").append("action", "UPDATE"),
+            new Document("_id", "keyed")
+                .append("workspaceId", systemId)
+                .append("workspaceName", "system-then")
+                .append("action", "UPDATE"),
+            new Document("_id", "instance").append("action", "TOKEN_CREATE"),
+            // A route addressed by id before the upgrade: the id is kept, the name now added.
+            new Document("_id", "by-id").append("workspaceId", systemId).append("action", "UPDATE"),
+            // A name two workspaces hold, as a 3.5 upgrade can carry over: left under the name.
+            new Document("_id", "twin-event").append("workspaceId", "twin").append("action", "CREATE")));
+    collection(db, "workspaces")
+        .insertMany(List.of(new Document("name", "twin"), new Document("name", "twin")));
+
+    new _0056__AuditWorkspaceById().execute(db, environment);
+
+    assertThat(audit.find(Filters.eq("_id", "by-name")).first())
+        .containsEntry("workspaceId", systemId)
+        .containsEntry("workspaceName", "system");
+    assertThat(audit.find(Filters.eq("_id", "orphan")).first())
+        .containsEntry("workspaceId", "deleted-team")
+        .containsEntry("workspaceName", "deleted-team");
+    assertThat(audit.find(Filters.eq("_id", "keyed")).first())
+        .containsEntry("workspaceId", systemId)
+        .containsEntry("workspaceName", "system-then");
+    assertThat(audit.find(Filters.eq("_id", "by-id")).first())
+        .containsEntry("workspaceId", systemId)
+        .containsEntry("workspaceName", "system");
+    assertThat(audit.find(Filters.eq("_id", "twin-event")).first())
+        .containsEntry("workspaceId", "twin")
+        .containsEntry("workspaceName", "twin");
+    assertThat(audit.find(Filters.eq("_id", "instance")).first())
+        .doesNotContainKey("workspaceId")
+        .doesNotContainKey("workspaceName");
+
+    List<Document> before = audit.find().sort(new Document("_id", 1)).into(new ArrayList<>());
+    new _0056__AuditWorkspaceById().execute(db, environment);
+    assertThat(audit.find().sort(new Document("_id", 1)).into(new ArrayList<>())).isEqualTo(before);
+  }
+
+  private static Document systemQuotas(MongoCollection<Document> workspaces) {
+    return workspaces.find(Filters.eq("name", "system")).first().get("quotas", Document.class);
+  }
+
   private static Document settingEntry(MongoCollection<Document> settings, String group, String key) {
     return settings.find(Filters.eq("key", group)).first().getList("config", Document.class).stream()
         .filter(entry -> key.equals(entry.getString("key")))

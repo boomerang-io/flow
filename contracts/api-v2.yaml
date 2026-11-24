@@ -229,6 +229,8 @@ components:
           type: "string"
         workspaceId:
           type: "string"
+        workspaceName:
+          type: "string"
       type: "object"
     AuditStats:
       properties:
@@ -392,6 +394,9 @@ components:
         currentConcurrentRuns:
           format: "int32"
           type: "integer"
+        currentCumulativeDuration:
+          format: "int64"
+          type: "integer"
         currentQueuedRuns:
           format: "int32"
           type: "integer"
@@ -411,6 +416,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxCumulativeDuration:
           format: "int32"
           type: "integer"
         maxQueuedRuns:
@@ -1167,6 +1175,9 @@ components:
           format: "int32"
           type: "integer"
         maxConcurrentRuns:
+          format: "int32"
+          type: "integer"
+        maxCumulativeDuration:
           format: "int32"
           type: "integer"
         maxQueuedRuns:
@@ -2390,6 +2401,9 @@ components:
           - "template"
           - "starter"
           type: "string"
+        unmetered:
+          readOnly: true
+          type: "boolean"
         upgradesAvailable:
           type: "boolean"
         version:
@@ -3372,7 +3386,8 @@ paths:
         required: false
         schema:
           type: "string"
-      - description: "Owning workspace ids to filter for"
+      - description: "Owning workspaces to filter for, each by id or name; a name\
+          \ is read as the workspace that holds it now"
         in: "query"
         name: "workspaceId"
         required: false

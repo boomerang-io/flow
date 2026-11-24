@@ -126,9 +126,9 @@ export async function workflowTokensLoader({
 }
 
 /*
- * /:workspace/manage/tokens - the `key` tokens issued for a workspace itself, principal'd by
- * workspace name exactly as the tab's own useQuery used to be
- * (`{ types: TokenType.Key, principals: workspace?.name }`).
+ * /:workspace/manage/tokens - the `key` tokens issued for a workspace itself, asked for by the
+ * workspace name in the URL. A workspace token is issued for the workspace's id; the server lists
+ * those and the ones issued for its name alike.
  */
 export async function workspaceTokensLoader({
   params,

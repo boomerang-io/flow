@@ -149,7 +149,7 @@ class SecretChangeAuditTest extends AbstractEngineIntegrationTest {
             () ->
                 events("parameter", "dbPass").stream()
                     .anyMatch(
-                        e -> workspace.equals(e.getWorkspaceId()) && "DELETE".equals(e.getAction())));
+                        e -> workspace.equals(e.getWorkspaceName()) && "DELETE".equals(e.getAction())));
 
     assertNoValue(events("workspace", workspace), "ws-secret-0001");
   }

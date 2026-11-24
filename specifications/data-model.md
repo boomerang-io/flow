@@ -31,34 +31,40 @@ containing `.` are stored with `#` (`core/config/MongoConfiguration.java:37`), s
 | `events_outbox`, `events_inbox` | Outbound CloudEvents awaiting delivery (the transactional outbox): `status`, `attempts`, `retry.after`, `sentAt`, and on a failure `lastError` (at most 1024 characters, `event/OutboxDispatcher.java:46`) and `deadAt`; inbound event receipts with their processing status | `EventOutboxEntity`, `EventInboxEntity` (`event`) |
 | `dispatchers` | Registered dispatchers, the task types they serve, and where the engine reads their live task logs (`logsUrl`) with which bearer (`logsToken`, stored as sent); removed after 7 days without a connection (`execution-model.md`, "The watcher sweeps") | `DispatcherEntity` (`dispatcher`) |
 | `workspaces` | Workspaces (`type` `personal`, `hobby`, `pro`, `enterprise` or `system`): status, labels, annotations, parameters, quotas | `WorkspaceEntity` (`workspace`) |
-| `approver_groups` | Named approver sets used by approval tasks; deleted with their workspace, and a user leaves every group on deletion and a workspace's groups on leaving it (`workspace/WorkspaceService.java:415,594`, `core/UserService.java:530-533`) | `ApproverGroupEntity` (`workspace`) |
+| `approver_groups` | Named approver sets used by approval tasks; deleted with their workspace, and a user leaves every group on deletion and a workspace's groups on leaving it (`workspace/WorkspaceService.java:434,612`, `core/UserService.java:530-533`) | `ApproverGroupEntity` (`workspace`) |
 | `users`, `tokens`, `roles` | User accounts, with per-user interface `settings` (`isFirstVisit`, `isShowHelp`, `hasConsented`, `isShowGetStarted`; `core/model/UserSettings.java:8-12`), which `PATCH /api/v2/profile` merges key by key; hashed bearer tokens with principal, permissions and expiry; the five permission roles | `UserEntity`, `TokenEntity`, `RoleEntity` (`core`) |
 | `settings` | Instance settings grouped by `key`, each with a `config` list | `SettingEntity` (`core`) |
-| `audit` | One flat event per audited attempt: a CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`, `actorName`, `actorType`), `workspaceId`, `action`, resource (`resourceType`, `resourceId`, `resourceName`), `outcome`, `level`, `payload` (request discriminators, and on a secret write `detail.secretsChanged` and `secretsCleared` names, never values). Run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) come from the engine's transitions (`core/audit/WorkflowRunAuditBridge.java:62`). Expires by time to live | `AuditEventEntity` (`core.audit`) |
+| `audit` | One flat event per audited attempt: a CloudEvents-style envelope (`type`, `source`, `time`, `subject`), actor (`actorId`, `actorName`, `actorType`), `workspaceId` (the workspace's id, which a rename never changes; for an event whose workspace no longer existed when it was recorded, or one recorded before 5.0.1 for a workspace since deleted, the reference it was given) and `workspaceName` (its name at the time, for display only; `core/audit/AuditEventEntity.java:59-68`), `action`, resource (`resourceType`, `resourceId`, `resourceName`), `outcome`, `level`, `payload` (request discriminators, and on a secret write `detail.secretsChanged` and `secretsCleared` names, never values). Run lifecycle events (`workflowrun` CREATE on admission, UPDATE on completion) come from the engine's transitions (`core/audit/WorkflowRunAuditBridge.java:74`); the UPDATE's payload carries `cumulativeDuration`, the run's task time in milliseconds, and both carry `unmetered: true`, only when true, for a run of an unmetered workflow, whose UPDATE then has no `cumulativeDuration` (`:104-153`). Expires by time to live | `AuditEventEntity` (`core.audit`) |
 | `rel_nodes`, `rel_edges` | The relationship graph (below) | `RelationshipNodeEntity`, `RelationshipEdgeEntity` (`core`) |
 | `parameters` | Global parameters | `GlobalParamEntity` (`workflow`) |
-| `integrations`, `integration_templates` | Installed integrations, each typed as its template is (`github_app`, `slack_auth`) with `ref` the provider's id for it (a GitHub installation id, a Slack team id), and their catalogue; a template's `fields` are the workspace parameters it manages while its credentials are shared with tasks, and its `kind` whether Flow installs it and fills them (`app`: GitHub, Slack) or the workspace enters them (`form`: Google, Microsoft), which links it with no `integrations` record (`parameters.md`); deleting a workspace deletes each installation no other workspace links (`workspace/WorkspaceService.java:432`) | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
+| `integrations`, `integration_templates` | Installed integrations, each typed as its template is (`github_app`, `slack_auth`) with `ref` the provider's id for it (a GitHub installation id, a Slack team id), and their catalogue; a template's `fields` are the workspace parameters it manages while its credentials are shared with tasks, and its `kind` whether Flow installs it and fills them (`app`: GitHub, Slack) or the workspace enters them (`form`: Google, Microsoft), which links it with no `integrations` record (`parameters.md`); deleting a workspace deletes each installation no other workspace links (`workspace/WorkspaceService.java:450`) | `IntegrationsEntity`, `IntegrationTemplateEntity` (`integrations`) |
 | `sys_migration_changelog`, `sys_migration_lock`, `sys_migration_state` | Flamingock's change log and lock; the recorded install generation | migrations only (`migration/MigrationConfiguration.java:42-43`, `migration/LegacyGenerationMarker.java:27`) |
 
 A workspace's quotas (`WorkspaceEntity.quotas`: `maxWorkflowCount`, `maxWorkflowRunMonthly`,
-`maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`, `maxQueuedRuns`, `maxArtifactStorage`,
-`artifactRetentionDays`; `workspace/model/Quotas.java:15-26`) each have three stored states. Absent inherits
+`maxCumulativeDuration` (minutes of task time a month), `maxWorkspaceStorage`, `maxWorkflowRunDuration`, `maxConcurrentRuns`,
+`maxQueuedRuns`, `maxArtifactStorage`, `artifactRetentionDays`; `workspace/model/Quotas.java:15-27`) each have three stored states. Absent inherits
 the platform default from the `quotas` or `artifacts` settings document when the workspace is read
-(`workflow/QuotaService.java:117-130,203-207`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
+(`workflow/QuotaService.java:126-149,225-229`); `0` is unlimited (`Quotas.limited`, `workspace/model/Quotas.java:11-13`,
 the one test every check calls); a positive number is the limit. A workspace create or patch overlays the
-request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:229,340`), so a request
+request's quotas field by field onto what is stored (`workspace/WorkspaceService.java:250,358`), so a request
 that carries one quota leaves the others as they were; `DELETE /api/v2/workspace/{workspace}/quotas` is the only
 way back to absent (`workspace/WorkspaceControllerV2.java:311-322`). The v3 migration drops a v3 `0`, which v3
 enforced as a limit of zero, so that workspace inherits instead (`migration/_0007__V3MigrateWorkspaces.java:234-238`).
+The usage beside them (`CurrentQuotas`) is computed on each read and never stored, `currentCumulativeDuration` (minutes)
+among it. Two `quotas` settings carry no workspace value: `max.workflowrun.cumulative.duration`, the default minutes (`0`),
+and `unmetered.workflows`, comma-separated exact names of `system` workflows whose runs, and their links' runs, use none of
+the monthly quotas (`core/UnmeteredWorkflows.java:42-56`). The `system` workspace stores `0` for its workflow count,
+monthly runs, cumulative duration, workspace storage and concurrent runs (`seed/workspace.json`). No run or task run
+field and no index serve the cumulative duration: it is summed from task runs once, when the run completes.
 
 ## Versioned definitions: the subset pattern
 
 Workflows and tasks are a parent document (fields with limited change scope) plus one child per version,
-joined on read by the domain services (`workflow/WorkflowService.java:1695-1722,2750-2775`). The child points at its
+joined on read by the domain services (`workflow/WorkflowService.java:1705-1732,2766-2791`). The child points at its
 parent: `WorkflowRevisionEntity.workflowRef` + `version` (`common/entity/WorkflowRevisionEntity.java:24-25`),
 `TaskRevisionEntity.parentRef` + `version` (`common/entity/TaskRevisionEntity.java:27,32`). A new version is a
 new child insert. A template and a starter are workflows of the system workspace, so they version the same way;
-a link's own revisions hold no tasks (`workflow/WorkflowService.java:1834-1838,2753-2772`).
+a link's own revisions hold no tasks (`workflow/WorkflowService.java:1844-1848,2769-2788`).
 
 A revision carries the workflow's run settings beside its tasks: `timeout`, `retries` and `concurrency{limit, overflow}`
 (`common/entity/WorkflowRevisionEntity.java:36-38`); a task node carries its own `timeout` and `retry{max, backoff{type, initial, max}}`
@@ -105,11 +111,11 @@ The `boomerang.io/*` keys written to stored documents; the engine reads none of 
 
 | Key | Written on | By |
 | --- | --- | --- |
-| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1827,2266,2419`, `workflow/TaskService.java:718,806` |
-| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1494` |
+| `generation`, `kind` | workflows, tasks, workflow runs | `workflow/WorkflowService.java:1837,2276,2435`, `workflow/TaskService.java:718,806` |
+| `position` | each task in a workflow revision (canvas coordinates) | `workflow/WorkflowService.java:1504` |
 
 A run annotation or label under `boomerang.io/` from a client is reserved: a submit or start that sends one has
-it dropped (`workflow/WorkflowService.java:842-848`, `workflow/WorkflowRunService.java:891-898`). The engine
+it dropped (`workflow/WorkflowService.java:852-858`, `workflow/WorkflowRunService.java:891-898`). The engine
 takes its decisions from typed sources instead:
 
 | Decision | Source |
@@ -156,7 +162,7 @@ decrypt is kept as stored, on load and on the next save of its group, never writ
 | Collection | Document | Notes |
 | --- | --- | --- |
 | `rel_nodes` | `{_id, creationDate, type, ref, slug, data: Map<String,String>}` | `_id` is `<type>:<ref>` (`core/entity/RelationshipNodeEntity.java:32`). `type` is a `RelationshipType` label: `root`, `workspace`, `user`, `workflow`, `workflowrun`, `approvergroup`, `integration`, `schedule`, `workspacetask` (a workspace's own task), `task` (the global catalogue) (`core/enums/RelationshipType.java:12-23`). |
-| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:389-443`). |
+| `rel_edges` | `{_id, creationDate, from, label, to, data: Map<String,String>}` | `from` and `to` are node ids (`core/entity/RelationshipEdgeEntity.java:19-24`); `label` is a `RelationshipLabel`: `contains`, `ownerOf`, `memberOf`, `hasIntegration`, `hasWorkflow`, `hasWorkflowRun`, `hasTask`, `hasTaskRun`, `hasApproverGroup`, `linksTemplate` (`core/enums/RelationshipLabel.java:14-25`). `_id` is generated, except for a claim: a `linksTemplate` edge runs from a workspace to its link to a template, beside that link's `hasWorkflow` edge, with `_id` = `linksTemplate:<workspace node id>:<template id>`, so MongoDB admits one per workspace and template (`core/RelationshipService.java:415-469`). |
 
 The `root:root` node and the `system` workspace are seeded by `_0003__SeedRelationshipRoot` and
 `_0004__SeedSystemWorkspace`.
@@ -220,7 +226,7 @@ may not set scope `log`. A second upload for the same task run replaces the firs
 
 A record is removed only by a delete, its workflow's prune (`workflow/WorkflowRetentionService.java:278-311`) or its
 run's retention purge. Finished runs are kept for the `retention.days` key of the `workflowrun` settings
-document (365; `service-core/src/main/resources/seed/settings.json:488`), read at each pass and floored at 60
+document (365; `service-core/src/main/resources/seed/settings.json:504`), read at each pass and floored at 60
 so a month's quota counts stay whole; a document without the key reads as 365
 (`workflow/WorkflowRetentionService.java:313-324`). An hourly pass (`flow.watcher.retention-interval-ms`,
 `engine/WorkflowWatcher.java:235-245`) pages runs in phase `completed` created before the cutoff, oldest first,
@@ -336,6 +342,9 @@ dedupes. Once a release ships the chain, changes are appended as new units.
 | `_0051__SeedRunQueueSettings` | all | Adds the run queue's two settings from the seed where an install lacks the key: `quotas`/`max.workflowrun.queued` (20, the runs that may wait for a slot) and `workflowrun`/`queue.max.age` (24, the hours one may wait); a key the install holds, whatever its value, is left as it is, and an empty database or a 3.5 upgrade has both from the seed |
 | `_0052__MonthlyRunQuotaDefault100` | all | Moves the `quotas` settings' `max.workflowrun.monthly` from `20` to `100` where an install still holds the earlier seed's value; any other value stays, and no workspace's own stored quota is touched |
 | `_0053__RefusedSubmitMonthIndex` | all | Builds the partial index `refused_submit_month` on `workflow_runs`, the inventory's own definition; an empty database or a 3.5 upgrade has it from `_0021`, and a second run finds it |
+| `_0054__SeedCumulativeDurationSettings` | all | Adds the seed's `quotas` entries `max.workflowrun.cumulative.duration` (`0`) and `unmetered.workflows` (empty) where an install lacks the key; a key the install holds, whatever its value, is left as it is, and a missing `quotas` document is logged |
+| `_0056__AuditWorkspaceById` | all | Re-keys `audit` on the workspace's id: each workspace's events named by its name take its id, the name kept as `workspaceName`, one `updateMany` per workspace on `workspace_time`; an event a route already recorded by id takes the workspace's name now; a name two workspaces hold, as a 3.5 upgrade can carry over, is logged and its events keep it; an event whose name no workspace holds keeps it and gains it as `workspaceName`; an event that has a `workspaceName` is left, so a second run changes nothing. An empty database or a 3.5 upgrade has no events to move. A deleted workspace's name may be taken again: events recorded under it after this unit belong to the new workspace's id |
+| `_0055__SystemWorkspaceUnmeteredDuration` | all | Sets `quotas.maxCumulativeDuration: 0` on the `system` workspace where it is absent, as the seed has it; a stored value, an operator's limit included, is left |
 
 `_0016` finds each stored settings document by its key or an earlier key (`controller` → `task`, `activity` →
 `workflowrun`, `extensions` → `integration`, `workspaces` or `teams` → `quotas`) and rebuilds it from the seed

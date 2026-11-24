@@ -38,6 +38,14 @@ describe("Audit --- loader", () => {
     expect(screen.getByText("Nightly Robot")).toBeInTheDocument();
   });
 
+  // An event names its workspace as it was called when the event was recorded.
+  test("shows each event's workspace by its name at the time", async () => {
+    renderAudit();
+    await screen.findByText("Nightly Sync");
+    const table = within(screen.getByRole("table"));
+    expect(table.getAllByText("in ibm-services-engineering")).toHaveLength(2);
+  });
+
   test("shows each outcome as an icon and its name", async () => {
     renderAudit();
     await screen.findByText("Nightly Sync");

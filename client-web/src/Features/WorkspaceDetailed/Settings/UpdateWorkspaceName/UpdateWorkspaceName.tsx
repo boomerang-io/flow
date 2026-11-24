@@ -3,6 +3,7 @@ import { Formik } from "formik";
 import { useFetcher, useNavigate } from "react-router-dom";
 import { Button, ModalBody, ModalFooter, InlineNotification } from "@carbon/react";
 import {
+  ConfirmModal,
   notify,
   ToastNotification,
   ModalFlowForm,
@@ -10,7 +11,7 @@ import {
   Loading,
 } from "@boomerang-io/carbon-addons-boomerang-react";
 import { checkWorkspaceNameAvailable } from "Config/resourceRoutes";
-import kebabcase from "lodash/kebabCase";
+import { toWorkspaceName, workspaceNameProblem } from "Utils/workspaceName";
 import * as Yup from "yup";
 import { appLink } from "Config/appConfig";
 import styles from "./UpdateWorkspaceName.module.scss";
@@ -24,12 +25,21 @@ interface UpdateWorkspaceNameProps {
   workspace: FlowWorkspace;
 }
 
+type BasicDetails = { name: string; displayName: string };
+
+
+/**
+ * The workspace's display name and its name, edited apart. The display name changes on its own;
+ * the name is its key in URLs and tokens, so a change to it is asked about before it is sent.
+ */
 const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, workspace }) => {
   const navigate = useNavigate();
-  // The rename itself posts to the Settings tab's route action (see ../Settings).
+  // Both changes post to the Settings tab's route action (see ../Settings).
   const fetcher = useFetcher<SettingsActionResult>();
   const isSubmitting = fetcher.state !== "idle";
   const failed = Boolean(fetcher.data && isActionError(fetcher.data) && fetcher.data.intent === WorkspaceIntent.Rename);
+  // A rename waiting on the confirmation.
+  const [pendingRename, setPendingRename] = React.useState<BasicDetails | null>(null);
 
   // The name-availability probe cannot move to the route action: it runs inside Yup's async
   // `test`, which needs a promise to await per keystroke, and fetcher.submit is fire-and-forget
@@ -44,7 +54,7 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
       return;
     }
     if (!isActionError(fetcher.data)) {
-      // The slug is part of the URL, so a rename has to move the router to the new one; the
+      // The name is part of the URL, so a rename has to move the router to the new one; the
       // parent loader then re-fetches under the new :workspace param.
       navigate(appLink.manageWorkspaceSettings({ workspace: String(fetcher.data.detail) }));
       notify(
@@ -56,15 +66,21 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
     }
   }, [fetcher.state, fetcher.data, navigate, closeModal]);
 
-  const updateWorkspaceName = (values: { name: string }) => {
-    fetcher.submit(
-      {
-        intent: WorkspaceIntent.Rename,
-        name: kebabcase(values.name?.replace(`'`, "-")),
-        displayName: values.name,
-      },
-      { method: "post" },
-    );
+  const send = (details: BasicDetails) => {
+    fetcher.submit({ intent: WorkspaceIntent.Rename, ...details }, { method: "post" });
+  };
+
+  // The name as entered, unless it is the one the workspace has: a stored name is sent back as it
+  // is, so a display-name change never renames.
+  const nameOf = (value: string) => (value === workspace.name ? workspace.name : toWorkspaceName(value));
+
+  const save = (values: BasicDetails) => {
+    const details = { name: nameOf(values.name), displayName: values.displayName };
+    if (details.name === workspace.name) {
+      send(details);
+    } else {
+      setPendingRename(details);
+    }
   };
 
   let buttonText = "Save";
@@ -76,94 +92,122 @@ const UpdateWorkspaceName: React.FC<UpdateWorkspaceNameProps> = ({ closeModal, w
     buttonText = "Validating...";
   }
 
-  //TODO - update the error message to include the value of the Text Input
-  //TODO - update to not error on current workspace name
   return (
-    <Formik
-      initialValues={{
-        name: workspace.displayName,
-      }}
-      onSubmit={updateWorkspaceName}
-      validationSchema={Yup.object().shape({
-        name: Yup.string()
-          .required("Enter a workspace name")
-          .max(100, "Enter workspace name that is at most 100 characters in length")
-          .test("isUnique", "TAKEN", async (value) => {
-            if (!value) {
-              return true;
-            }
-            setPendingProbes((count) => count + 1);
-            try {
-              // Never rejects: unavailable/unreachable both read as `false` -> TAKEN.
-              return await checkWorkspaceNameAvailable(kebabcase(value.replace(`'`, "-")));
-            } finally {
-              setPendingProbes((count) => count - 1);
-            }
-          }),
-      })}
-    >
-      {(formikProps) => {
-        const { values, setFieldValue, handleSubmit, errors, touched } = formikProps;
-        return (
-          <ModalFlowForm>
-            <ModalBody>
-              <div className={styles.modalInputContainer}>
-                {isSubmitting && <Loading />}
-                <TextInput
-                  id="workspace-update-name-id"
-                  data-testid="text-input-workspace-name"
-                  labelText="Display Name"
-                  helperText="The display name of your workspace must make a unique name identifier."
-                  value={values.name}
-                  onChange={(value: React.ChangeEvent<HTMLInputElement>) => {
-                    setFieldValue("name", value.target.value);
-                  }}
-                  invalid={Boolean(errors.name && !touched.name)}
-                  invalidText={
-                    errors.name === "TAKEN"
-                      ? `Please try again, the name '${values.name}' is unavailable.`
-                      : errors.name
-                  }
-                />
-                {failed && (
-                  <InlineNotification
-                    lowContrast
-                    kind="error"
-                    title="Name changed failed!"
-                    subtitle="Give it another go or try again later."
+    <>
+      <Formik
+        initialValues={{ name: workspace.name, displayName: workspace.displayName }}
+        onSubmit={save}
+        validationSchema={Yup.object().shape({
+          displayName: Yup.string()
+            .required("Enter a display name")
+            .max(100, "Enter a display name that is at most 100 characters in length"),
+          name: Yup.string()
+            .required("Enter a workspace name")
+            .max(100, "Enter workspace name that is at most 100 characters in length")
+            .test(
+              "usableName",
+              ({ value }) => workspaceNameProblem(value) ?? "",
+              (value) => !value || value === workspace.name || !workspaceNameProblem(value),
+            )
+            .test("isUnique", "TAKEN", async (value) => {
+              if (!value || nameOf(value) === workspace.name || workspaceNameProblem(value)) {
+                return true;
+              }
+              setPendingProbes((count) => count + 1);
+              try {
+                // Never rejects: unavailable/unreachable both read as `false` -> TAKEN.
+                return await checkWorkspaceNameAvailable(toWorkspaceName(value));
+              } finally {
+                setPendingProbes((count) => count - 1);
+              }
+            }),
+        })}
+      >
+        {(formikProps) => {
+          const { values, setFieldValue, handleSubmit, errors, touched } = formikProps;
+          const renaming = Boolean(values.name) && nameOf(values.name) !== workspace.name;
+          return (
+            <ModalFlowForm>
+              <ModalBody>
+                <div className={styles.modalInputContainer}>
+                  {isSubmitting && <Loading />}
+                  <TextInput
+                    id="workspace-update-display-name-id"
+                    data-testid="text-input-workspace-display-name"
+                    labelText="Display Name"
+                    helperText="What people see for this workspace. Change it whenever you like."
+                    value={values.displayName}
+                    onChange={(value: React.ChangeEvent<HTMLInputElement>) => {
+                      setFieldValue("displayName", value.target.value);
+                    }}
+                    invalid={Boolean(errors.displayName && !touched.displayName)}
+                    invalidText={errors.displayName}
                   />
-                )}
-                <div className={styles.text}>
-                  {values.name ? (
-                    <p>
-                      Your updated unique workspace name identifier will be "
-                      <b>{kebabcase(values ? values.name.replace(`'`, "-") : "")}</b>", which has been adjusted to
-                      remove spaces and special characters.
-                    </p>
-                  ) : (
-                    <p>
-                      Your updated unique workspace name identifier will be adjusted to remove spaces and special characters.
-                    </p>
+                  <TextInput
+                    id="workspace-update-name-id"
+                    data-testid="text-input-workspace-name"
+                    labelText="Name"
+                    helperText="Used in this workspace's URLs and tokens."
+                    value={values.name}
+                    onChange={(value: React.ChangeEvent<HTMLInputElement>) => {
+                      setFieldValue("name", value.target.value);
+                    }}
+                    invalid={Boolean(errors.name && !touched.name)}
+                    invalidText={
+                      errors.name === "TAKEN" ? `Please try again, the name '${values.name}' is unavailable.` : errors.name
+                    }
+                  />
+                  {failed && (
+                    <InlineNotification
+                      lowContrast
+                      kind="error"
+                      title="Update failed!"
+                      subtitle="Give it another go or try again later."
+                    />
+                  )}
+                  {renaming && (
+                    <div className={styles.text}>
+                      <p>
+                        The new name will be "<b>{nameOf(values.name)}</b>", adjusted to lower-case letters, numbers and
+                        hyphens.
+                      </p>
+                    </div>
                   )}
                 </div>
-              </div>
-            </ModalBody>
-            <ModalFooter>
-              <Button kind="secondary" type="button" onClick={closeModal}>
-                Cancel
-              </Button>
-              <Button
-                disabled={Boolean(errors.name || isSubmitting || isValidating)}
-                onClick={() => handleSubmit()}
-                data-testid="save-workspace-name"
-              >
-                {buttonText}
-              </Button>
-            </ModalFooter>
-          </ModalFlowForm>
-        );
-      }}
-    </Formik>
+              </ModalBody>
+              <ModalFooter>
+                <Button kind="secondary" type="button" onClick={closeModal}>
+                  Cancel
+                </Button>
+                <Button
+                  disabled={Boolean(errors.name || errors.displayName || isSubmitting || isValidating)}
+                  onClick={() => handleSubmit()}
+                  data-testid="save-workspace-name"
+                >
+                  {buttonText}
+                </Button>
+              </ModalFooter>
+            </ModalFlowForm>
+          );
+        }}
+      </Formik>
+      {pendingRename && (
+        <ConfirmModal
+          affirmativeAction={() => {
+            send(pendingRename);
+            setPendingRename(null);
+          }}
+          affirmativeText="Rename"
+          isOpen
+          negativeAction={() => setPendingRename(null)}
+          negativeText="Cancel"
+          onCloseModal={() => setPendingRename(null)}
+          title="Rename this workspace?"
+        >
+          {`Its URLs change to use the new name, "${pendingRename.name}". Anything still using "${workspace.name}" stops working: webhook and event URLs, bookmarked links, API clients set up with the name, dispatcher claim filters written as "${workspace.name}/<task>", and exported workflows whose tasks read "${workspace.name}/<task>". Its tokens, usage and history come along for the ride.`}
+        </ConfirmModal>
+      )}
+    </>
   );
 };
 

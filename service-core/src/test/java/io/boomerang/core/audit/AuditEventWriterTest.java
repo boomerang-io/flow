@@ -17,6 +17,7 @@ class AuditEventWriterTest {
   private static AuditRecord record(AuditOutcome outcome) {
     return new AuditRecord(
         new AuditActor("u1", "Jane", "session", "t1"),
+        "64b8d5a5040e205ee3383ab1",
         "acme",
         AuditAction.CREATE,
         AuditLevel.WRITE,
@@ -50,7 +51,8 @@ class AuditEventWriterTest {
     assertThat(event.getActorId()).isEqualTo("u1");
     assertThat(event.getActorName()).isEqualTo("Jane");
     assertThat(event.getActorType()).isEqualTo("session");
-    assertThat(event.getWorkspaceId()).isEqualTo("acme");
+    assertThat(event.getWorkspaceId()).isEqualTo("64b8d5a5040e205ee3383ab1");
+    assertThat(event.getWorkspaceName()).isEqualTo("acme");
     assertThat(event.getAction()).isEqualTo("CREATE");
     assertThat(event.getResourceType()).isEqualTo("workflow");
     assertThat(event.getResourceId()).isEqualTo("my-workflow");

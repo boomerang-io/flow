@@ -310,6 +310,27 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(await screen.findByTestId("create-token-button")).toBeInTheDocument();
   });
 
+  // A workspace token is issued for the workspace's id, which a rename never changes.
+  test("issues a workspace token for the workspace's id", async () => {
+    let sent: Record<string, unknown> | undefined;
+    server.use(
+      http.post(serviceUrl.postToken(), async ({ request }) => {
+        sent = (await request.json()) as Record<string, unknown>;
+        return HttpResponse.json({ id: "t1", type: "key", token: "bfk_test" }, { status: 201 });
+      }),
+    );
+    renderWorkspaceDetailed(appLink.manageWorkspaceTokens({ workspace: workspaceFixture.name }));
+    await userEvent.click(await screen.findByTestId("create-token-button"));
+    // The token list's own "Name" column header shares the label text, so the field goes by its placeholder.
+    await userEvent.type(await screen.findByPlaceholderText("my-unique-task-name"), "deploy-token");
+    const submit = screen.getByTestId("create-token-submit");
+    await waitFor(() => expect(submit).toBeEnabled());
+    await userEvent.click(submit);
+
+    await waitFor(() => expect(sent).toBeDefined());
+    expect(sent).toMatchObject({ type: "key", principal: workspaceFixture.id });
+  });
+
   // A token names its creator by user id; a member's name reads in its place, an unknown id as it is.
   test("names a token's creator from the workspace's members", async () => {
     const token = { type: "key", valid: true, creationDate: "2026-01-05T04:08:52.880+00:00", permissions: [] };
@@ -383,6 +404,36 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByRole("button", { name: "Edit Queued Runs" })).toBeInTheDocument();
   });
 
+  // Minutes of task time a month, beside the month's runs (workspace.js: 412 of 600).
+  test("a Cumulative Duration card shows the month's minutes against the limit", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }));
+    await screen.findByText("Number of Workflows");
+
+    expect(screen.getByText("Cumulative Duration")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Minutes of task time this workspace can use each month. Tasks running side by side each count, so it can climb faster than run time.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByText("600 minutes per month")).toBeInTheDocument();
+    expect(screen.getByText("Current usage: 412 of 600 minutes")).toBeInTheDocument();
+    expect(
+      screen.getByText(
+        "Counted when a run ends, rounded up to the minute. Includes workflows and runs that have since been deleted.",
+      ),
+    ).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Edit Cumulative Duration" })).toBeInTheDocument();
+  });
+
+  test("the Cumulative Duration editor sets minutes, with 0 unlimited", async () => {
+    renderWorkspaceDetailed(appLink.manageWorkspaceQuotas({ workspace: workspaceFixture.name }), platformAdmin);
+    await userEvent.click(await screen.findByRole("button", { name: "Edit Cumulative Duration" }));
+
+    expect(await screen.findByText("Set how many minutes of task time the workspace can use each month.")).toBeInTheDocument();
+    expect(screen.getByLabelText(/Maximum cumulative duration/)).toHaveValue(600);
+    expect(screen.getAllByText("0 means unlimited").length).toBeGreaterThan(0);
+  });
+
   // Flow 5 keeps one shared workspace per run: the two storage cards (per Workflow, per Run)
   // collapsed into one bound to `maxWorkspaceStorage` (workspace.js: 5).
   test("one Workspace Storage card replaces the per-Workflow and per-Run capacity cards", async () => {
@@ -437,6 +488,7 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     for (const title of [
       "Number of Workflows",
       "Number of Executions",
+      "Cumulative Duration",
       "Run Duration",
       "Concurrent Runs (executions)",
       "Queued Runs",
@@ -450,6 +502,7 @@ describe("WorkspaceDetailed --- nested tab routes", () => {
     expect(screen.getByText("10 GB per run")).toBeInTheDocument();
     expect(screen.getByText("8GB")).toBeInTheDocument();
     expect(screen.getByText("45 days")).toBeInTheDocument();
+    expect(screen.getByText("900 minutes per month")).toBeInTheDocument();
   });
 });
 
@@ -539,6 +592,81 @@ describe("WorkspaceDetailed --- settings labels", () => {
     expect(toast.props.subtitle).toBe(`Removed label from ${workspaceFixture.displayName} successfully`);
     expect(await screen.findByTestId("delete-label-button-key2")).toBeInTheDocument();
     expect(screen.queryByTestId("delete-label-button-key1")).not.toBeInTheDocument();
+  });
+});
+
+// The display name and the name are edited apart: a display-name change is sent at once and
+// renames nothing; a new name is asked about first, and only Rename sends it.
+describe("WorkspaceDetailed --- basic details", () => {
+  function recordPatches() {
+    const sent: Array<Record<string, unknown>> = [];
+    server.use(
+      http.patch(serviceUrl.resourceWorkspace({ workspace: ":workspace" }), async ({ request }) => {
+        sent.push((await request.clone().json()) as Record<string, unknown>);
+        // Falls through to the shared handler, which applies the patch.
+        return undefined;
+      }),
+    );
+    return sent;
+  }
+
+  async function openBasicDetails() {
+    const view = renderWorkspaceDetailed(appLink.manageWorkspaceSettings({ workspace: workspaceFixture.name }));
+    await userEvent.click(await screen.findByTestId("open-change-name-modal"));
+    expect(await screen.findByText("Change workspace name")).toBeInTheDocument();
+    return view;
+  }
+
+  async function save() {
+    const button = screen.getByTestId("save-workspace-name");
+    await waitFor(() => expect(button).toBeEnabled());
+    await userEvent.click(button);
+  }
+
+  test("a display-name change is sent without asking and keeps the name", async () => {
+    const sent = recordPatches();
+    const { history } = await openBasicDetails();
+
+    await userEvent.type(screen.getByLabelText("Display Name"), " Team");
+    await save();
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ name: workspaceFixture.name, displayName: "IBM Services Engineering Team" });
+    expect(screen.queryByText("Rename this workspace?")).not.toBeInTheDocument();
+    expect(history.location.pathname).toBe(appLink.manageWorkspaceSettings({ workspace: workspaceFixture.name }));
+  });
+
+  test("a new name is asked about first, and Cancel sends nothing", async () => {
+    const sent = recordPatches();
+    await openBasicDetails();
+
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Services Platform");
+    expect(await screen.findByText("services-platform")).toBeInTheDocument();
+    await save();
+
+    expect(await screen.findByText("Rename this workspace?")).toBeInTheDocument();
+    expect(screen.getByText(/Anything still using "ibm-services-engineering" stops working/)).toBeInTheDocument();
+    // The confirmation opens over the edit form, so its Cancel is the last one on the page.
+    await userEvent.click(screen.getAllByText("Cancel").at(-1)!);
+    await waitFor(() => expect(screen.queryByText("Rename this workspace?")).not.toBeInTheDocument());
+    expect(sent).toHaveLength(0);
+  });
+
+  test("Rename sends the new name and moves to its URL", async () => {
+    const sent = recordPatches();
+    const { history } = await openBasicDetails();
+
+    await userEvent.clear(screen.getByLabelText("Name"));
+    await userEvent.type(screen.getByLabelText("Name"), "Services Platform");
+    await save();
+    await userEvent.click(await screen.findByText("Rename"));
+
+    await waitFor(() => expect(sent).toHaveLength(1));
+    expect(sent[0]).toEqual({ name: "services-platform", displayName: "IBM Services Engineering" });
+    await waitFor(() =>
+      expect(history.location.pathname).toBe(appLink.manageWorkspaceSettings({ workspace: "services-platform" })),
+    );
   });
 });
 

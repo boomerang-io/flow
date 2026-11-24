@@ -27,7 +27,7 @@ document (`service-core/src/main/resources/application.properties:221`). The dis
 on its own filter chain (`dispatcher/DispatcherControllerV1.java:54`), not under `/internal/v1`, so a dispatcher in
 another network zone is routed without opening sign-in. `DispatcherAuthFilter` accepts only an unexpired `global`
 token with an actor kind and installs it as the request's identity, the one the same bearer carries on `/api/v2`, so
-it grants nothing new (`dispatcher/DispatcherAuthFilter.java:64-101`, `core/TokenService.java:524-552`); with
+it grants nothing new (`dispatcher/DispatcherAuthFilter.java:64-101`, `core/TokenService.java:541-569`); with
 `flow.dispatcher.auth.enabled=false` the request runs as the security-off synthetic admin (`:67-72`).
 
 ## Consequences
@@ -37,4 +37,4 @@ it grants nothing new (`dispatcher/DispatcherAuthFilter.java:64-101`, `core/Toke
   `/internal/v1`, and proxy identity headers are believed on every prefix the main chain serves
   (`core/security/AuthenticationFilter.java:152-153`).
 - Reads that must not depend on the caller stay caller-free: the artifact quota is read from the run's workspace
-  (`workflow/QuotaService.java:332-345`). Revisit if a dispatcher token ever carries less than a `global` grant.
+  (`workflow/QuotaService.java:367-380`). Revisit if a dispatcher token ever carries less than a `global` grant.

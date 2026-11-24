@@ -15,6 +15,7 @@ import java.util.Map;
 public record AuditRecord(
     AuditActor actor,
     String workspaceId,
+    String workspaceName,
     AuditAction action,
     AuditLevel level,
     String resourceType,

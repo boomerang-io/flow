@@ -433,6 +433,23 @@ public class TokenService {
 
   // A principal's tokens the caller may list: its own, or a workspace's or a workflow's where the
   // caller's grant to read tokens counts.
+  // The principals, with each workspace among them named by both its id and its name.
+  private List<String> withWorkspaceForms(List<String> principals) {
+    if (principals.isEmpty()) {
+      return principals;
+    }
+    Set<String> forms = new LinkedHashSet<>(principals);
+    relationshipService
+        .nodesByRef(principals, RelationshipType.WORKSPACE)
+        .values()
+        .forEach(node -> forms.add(node.getSlug()));
+    relationshipService
+        .nodesBySlug(RelationshipType.WORKSPACE, principals)
+        .values()
+        .forEach(node -> forms.add(node.getRef()));
+    return new ArrayList<>(forms);
+  }
+
   private boolean mayRead(Token caller, String principal) {
     return isCallersOwn(caller, principal)
         || relationshipService.grantsIn(principal, PermissionResource.TOKEN, PermissionAction.READ)
@@ -588,6 +605,25 @@ public class TokenService {
     lookupCache.evict(tokenEntity.getToken());
   }
 
+  /**
+   * Move every token issued for {@code from} to {@code to}, its principal and the grants it holds
+   * there: a renamed workspace's tokens issued for its old name follow it to its id, so none is left
+   * for the next workspace to take the name. The cache goes, as on a revoke.
+   */
+  public void moveToPrincipal(String from, String to) {
+    mongoTemplate.updateMulti(
+        Query.query(Criteria.where("principal").is(from)),
+        new Update().set("principal", to),
+        TokenEntity.class);
+    mongoTemplate.updateMulti(
+        Query.query(Criteria.where("permissions.principal").is(from)),
+        new Update()
+            .set("permissions.$[grant].principal", to)
+            .filterArray(Criteria.where("grant.principal").is(from)),
+        TokenEntity.class);
+    lookupCache.evictAll();
+  }
+
   /** Revoke every token of {@code principal}; the hashes are not in hand, so the whole cache goes. */
   public void deleteAllForPrincipal(String principal) {
     this.tokenRepository.deleteAllByPrincipal(principal);
@@ -615,6 +651,9 @@ public class TokenService {
                   .filter(principal -> mayRead(caller, principal))
                   .toList());
     }
+    // A workspace's tokens name it by its id, or by its name when minted before they took the
+    // id: asking for either form lists both. Two node reads, only when principals are asked for.
+    queryPrincipals = queryPrincipals.map(this::withWorkspaceForms);
     Query query =
         new Query(
             new QueryCriteria()

@@ -7,7 +7,7 @@ import { useFetcher, useLoaderData, useNavigate, useLocation } from "react-route
 import { formatErrorMessage, isAccessibleKeyboardEvent } from "@boomerang-io/utils";
 import { useFeature } from "flagged";
 import debounce from "lodash/debounce";
-import kebabcase from "lodash/kebabCase";
+import { toWorkspaceName } from "Utils/workspaceName";
 import FormattedDate from "Components/FormattedDate";
 import queryString from "query-string";
 import EmptyState from "Components/EmptyState";
@@ -167,7 +167,7 @@ const WorkspaceList: React.FC = () => {
       {
         intent: "create",
         body: JSON.stringify({
-          name: kebabcase(values.name?.replace(`'`, "-")),
+          name: toWorkspaceName(values.name ?? ""),
           displayName: values.name,
           members: [
             {

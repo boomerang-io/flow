@@ -36,6 +36,9 @@ public interface RelationshipNodeRepository
   List<RelationshipNodeEntity> findByTypeAndRefOrSlugIn(
       String type, Collection<String> refsOrSlugs);
 
+  /** How many nodes of one type carry the slug; served by the {@code type_slug} index. */
+  long countByTypeAndSlug(String type, String slug);
+
   /** Nodes of one type carrying any of the slugs; served by the {@code type_slug} index. */
   List<RelationshipNodeEntity> findByTypeAndSlugIn(String type, Collection<String> slugs);
 

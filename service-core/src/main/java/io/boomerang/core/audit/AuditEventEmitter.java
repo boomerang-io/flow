@@ -1,5 +1,7 @@
 package io.boomerang.core.audit;
 
+import io.boomerang.core.RelationshipService;
+import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.core.entity.SettingEntity;
 import io.boomerang.core.model.SettingConfig;
 import io.boomerang.core.model.Token;
@@ -29,14 +31,32 @@ public class AuditEventEmitter {
   private final AuditEventWriter writer;
   private final IdentityService identityService;
   private final SettingsRepository settingsRepository;
+  private final RelationshipService relationshipService;
 
   public AuditEventEmitter(
       AuditEventWriter writer,
       IdentityService identityService,
-      SettingsRepository settingsRepository) {
+      SettingsRepository settingsRepository,
+      RelationshipService relationshipService) {
     this.writer = writer;
     this.identityService = identityService;
     this.settingsRepository = settingsRepository;
+    this.relationshipService = relationshipService;
+  }
+
+  /**
+   * Return the workspace a site names, by id or name, as the trail records it: its id and its name
+   * now. One graph node read, none when the request has already resolved it. A reference no
+   * workspace answers to is kept as both, so the event still says what it was given.
+   */
+  public AuditWorkspace workspace(String idOrName) {
+    if (idOrName == null || idOrName.isBlank()) {
+      return AuditWorkspace.NONE;
+    }
+    return relationshipService
+        .findNode(RelationshipType.WORKSPACE, idOrName)
+        .map(node -> new AuditWorkspace(node.getRef(), node.getSlug()))
+        .orElse(new AuditWorkspace(idOrName, idOrName));
   }
 
   /** True when a site declared at {@code siteLevel} fires under the configured settings. */
@@ -73,7 +93,7 @@ public class AuditEventEmitter {
       String resourceType,
       String resourceId,
       String resourceName,
-      String workspaceId,
+      String workspace,
       AuditOutcome outcome,
       String errorSummary,
       Map<String, Object> detail) {
@@ -81,10 +101,12 @@ public class AuditEventEmitter {
       return;
     }
     AuditRequestContext http = AuditRequestContext.capture();
+    AuditWorkspace owner = workspace(workspace);
     writer.persist(
         new AuditRecord(
             currentActor(http),
-            workspaceId,
+            owner.id(),
+            owner.name(),
             action,
             level,
             resourceType,
@@ -113,7 +135,7 @@ public class AuditEventEmitter {
       String resourceType,
       String resourceId,
       String resourceName,
-      String workspaceId,
+      AuditWorkspace workspace,
       Map<String, Object> payload) {
     if (!captureEnabled(level)) {
       return;
@@ -121,7 +143,8 @@ public class AuditEventEmitter {
     writer.persist(
         new AuditRecord(
             actor,
-            workspaceId,
+            workspace.id(),
+            workspace.name(),
             action,
             level,
             resourceType,

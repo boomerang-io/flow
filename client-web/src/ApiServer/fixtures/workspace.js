@@ -13,6 +13,7 @@ const workspace = {
       quotas: {
         maxWorkflowCount: 10,
         maxWorkflowRunMonthly: 100,
+        maxCumulativeDuration: 600,
         maxWorkspaceStorage: 5,
         maxWorkflowRunDuration: 30,
         maxConcurrentRuns: 4,
@@ -22,6 +23,7 @@ const workspace = {
         currentConcurrentRuns: 0,
         currentQueuedRuns: 0,
         currentRunAverageDuration: 120000,
+        currentCumulativeDuration: 412,
         currentRunTotalDuration: 20,
         monthlyResetDate: "August 1, 2020",
         maxArtifactStorage: 5,

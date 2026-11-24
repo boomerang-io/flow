@@ -56,8 +56,15 @@ public class AuditEventEntity {
   /** Token class or actor kind: session, user, key, global, service, agent, workflow, system. */
   private String actorType;
 
-  /** Owning workspace, or null for instance-scoped events (tokens, settings). */
+  /**
+   * Owning workspace by its id, which a rename never changes, or null for instance-scoped events
+   * (tokens, settings). An event for a workspace that no longer existed when it was recorded keeps
+   * the reference it was given.
+   */
   private String workspaceId;
+
+  /** The workspace's name when the event was recorded, for display; never read for a decision. */
+  private String workspaceName;
 
   /** {@link AuditAction} name. */
   private String action;

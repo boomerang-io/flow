@@ -30,6 +30,7 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import org.bson.Document;
 import org.springframework.dao.DuplicateKeyException;
+import org.springframework.dao.IncorrectResultSizeDataAccessException;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -111,12 +112,37 @@ public class RelationshipService {
     if (memo != null && memo.containsKey(key)) {
       return Optional.of(memo.get(key));
     }
+    // An id names its node whatever slug another carries; a slug names a node only when no other
+    // node of the type carries it, as a workspace name a 3.5 upgrade carried over twice does not.
+    List<RelationshipNodeEntity> found =
+        nodeRepository.findByTypeAndRefOrSlugIn(type.getLabel(), List.of(refOrSlug));
     Optional<RelationshipNodeEntity> node =
-        nodeRepository.findOneByTypeAndRefOrSlug(type.getLabel(), refOrSlug);
+        found.stream()
+            .filter(candidate -> refOrSlug.equals(candidate.getRef()))
+            .findFirst()
+            .or(() -> (found.size() == 1) ? Optional.of(found.get(0)) : Optional.empty());
     if (memo != null && node.isPresent()) {
       memo.put(key, node.get());
     }
     return node;
+  }
+
+  /**
+   * Return the node of the type with the ref or slug, memoised for the current request as every
+   * resolution is; empty when there is none, or when a slug is held by more than one node, as a
+   * workspace name a 3.5 upgrade carried over twice is: such a name names neither.
+   */
+  public Optional<RelationshipNodeEntity> findNode(RelationshipType type, String refOrSlug) {
+    try {
+      return resolveNode(type, refOrSlug);
+    } catch (IncorrectResultSizeDataAccessException ambiguous) {
+      return Optional.empty();
+    }
+  }
+
+  /** Return whether more than one node of the type carries the slug, so the slug names none. */
+  public boolean isAmbiguous(RelationshipType type, String slug) {
+    return nodeRepository.countByTypeAndSlug(type.getLabel(), slug) > 1;
   }
 
   /**
@@ -519,7 +545,8 @@ public class RelationshipService {
       Optional<List<String>> intermediateList) {
     Token identity = identityService.getCurrentIdentity();
     String principal = identity.getPrincipal();
-    if (!checkPermissions(identity.getPermissions(), type, toList)) {
+    if (!checkPermissions(identity.getPermissions(), type, toList)
+        && !grantsNameTheWorkspaces(identity.getPermissions(), type, toList)) {
       // Enforced (ruled 2026-08-31): a failed permission check IS a denial. The shadow
       // would-deny path was retired with the v4-compat requirement.
       LOGGER.warn(
@@ -599,6 +626,23 @@ public class RelationshipService {
             .map(ResolvedPermissions::getPrincipal)
             .collect(Collectors.toList());
     return flattenedPermissionPrincipals.containsAll(toList);
+  }
+
+  // A workspace is named by its id or its name, in a grant and in a path alike: each one asked for
+  // counts when a grant names its node either way, as grantsIn reads a grant.
+  private boolean grantsNameTheWorkspaces(
+      List<ResolvedPermissions> permissions, RelationshipType type, List<String> toList) {
+    if (!RelationshipType.WORKSPACE.equals(type) || toList.isEmpty()) {
+      return false;
+    }
+    Set<String> principals =
+        permissions.stream().map(ResolvedPermissions::getPrincipal).collect(Collectors.toSet());
+    return toList.stream()
+        .allMatch(
+            to ->
+                findNode(type, to)
+                    .map(node -> principals.contains(node.getRef()) || principals.contains(node.getSlug()))
+                    .orElse(false));
   }
 
   /**

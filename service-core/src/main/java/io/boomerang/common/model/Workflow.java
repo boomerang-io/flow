@@ -3,6 +3,7 @@ package io.boomerang.common.model;
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 import com.fasterxml.jackson.annotation.JsonInclude;
 import com.fasterxml.jackson.annotation.JsonInclude.Include;
+import com.fasterxml.jackson.annotation.JsonProperty;
 import com.fasterxml.jackson.annotation.JsonPropertyOrder;
 import io.boomerang.common.enums.WorkflowStatus;
 import io.boomerang.common.enums.WorkflowType;
@@ -65,6 +66,10 @@ public class Workflow {
   private WorkflowType type;
   // On a link: the template whose revision this workflow runs by reference (name, version).
   private WorkflowTemplateRef templateRef;
+  // Read-only, worked out on each read: whether its runs use none of the workspace's monthly
+  // quotas (the quotas setting unmetered.workflows). Never stored.
+  @JsonProperty(access = JsonProperty.Access.READ_ONLY)
+  private Boolean unmetered;
 
   @Override
   public String toString() {

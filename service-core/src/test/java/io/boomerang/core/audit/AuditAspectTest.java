@@ -67,6 +67,13 @@ class AuditAspectTest {
     emitter = mock(AuditEventEmitter.class);
     writer = mock(AuditEventWriter.class);
     when(emitter.currentActor(any())).thenReturn(AuditActor.system());
+    // The emitter resolves a workspace named by id or name to its id and its name now.
+    when(emitter.workspace(any()))
+        .thenAnswer(
+            call ->
+                (call.getArgument(0) == null)
+                    ? AuditWorkspace.NONE
+                    : new AuditWorkspace("id-of-" + call.getArgument(0), call.getArgument(0)));
     AspectJProxyFactory factory = new AspectJProxyFactory(new AuditedTarget());
     factory.addAspect(new AuditAspect(emitter, writer));
     target = factory.getProxy();
@@ -87,7 +94,8 @@ class AuditAspectTest {
     assertThat(record.resourceType()).isEqualTo("workflow");
     assertThat(record.resourceId()).isEqualTo("MY-WORKFLOW");
     assertThat(record.resourceName()).isEqualTo("my-workflow");
-    assertThat(record.workspaceId()).isEqualTo("acme");
+    assertThat(record.workspaceId()).isEqualTo("id-of-acme");
+    assertThat(record.workspaceName()).isEqualTo("acme");
     assertThat(record.actor().id()).isEqualTo("system");
     assertThat(record.durationMs()).isNotNull();
   }

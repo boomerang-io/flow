@@ -59,6 +59,10 @@ public class AuditAspect {
     }
 
     long start = System.nanoTime();
+    // The workspace is resolved before the call, so a delete or a rename records the workspace as
+    // it was; only a site that names it by the call's result (a create) waits for that.
+    AuditWorkspace before =
+        audited.workspaceId().contains("#result") ? null : workspaceOf(pjp, audited, null);
     boolean collecting = SecretChangeHolder.open();
     Object result;
     try {
@@ -68,12 +72,33 @@ public class AuditAspect {
       if (collecting) {
         SecretChangeHolder.close();
       }
-      emit(pjp, audited, null, e, outcomeOf(e), start, null);
+      emit(pjp, audited, null, e, outcomeOf(e), start, null, before);
       throw e;
     }
     Map<String, Object> detail = collecting ? SecretChangeHolder.close() : null;
-    emit(pjp, audited, result, null, AuditOutcome.SUCCESS, start, detail);
+    emit(pjp, audited, result, null, AuditOutcome.SUCCESS, start, detail, before);
     return result;
+  }
+
+  // The site's workspace, by id and name, or none when it names none or cannot be resolved.
+  private AuditWorkspace workspaceOf(ProceedingJoinPoint pjp, Audited audited, Object result) {
+    try {
+      return emitter.workspace(evaluate(audited.workspaceId(), context(pjp, result), method(pjp)));
+    } catch (RuntimeException e) {
+      LOGGER.warn("Failed to resolve the audited workspace: {}", e.toString());
+      return AuditWorkspace.NONE;
+    }
+  }
+
+  private static Method method(ProceedingJoinPoint pjp) {
+    return ((MethodSignature) pjp.getSignature()).getMethod();
+  }
+
+  private static MethodBasedEvaluationContext context(ProceedingJoinPoint pjp, Object result) {
+    MethodBasedEvaluationContext context =
+        new MethodBasedEvaluationContext(pjp.getTarget(), method(pjp), pjp.getArgs(), PARAMETER_NAMES);
+    context.setVariable("result", result);
+    return context;
   }
 
   /** A refused authentication or authorization is DENIED; any other failure is FAILED. */
@@ -96,20 +121,21 @@ public class AuditAspect {
       Throwable error,
       AuditOutcome outcome,
       long startNanos,
-      Map<String, Object> detail) {
+      Map<String, Object> detail,
+      AuditWorkspace before) {
     try {
-      Method method = ((MethodSignature) pjp.getSignature()).getMethod();
-      MethodBasedEvaluationContext context =
-          new MethodBasedEvaluationContext(pjp.getTarget(), method, pjp.getArgs(), PARAMETER_NAMES);
-      context.setVariable("result", result);
+      Method method = method(pjp);
+      MethodBasedEvaluationContext context = context(pjp, result);
 
       AuditRequestContext http = AuditRequestContext.capture();
       long durationMs = (System.nanoTime() - startNanos) / 1_000_000;
+      AuditWorkspace workspace = (before != null) ? before : workspaceOf(pjp, audited, result);
 
       writer.persist(
           new AuditRecord(
               emitter.currentActor(http),
-              evaluate(audited.workspaceId(), context, method),
+              workspace.id(),
+              workspace.name(),
               audited.action(),
               audited.level(),
               audited.resourceType(),

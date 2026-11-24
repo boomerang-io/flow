@@ -59,4 +59,18 @@ describe("WorkspaceCreateContent --- RTL", () => {
     expect(await screen.findByText(/the name 'Tyson Workspace' is unavailable/i)).toBeInTheDocument();
     await waitFor(() => expect(screen.getByText(/^Create$/i)).toBeDisabled());
   });
+
+  // The name shown is the one the server takes: non-Latin letters and punctuation drop out, digits
+  // stay where they are, and a display name that leaves nothing says so.
+  test("previews the server's form of the name, and says when nothing is left of it", async () => {
+    render(<WorkspaceCreateContent {...defaultProps} />);
+    const nameInput = screen.getByLabelText(/^Display Name$/i);
+
+    fireEvent.change(nameInput, { target: { value: "Ops 开发 team2!" } });
+    expect(await screen.findByText("ops-team2")).toBeInTheDocument();
+
+    fireEvent.change(nameInput, { target: { value: "开发团队" } });
+    expect(await screen.findByText(/nothing for the web address/)).toBeInTheDocument();
+    await waitFor(() => expect(screen.getByText(/^Create$/i)).toBeDisabled());
+  });
 });
