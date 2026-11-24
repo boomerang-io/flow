@@ -1,4 +1,7 @@
-FROM eclipse-temurin:21-jre-alpine
+FROM eclipse-temurin:21-jre-alpine-3.22
+
+# Pull in latest security fixes for Alpine system packages used by the runtime image.
+RUN apk --no-cache upgrade
     
 ARG BMRG_TAG
 ENV JAVA_OPTS=""
