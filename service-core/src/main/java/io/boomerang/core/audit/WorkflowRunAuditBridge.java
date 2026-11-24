@@ -89,7 +89,7 @@ public class WorkflowRunAuditBridge {
         return;
       }
       AuditActor actor = currentActorOrSystem();
-      // The workflow's name and its owning workspace's name: one edge read and one node read.
+      // The workflow's name and its owning workspace's id and name: one edge read and one node read.
       String workspaceRef = owningWorkspaceRef(transition);
       Map<String, RelationshipNodeEntity> nodes =
           names(Stream.of(transition.workflowRef(), workspaceRef).filter(Objects::nonNull).toList());
@@ -101,6 +101,8 @@ public class WorkflowRunAuditBridge {
             transition.id(),
             transition.workflowRef());
       }
+      // The trail keys the run's events on the workspace's id, with its name now beside it.
+      AuditWorkspace owner = new AuditWorkspace(workspaceRef, workspace);
       boolean unmetered = unmetered(transition, workspace, workflowName);
       if (created) {
         Map<String, Object> payload = payload(transition, workflowName, null);
@@ -114,7 +116,7 @@ public class WorkflowRunAuditBridge {
             RESOURCE_TYPE,
             transition.id(),
             workflowName,
-            workspace,
+            owner,
             payload);
       }
       if (completed) {
@@ -147,7 +149,7 @@ public class WorkflowRunAuditBridge {
             RESOURCE_TYPE,
             transition.id(),
             workflowName,
-            workspace,
+            owner,
             payload);
       }
     } catch (RuntimeException e) {

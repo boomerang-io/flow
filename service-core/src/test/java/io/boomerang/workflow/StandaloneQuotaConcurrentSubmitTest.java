@@ -52,6 +52,7 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
 
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private io.boomerang.workspace.repository.WorkspaceRepository workspaceRepository;
   @Autowired private AuditQueryService auditQueryService;
 
   private SettingEntity auditSettingsAdded;
@@ -206,8 +207,10 @@ class StandaloneQuotaConcurrentSubmitTest extends AbstractEngineIntegrationTest 
 
   private long auditedRunCreates(String workspace) {
     return auditQueryService
-        .monthlyUsage(List.of(workspace), new Date(0), new Date(Long.MAX_VALUE))
-        .getOrDefault(workspace, new AuditQueryService.MonthlyUsage(0L, 0L))
+        .monthlyUsage(
+            List.of(workspaceRepository.findByNameIgnoreCase(workspace).orElseThrow().getId()), new Date(0), new Date(Long.MAX_VALUE))
+        .getOrDefault(
+            workspaceRepository.findByNameIgnoreCase(workspace).orElseThrow().getId(), new AuditQueryService.MonthlyUsage(0L, 0L))
         .runs();
   }
 

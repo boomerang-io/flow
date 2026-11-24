@@ -159,7 +159,9 @@ class CumulativeDurationQuotaTest extends AbstractEngineIntegrationTest {
   // A run of the month that ended having used these minutes, as its completion's audit event.
   private void minutesUsed(String workspace, long minutes) {
     AuditEventEntity event = new AuditEventEntity();
-    event.setWorkspaceId(workspace);
+    // The trail keys a workspace's events on its id.
+    event.setWorkspaceId(workspaceService.get(workspace).getId());
+    event.setWorkspaceName(workspace);
     event.setAction("UPDATE");
     event.setResourceType("workflowrun");
     event.setResourceId("cumulative-quota-run-" + System.nanoTime());

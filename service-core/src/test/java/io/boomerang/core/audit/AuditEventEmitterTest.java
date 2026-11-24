@@ -27,7 +27,10 @@ class AuditEventEmitterTest {
     settingsRepository = mock(SettingsRepository.class);
     emitter =
         new AuditEventEmitter(
-            mock(AuditEventWriter.class), mock(IdentityService.class), settingsRepository);
+            mock(AuditEventWriter.class),
+            mock(IdentityService.class),
+            settingsRepository,
+            mock(io.boomerang.core.RelationshipService.class));
   }
 
   private void auditSettings(String enabled, String level) {

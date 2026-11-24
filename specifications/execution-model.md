@@ -94,7 +94,7 @@ takes `pending` runs as well as `running` ones, never a parked one (`:574-591`),
 Admission holds a run to two limits, each counted before `tryAdmit` and again after it (`engine/WorkflowExecutionService.java:107-151`). The first is its workflow's `concurrency: {limit, overflow}`
 (`common/model/WorkflowConcurrency.java:18-19`, saved with the revision; a limit below 1 is refused at save, `workflow/WorkflowService.java:563-567`), counted over the workflow's runs in flight:
 `ready` or `running`, or in the finally stage (`engine/WorkflowRunStateHelper.java:234-272`). The second is the owning workspace's `max.workflowrun.concurrent` quota, counted the same way over every
-workflow the workspace owns (`QuotaService.runSlots`, `workflow/QuotaService.java:621-704`). The workspace limit is skipped when quotas are switched off, no workspace owns the workflow, the limit is
+workflow the workspace owns (`QuotaService.runSlots`, `workflow/QuotaService.java:623-706`). The workspace limit is skipped when quotas are switched off, no workspace owns the workflow, the limit is
 `0`, or the run is a child (`trigger=task`): a child starts at once and counts toward the total, its parent holding a slot already, while a child's retry (`trigger=retry`) is held like any run.
 After a successful admission `holdsSlot` steps back a run that is not among the oldest `limit` in flight by creation date, then id, of its workflow and then of its workspace
 (`engine/WorkflowRunStateHelper.java:247-260`). The recount is not exact: a newer run that recounts before an older one is admitted keeps its slot and never looks again, so a burst of simultaneous
@@ -280,8 +280,8 @@ stage's deadline does (`engine/WorkflowExecutionService.java:397-402,434-460,541
 **The finally stage has its own budget, and it counts.** The run's timeout is the graph's: at graph end `timeoutAt` is replaced by the stage's deadline, so a run that timed out still gets its
 clean-up. The budget is the `workflowrun` setting `finally.timeout` (5 minutes), an operator's ceiling and default at once: every finally task's own timeout is capped by it, timing out that task
 alone (`engine/DAGUtility.java:349-356`), no workflow or run field raises it, and when it passes the run completes with any finally task still running ended. The time is counted: `duration` is
-written again at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:330-333`), and a run in the stage holds its concurrent-run slot and its
-workflow's concurrency slot until it completes (`workflow/QuotaService.java:351,695-704`, `engine/WorkflowRunStateHelper.java:262-272`). A workspace's `max.workflowrun.duration` bounds the graph, not
+written again at completion, so the audit event the monthly totals read includes the stage (`workflow/QuotaService.java:332-335`), and a run in the stage holds its concurrent-run slot and its
+workflow's concurrency slot until it completes (`workflow/QuotaService.java:353,697-706`, `engine/WorkflowRunStateHelper.java:262-272`). A workspace's `max.workflowrun.duration` bounds the graph, not
 the stage, so a workflow author gains at most `finally.timeout` of extra execution per run.
 
 ## Outbound events: the transactional outbox
@@ -289,7 +289,7 @@ the stage, so a workflow author gains at most `finally.timeout` of extra executi
 Compare-and-set winners publish an in-process `TaskRunTransition` or `WorkflowRunTransition`. `WorkflowRunAuditBridge`
 records a CREATE audit event on a run's first status change and an UPDATE with the terminal status, duration and
 cumulative duration, its task runs' time from start to end added up, at `completed`: the events the monthly quotas count
-(`core/audit/WorkflowRunAuditBridge.java:74-157`); task-run transitions are not audited, and auditing never fails the transition.
+(`core/audit/WorkflowRunAuditBridge.java:74-159`); task-run transitions are not audited, and auditing never fails the transition.
 
 When `flow.events.sink.enabled=true` (default `false`, `service-core/src/main/resources/application.properties:85`), `CloudEventsBridge` inserts one `events_outbox` row per externally visible status
 change, or per run reaching `completed` with a status its caller wrote directly; the start and end nodes write none (`event/CloudEventsBridge.java:39-86`). `OutboxDispatcher` then drains every

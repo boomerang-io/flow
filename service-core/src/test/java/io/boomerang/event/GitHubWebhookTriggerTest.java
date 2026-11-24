@@ -314,7 +314,7 @@ class GitHubWebhookTriggerTest extends AbstractEngineIntegrationTest {
     return auditEventRepository.findAll().stream()
         .filter(
             event ->
-                workspace.equals(event.getWorkspaceId())
+                workspace.equals(event.getWorkspaceName())
                     && "SUBMIT".equals(event.getAction())
                     && "FAILED".equals(event.getOutcome())
                     && "workflow".equals(event.getResourceType()))

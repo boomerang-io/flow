@@ -63,11 +63,13 @@ class WorkflowRunAuditBridgeUnmeteredReadTest {
     ArgumentCaptor<Map<String, Object>> updated = ArgumentCaptor.forClass(Map.class);
     verify(emitter)
         .emitAs(
-            any(), eq(AuditAction.CREATE), any(), any(), eq("run-1"), eq("nightly"), eq("team"),
+            any(), eq(AuditAction.CREATE), any(), any(), eq("run-1"), eq("nightly"),
+            eq(new AuditWorkspace("workspace-ref", "team")),
             created.capture());
     verify(emitter)
         .emitAs(
-            any(), eq(AuditAction.UPDATE), any(), any(), eq("run-1"), eq("nightly"), eq("team"),
+            any(), eq(AuditAction.UPDATE), any(), any(), eq("run-1"), eq("nightly"),
+            eq(new AuditWorkspace("workspace-ref", "team")),
             updated.capture());
     assertThat(created.getValue()).doesNotContainKey("unmetered");
     assertThat(updated.getValue())

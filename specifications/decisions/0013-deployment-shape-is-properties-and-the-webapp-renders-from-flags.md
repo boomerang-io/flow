@@ -23,7 +23,7 @@ B and D, and the webapp reads only server-computed flags. `flow.security.enabled
 `core/security/FlowSecurityProperties.java:19-21`) switches authentication and authorization together.
 `flow.workspace.single` (default `false`) confines `{workspace}` paths to the seeded `system` workspace and refuses
 workspace create and delete (`core/security/SingleWorkspaceInterceptorConfiguration.java:22-28`,
-`workspace/WorkspaceService.java:177-179,383-385`). With security off, every request carries an `UnauthenticatedGlobalToken`
+`workspace/WorkspaceService.java:178-180,389-391`). With security off, every request carries an `UnauthenticatedGlobalToken`
 (principal `system`, actor kind `SERVICE`, one `**/**` grant; `core/security/UnauthenticatedGlobalToken.java:64-72`)
 that `core/UserService.java:325-327` maps to an admin user built in memory: the token already holds every permission, so
 the profile adds no privilege, where a stored user would add risk. `core/FeatureService.java:31-87` turns the properties

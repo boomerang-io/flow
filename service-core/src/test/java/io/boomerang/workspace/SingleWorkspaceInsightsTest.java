@@ -31,6 +31,7 @@ class SingleWorkspaceInsightsTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkflowService workflowService;
   @Autowired private AuditQueryService auditQueryService;
+  @Autowired private io.boomerang.workspace.repository.WorkspaceRepository workspaceRepository;
 
   @BeforeEach
   void seedFixtures() {
@@ -80,7 +81,9 @@ class SingleWorkspaceInsightsTest extends AbstractEngineIntegrationTest {
             () ->
                 auditQueryService
                         .runTotals(
-                            SYSTEM_WORKSPACE, from, new Date(System.currentTimeMillis() + 60_000))
+                            workspaceRepository.findByNameIgnoreCase(SYSTEM_WORKSPACE).orElseThrow().getId(),
+                            from,
+                            new Date(System.currentTimeMillis() + 60_000))
                         .runs()
                     >= 1);
   }

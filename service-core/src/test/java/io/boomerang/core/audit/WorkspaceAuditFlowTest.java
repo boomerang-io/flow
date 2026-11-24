@@ -25,6 +25,7 @@ class WorkspaceAuditFlowTest extends AbstractEngineIntegrationTest {
 
   @Autowired private WorkspaceControllerV2 workspaceController;
   @Autowired private AuditEventRepository auditEventRepository;
+  @Autowired private io.boomerang.workspace.repository.WorkspaceRepository workspaceRepository;
 
   @BeforeEach
   void seedAuditSettings() {
@@ -74,7 +75,10 @@ class WorkspaceAuditFlowTest extends AbstractEngineIntegrationTest {
               assertThat(event.getAction()).isEqualTo("CREATE");
               assertThat(event.getResourceType()).isEqualTo("workspace");
               assertThat(event.getResourceName()).isEqualTo("Audit Flow WS");
-              assertThat(event.getWorkspaceId()).isEqualTo(name);
+              assertThat(event.getWorkspaceId())
+                  .as("the new workspace's id")
+                  .isEqualTo(workspaceRepository.findByNameIgnoreCase(name).orElseThrow().getId());
+              assertThat(event.getWorkspaceName()).isEqualTo(name);
               assertThat(event.getOutcome()).isEqualTo("SUCCESS");
               assertThat(event.getLevel()).isEqualTo("WRITE");
               assertThat(event.getActorId()).isEqualTo("integration-test-principal");

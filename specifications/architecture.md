@@ -34,7 +34,7 @@ There is no separate engine image (`.github/workflows/ci-release.yml:31-36`).
 | Property | Default | `true` | `false` |
 | --- | --- | --- | --- |
 | `flow.security.enabled` | `true` | `AuthenticationFilter` resolves a real token on every request and `@AuthCriteria` is enforced (`core/security/FlowSecurityProperties.java:19-20`; `authorization.md`). | Every request runs as the synthetic admin `UnauthenticatedGlobalToken`; the sign-in surface answers `mode=none`. |
-| `flow.workspace.single` | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `WORKSPACE_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-48`, registered on `/api/v2/workspace/{workspace}` and `/api/v2/workspace/{workspace}/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `WORKSPACE_INVALID_REQ` (`workspace/WorkspaceService.java:177-179,383-385`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
+| `flow.workspace.single` | `false` | The seeded `system` workspace is the only one: any other `{workspace}` path segment is refused with `WORKSPACE_INVALID_REF` (`core/security/SingleWorkspaceInterceptor.java:32-48`, registered on `/api/v2/workspace/{workspace}` and `/api/v2/workspace/{workspace}/**` by `SingleWorkspaceInterceptorConfiguration.java:22-26`), and `WorkspaceService.create` and `delete` refuse with `WORKSPACE_INVALID_REQ` (`workspace/WorkspaceService.java:178-180,389-391`). Every other route, the workspace and profile reads included, is the standard one. | Any workspace. |
 
 Two switches are separate from the shape, and either shape may set them (`:71`, `:111`):
 

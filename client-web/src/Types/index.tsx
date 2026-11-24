@@ -369,7 +369,9 @@ export interface AuditEvent {
   actorId?: string;
   actorName?: string;
   actorType?: string;
+  // The workspace's id, which a rename never changes, and its name when the event was recorded.
   workspaceId?: string;
+  workspaceName?: string;
   action?: string;
   resourceType?: string;
   resourceId?: string;

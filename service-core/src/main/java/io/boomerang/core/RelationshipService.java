@@ -120,6 +120,14 @@ public class RelationshipService {
   }
 
   /**
+   * Return the node of the type with the ref or slug, memoised for the current request as every
+   * resolution is; empty when there is none.
+   */
+  public Optional<RelationshipNodeEntity> findNode(RelationshipType type, String refOrSlug) {
+    return resolveNode(type, refOrSlug);
+  }
+
+  /**
    * {@link #resolveNode} for several refs-or-slugs of one type, keyed by the value asked for; one
    * that resolves to nothing is absent. The ones not already memoised are read in one query.
    */

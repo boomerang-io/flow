@@ -433,6 +433,23 @@ public class TokenService {
 
   // A principal's tokens the caller may list: its own, or a workspace's or a workflow's where the
   // caller's grant to read tokens counts.
+  // The principals, with each workspace among them named by both its id and its name.
+  private List<String> withWorkspaceForms(List<String> principals) {
+    if (principals.isEmpty()) {
+      return principals;
+    }
+    Set<String> forms = new LinkedHashSet<>(principals);
+    relationshipService
+        .nodesByRef(principals, RelationshipType.WORKSPACE)
+        .values()
+        .forEach(node -> forms.add(node.getSlug()));
+    relationshipService
+        .nodesBySlug(RelationshipType.WORKSPACE, principals)
+        .values()
+        .forEach(node -> forms.add(node.getRef()));
+    return new ArrayList<>(forms);
+  }
+
   private boolean mayRead(Token caller, String principal) {
     return isCallersOwn(caller, principal)
         || relationshipService.grantsIn(principal, PermissionResource.TOKEN, PermissionAction.READ)
@@ -615,6 +632,9 @@ public class TokenService {
                   .filter(principal -> mayRead(caller, principal))
                   .toList());
     }
+    // A workspace's tokens name it by its id, or by its name when minted before they took the
+    // id: asking for either form lists both. Two node reads, only when principals are asked for.
+    queryPrincipals = queryPrincipals.map(this::withWorkspaceForms);
     Query query =
         new Query(
             new QueryCriteria()

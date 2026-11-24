@@ -274,9 +274,11 @@ public class QuotaService {
     if (entities.isEmpty()) {
       return current;
     }
-    // Counted under each workspace's own name, the key its audit events and graph node carry,
-    // whatever form the caller named it in.
+    // The graph's workflows are counted under each workspace's own name, whatever form the caller
+    // named it in.
     List<String> workspaces = entities.stream().map(WorkspaceEntity::getName).toList();
+    // The audit trail keys its events on the workspace's id, which a rename never changes.
+    List<String> workspaceIds = entities.stream().map(WorkspaceEntity::getId).toList();
     Map<String, String> settings = quotaSettings();
     Quotas defaults = defaults(settings);
     MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
@@ -285,9 +287,9 @@ public class QuotaService {
     // from the audit trail so runs of since-deleted Workflows still count; and the month's runs
     // and cumulative minutes, the unmetered workflows' left out.
     Map<String, AuditQueryService.RunTotals> runTotals =
-        auditQueryService.runTotals(workspaces, month.from(), month.to());
+        auditQueryService.runTotals(workspaceIds, month.from(), month.to());
     Map<String, AuditQueryService.MonthlyUsage> monthlyUsage =
-        auditQueryService.monthlyUsage(workspaces, month.from(), month.to());
+        auditQueryService.monthlyUsage(workspaceIds, month.from(), month.to());
 
     // The workspaces' workflows by their own edges: a quota is the workspace's whoever asks, and
     // the engine asks with no identity when it adopts a template link for a child run.
@@ -326,13 +328,13 @@ public class QuotaService {
       overlay(quotas, entity.getQuotas());
       quotas.setMonthlyResetDate(month.to());
       AuditQueryService.RunTotals totals =
-          runTotals.getOrDefault(workspace, new AuditQueryService.RunTotals(0L, 0L, 0L));
+          runTotals.getOrDefault(entity.getId(), new AuditQueryService.RunTotals(0L, 0L, 0L));
       quotas.setCurrentRunTotalDuration(totals.duration());
       // Only an ended run has a duration, so the mean is over the runs that ended.
       quotas.setCurrentRunAverageDuration(
           (totals.endedRuns() > 0) ? totals.duration() / totals.endedRuns() : 0L);
       AuditQueryService.MonthlyUsage usage =
-          monthlyUsage.getOrDefault(workspace, new AuditQueryService.MonthlyUsage(0L, 0L));
+          monthlyUsage.getOrDefault(entity.getId(), new AuditQueryService.MonthlyUsage(0L, 0L));
       List<String> metered = refs.stream().filter(ref -> !unmetered.contains(ref)).toList();
       // Monthly = max(audit count, live count), deliberately: the audit write is async best-effort,
       // so a just-admitted run may not be audited yet (the live count covers that race), while a
@@ -577,8 +579,8 @@ public class QuotaService {
       MonthWindow month = MonthWindow.of(LocalDate.now(ZoneOffset.UTC));
       AuditQueryService.MonthlyUsage usage =
           auditQueryService
-              .monthlyUsage(List.of(entity.getName()), month.from(), month.to())
-              .getOrDefault(entity.getName(), new AuditQueryService.MonthlyUsage(0L, 0L));
+              .monthlyUsage(List.of(entity.getId()), month.from(), month.to())
+              .getOrDefault(entity.getId(), new AuditQueryService.MonthlyUsage(0L, 0L));
       cumulative = usage.cumulativeMinutes();
       if (maxMonthly > 0) {
         monthly = Math.max(usage.runs(), liveRunsIn(workflowRefs, month));

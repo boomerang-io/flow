@@ -255,7 +255,7 @@ class UnmeteredWorkflowsTest extends AbstractEngineIntegrationTest {
 
   private long unmeteredCreates(String workspace, String workflowName) {
     return auditEventRepository.findAll().stream()
-        .filter(event -> workspace.equals(event.getWorkspaceId()))
+        .filter(event -> workspace.equals(event.getWorkspaceName()))
         .filter(event -> "CREATE".equals(event.getAction()))
         .filter(event -> workflowName.equals(event.getResourceName()))
         .filter(event -> Boolean.TRUE.equals(event.getPayload().get("unmetered")))
@@ -264,7 +264,9 @@ class UnmeteredWorkflowsTest extends AbstractEngineIntegrationTest {
 
   private void minutesUsed(String workspace, long minutes) {
     AuditEventEntity event = new AuditEventEntity();
-    event.setWorkspaceId(workspace);
+    // The trail keys a workspace's events on its id.
+    event.setWorkspaceId(workspaceService.get(workspace).getId());
+    event.setWorkspaceName(workspace);
     event.setAction("UPDATE");
     event.setResourceType("workflowrun");
     event.setResourceId("unmetered-test-run-" + System.nanoTime());

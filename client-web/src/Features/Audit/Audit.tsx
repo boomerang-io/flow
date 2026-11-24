@@ -434,6 +434,9 @@ function AuditTable({ events, captureEnabled, hasFilters, order, onSort, onPagin
                         <TableCell>
                           <span>{event.resourceName ?? event.resourceId ?? "---"}</span>
                           {event.resourceType && <span className={styles.muted}>{event.resourceType}</span>}
+                          {event.workspaceName && (
+                            <span className={styles.muted}>{`in ${event.workspaceName}`}</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <Outcome outcome={event.outcome} />

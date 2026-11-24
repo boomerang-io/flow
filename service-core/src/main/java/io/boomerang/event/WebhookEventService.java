@@ -258,7 +258,7 @@ public class WebhookEventService {
           "workflow",
           relationshipService.getSlugByRefForType(RelationshipType.WORKFLOW, workflowId),
           null,
-          relationshipService.getSlugByRefForType(RelationshipType.WORKSPACE, workspace),
+          workspace,
           AuditOutcome.FAILED,
           refusal instanceof BoomerangException known
               ? known.getReason() + ": " + messageOf(known)

@@ -52,6 +52,7 @@ class WorkflowRunAuditBridgeTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private io.boomerang.workspace.repository.WorkspaceRepository workspaceRepository;
   @Autowired private AuditEventRepository auditEventRepository;
   @Autowired private ApplicationEventPublisher eventPublisher;
 
@@ -94,7 +95,8 @@ class WorkflowRunAuditBridgeTest extends AbstractEngineIntegrationTest {
               assertThat(events).hasSize(1);
               AuditEventEntity event = events.get(0);
               assertThat(event.getResourceType()).isEqualTo("workflowrun");
-              assertThat(event.getWorkspaceId()).isEqualTo(workspace);
+              assertThat(event.getWorkspaceId()).isEqualTo(workspaceRepository.findByNameIgnoreCase(workspace).orElseThrow().getId());
+              assertThat(event.getWorkspaceName()).isEqualTo(workspace);
               assertThat(event.getResourceName()).isEqualTo("run-audit-create-workflow");
               assertThat(event.getActorId()).isEqualTo("integration-test-principal");
               assertThat(event.getOutcome()).isEqualTo("SUCCESS");
@@ -121,7 +123,8 @@ class WorkflowRunAuditBridgeTest extends AbstractEngineIntegrationTest {
               assertThat(events).hasSize(1);
               AuditEventEntity event = events.get(0);
               assertThat(event.getResourceType()).isEqualTo("workflowrun");
-              assertThat(event.getWorkspaceId()).isEqualTo(workspace);
+              assertThat(event.getWorkspaceId()).isEqualTo(workspaceRepository.findByNameIgnoreCase(workspace).orElseThrow().getId());
+              assertThat(event.getWorkspaceName()).isEqualTo(workspace);
               assertThat(event.getPayload())
                   .containsEntry("status", "cancelled")
                   .containsEntry("phase", "completed")

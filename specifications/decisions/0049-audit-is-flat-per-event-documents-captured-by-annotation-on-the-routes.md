@@ -19,11 +19,13 @@ quotas also read it, so its events must outlive the runs and workflows they desc
 ## Decision
 
 Flat events captured by annotation, written asynchronously. `AuditAspect` records one event per `@Audited` attempt, SUCCESS, FAILED or DENIED,
-a refused authentication or authorization being DENIED (`core/audit/AuditAspect.java:56-89`), only when the `audit` settings group is enabled at a
+a refused authentication or authorization being DENIED (`core/audit/AuditAspect.java:56-114`), only when the `audit` settings group is enabled at a
 `level`, DESTRUCTIVE, WRITE or ALL, that the site meets (`core/audit/AuditLevel.java:14-28`). The engine's run transitions are recorded the same way,
-without a route (`core/audit/WorkflowRunAuditBridge.java:74-157`); task runs are not audited, for volume. `AuditEventWriter` saves each event on the
+without a route (`core/audit/WorkflowRunAuditBridge.java:74-159`); task runs are not audited, for volume. `AuditEventWriter` saves each event on the
 async executor and logs a failure rather than raising it (`core/audit/AuditEventWriter.java:27-40`). Events are documents in `audit`, indexed by time,
-workspace and time, actor and time, and resource (`migration/_0021__Indexes.java:175-187`), and expire after `retentionDays`, floored at 60 so a month
+workspace and time, actor and time, and resource (`migration/_0021__Indexes.java:175-187`). An event names its workspace by id, which a rename never
+changes, with its name at the time beside it for display; a site that names the workspace by its path is resolved to the id before the call, so a delete
+or a rename records the workspace as it was (`core/audit/AuditAspect.java:62-91`, `core/audit/AuditEventEmitter.java:47-60`). Events expire after `retentionDays`, floored at 60 so a month
 always holds (`core/audit/AuditRetentionService.java:29,52-103`). What decided it: an event per attempt is what a reader asks for, and an annotation on
 the route cannot drift from the route.
 
@@ -31,4 +33,5 @@ the route cannot drift from the route.
 
 - A reader of the trail, the monthly quotas among them, must allow for an event not written yet; they pair it with a live count. Raising the level is
   not retroactive, and a v3 database's per-object records are not carried over.
-- Events are keyed by workspace name, as routes name workspaces: renaming a workspace leaves its earlier events under the old name.
+- A renamed workspace keeps its trail and the figures read from it; a workspace created under a deleted one's name starts with none of its history,
+  which stays under the deleted workspace's id. Events recorded before 5.0.1 were re-keyed from names to ids on upgrade.

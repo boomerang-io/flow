@@ -89,6 +89,18 @@ tag's release notes.
 
 ### Changed
 
+- **Audit events record the workspace by its id, with its name at the time**, so a renamed workspace keeps its audit
+  history and monthly usage, and a workspace created under a deleted one's name starts fresh. The upgrade re-keys the
+  existing trail; the audit listing's `workspaceId` filter takes an id or a name, and each event shows the workspace's
+  name as it was then.
+- **Workspace tokens are now issued for the workspace's id.** A token created on a workspace's Tokens tab names the
+  workspace by its id, so it keeps working when the workspace is renamed. Tokens issued earlier name the workspace
+  and keep working until it is renamed; the Tokens tab lists both.
+- **A workspace's name is lower-case letters, numbers and hyphens.** A create or a rename whose name is in any other
+  form is refused `400 WORKSPACE_NAME_NOT_CANONICAL`, and the message says the form to send: `Platform Team` would be
+  `platform-team`. Workspaces already stored with another form keep it.
+- **A rename is confirmed first, and the display name changes on its own.** The workspace's Settings edit the
+  display name and the name in separate fields; a new name asks before it is saved, saying what stops working.
 - **Retries queue at the concurrent limit.** Retrying a run from the webapp or the API at the concurrent limit
   answers `200` with a `waiting` run, which starts when a slot frees; it is refused with `429` only when the month's
   runs are spent or the queue is full. A run's automatic retry after a timeout queues the same way.
@@ -115,6 +127,8 @@ tag's release notes.
 
 ### Fixed
 
+- **`GET` and `PATCH /api/v2/workspace/{workspace}` take the workspace's id as well as its name.** An id passed
+  the access check and was then answered `404 WORKSPACE_INVALID_REF`.
 - **Only an administrator or a global token can set a workspace's quotas.** The webapp has only ever offered the
   quota editor to administrators; the API now holds every caller to the same rule.
 - **The average run duration counts only the runs that ended.** A workspace's **Current average execution time**

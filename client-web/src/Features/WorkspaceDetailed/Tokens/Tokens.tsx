@@ -188,7 +188,8 @@ function Tokens() {
           </section>
         ) : null}
         <div className={styles.buttonContainer}>
-          {workspace && <CreateToken type={TokenType.Key} principal={workspace.name} disabled={!canEdit} />}
+          {/* Issued for the workspace's id, which never changes; the list shows tokens issued for its name too. */}
+          {workspace && <CreateToken type={TokenType.Key} principal={workspace.id} disabled={!canEdit} />}
         </div>
         {tokens.length > 0 ? (
           <>

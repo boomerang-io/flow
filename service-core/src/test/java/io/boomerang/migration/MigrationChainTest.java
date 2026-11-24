@@ -1909,6 +1909,53 @@ class MigrationChainTest {
         .isEqualTo(1);
   }
 
+  /**
+   * The audit trail moves to the workspace's id. An empty database has no events to move. An
+   * install's events named by a workspace's name move to its id with the name kept beside it; one
+   * whose name no workspace holds keeps it as its key; one already keyed by id is left; and a
+   * second run changes nothing.
+   */
+  @Test
+  void auditEventsAreReKeyedOnTheWorkspacesId() {
+    MongoDatabase db = migrate("audit-by-id");
+    MongoCollection<Document> audit = collection(db, "audit");
+    Environment environment = MigrationRunner.environment(PREFIX);
+    assertThat(audit.countDocuments()).as("an empty database has no events").isZero();
+    new _0056__AuditWorkspaceById().execute(db, environment);
+    assertThat(audit.countDocuments()).isZero();
+
+    String systemId =
+        collection(db, "workspaces").find(Filters.eq("name", "system")).first().get("_id").toString();
+    audit.insertMany(
+        List.of(
+            new Document("_id", "by-name").append("workspaceId", "system").append("action", "CREATE"),
+            new Document("_id", "orphan").append("workspaceId", "deleted-team").append("action", "UPDATE"),
+            new Document("_id", "keyed")
+                .append("workspaceId", systemId)
+                .append("workspaceName", "system-then")
+                .append("action", "UPDATE"),
+            new Document("_id", "instance").append("action", "TOKEN_CREATE")));
+
+    new _0056__AuditWorkspaceById().execute(db, environment);
+
+    assertThat(audit.find(Filters.eq("_id", "by-name")).first())
+        .containsEntry("workspaceId", systemId)
+        .containsEntry("workspaceName", "system");
+    assertThat(audit.find(Filters.eq("_id", "orphan")).first())
+        .containsEntry("workspaceId", "deleted-team")
+        .containsEntry("workspaceName", "deleted-team");
+    assertThat(audit.find(Filters.eq("_id", "keyed")).first())
+        .containsEntry("workspaceId", systemId)
+        .containsEntry("workspaceName", "system-then");
+    assertThat(audit.find(Filters.eq("_id", "instance")).first())
+        .doesNotContainKey("workspaceId")
+        .doesNotContainKey("workspaceName");
+
+    List<Document> before = audit.find().sort(new Document("_id", 1)).into(new ArrayList<>());
+    new _0056__AuditWorkspaceById().execute(db, environment);
+    assertThat(audit.find().sort(new Document("_id", 1)).into(new ArrayList<>())).isEqualTo(before);
+  }
+
   private static Document systemQuotas(MongoCollection<Document> workspaces) {
     return workspaces.find(Filters.eq("name", "system")).first().get("quotas", Document.class);
   }

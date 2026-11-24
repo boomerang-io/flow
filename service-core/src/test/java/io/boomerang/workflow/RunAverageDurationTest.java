@@ -59,7 +59,9 @@ class RunAverageDurationTest extends AbstractEngineIntegrationTest {
 
   private void event(String workspace, String runId, String action, Long duration) {
     AuditEventEntity event = new AuditEventEntity();
-    event.setWorkspaceId(workspace);
+    // The trail keys a workspace's events on its id.
+    event.setWorkspaceId(workspaceService.get(workspace).getId());
+    event.setWorkspaceName(workspace);
     event.setAction(action);
     event.setResourceType("workflowrun");
     event.setResourceId(runId + "-" + workspace);

@@ -52,6 +52,10 @@ import org.springframework.http.ResponseEntity;
  */
 class CumulativeDurationRealRunTest extends AbstractEngineIntegrationTest {
 
+  // The engine stamps a task's start and end with its own clock, a few milliseconds from the
+  // test's readings around the calls: a figure may fall that far below the time measured between them.
+  private static final long CLOCK_SLACK = 50L;
+
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private DispatcherService dispatcherService;
@@ -286,7 +290,7 @@ class CumulativeDurationRealRunTest extends AbstractEngineIntegrationTest {
     Thread.sleep(400);
     long[] w = timed(a, 300, RunStatus.succeeded, null, d);
     long rec = recorded(runId);
-    assertThat(rec).isBetween(w[0], w[1]);
+    assertThat(rec).isBetween(w[0] - CLOCK_SLACK, w[1]);
   }
 
   // Attempt 1 starts and runs 600ms then StartTimeout; attempt 2 claimed, never started; cancel.
@@ -341,7 +345,7 @@ class CumulativeDurationRealRunTest extends AbstractEngineIntegrationTest {
     awaitEngine("claim 2").until(() -> claimed(d, t, id));
     long[] w2 = timed(id, 300, RunStatus.succeeded, null, d);
     long rec = recorded(runId);
-    assertThat(rec).isBetween(w1[0] + w2[0], w1[1] + w2[1]);
+    assertThat(rec).isBetween(w1[0] + w2[0] - 2 * CLOCK_SLACK, w1[1] + w2[1]);
   }
 
   // retry.max=1: attempt 1 runs 400ms and fails; run cancelled during the backoff: ~400ms.
@@ -361,7 +365,7 @@ class CumulativeDurationRealRunTest extends AbstractEngineIntegrationTest {
     Thread.sleep(700);
     workflowRunService.cancel(runId);
     long rec = recorded(runId);
-    assertThat(rec).isBetween(w1[0], w1[1]);
+    assertThat(rec).isBetween(w1[0] - CLOCK_SLACK, w1[1]);
   }
 
   // A task running 500ms, then the run is cancelled; ending the task later adds nothing.
@@ -387,7 +391,7 @@ class CumulativeDurationRealRunTest extends AbstractEngineIntegrationTest {
       // A late end may be refused: the task completed with its run.
     }
     Thread.sleep(1000);
-    assertThat(rec).isBetween(beforeCancel - afterStart, afterCancel - before);
+    assertThat(rec).isBetween(beforeCancel - afterStart - CLOCK_SLACK, afterCancel - before);
     assertThat(events(runId, "UPDATE")).hasSize(1);
   }
 
@@ -410,7 +414,7 @@ class CumulativeDurationRealRunTest extends AbstractEngineIntegrationTest {
     long[] w1 = timed(awaitReady(runId, "a").getId(), 300, RunStatus.succeeded, null, null);
     long[] w2 = timed(awaitReady(runId, "fin").getId(), 400, RunStatus.succeeded, null, null);
     long rec = recorded(runId);
-    assertThat(rec).isBetween(w1[0] + w2[0], w1[1] + w2[1]);
+    assertThat(rec).isBetween(w1[0] + w2[0] - 2 * CLOCK_SLACK, w1[1] + w2[1]);
   }
 
   // a succeeds (300ms), b fails (200ms); a scoped retry (failed) re-runs b only (250ms).
@@ -432,6 +436,6 @@ class CumulativeDurationRealRunTest extends AbstractEngineIntegrationTest {
     String retryId = workflowRunService.retry(runId, true, 1, request).getId();
     long[] w = timed(awaitReady(retryId, "b").getId(), 250, RunStatus.succeeded, null, null);
     long rec = recorded(retryId);
-    assertThat(rec).isBetween(w[0], w[1]);
+    assertThat(rec).isBetween(w[0] - CLOCK_SLACK, w[1]);
   }
 }

@@ -21,12 +21,12 @@ it started, and must let an embedding product run its own housekeeping workflows
 ## Decision
 
 Counts from audit events, minutes per task, exact names, and `0` unlimited. The engine writes one `CREATE` per admitted run and one `UPDATE` at completion
-(`core/audit/WorkflowRunAuditBridge.java:74-157`), flat documents indexed by workspace and time and kept at least 60 days. The month's runs are
+(`core/audit/WorkflowRunAuditBridge.java:74-157`), keyed on the workspace's id, so a rename keeps the month, and kept at least 60 days. The month's runs are
 `max(CREATE events, live runs less refused-submit entries)`; its minutes are the `UPDATE` events' `cumulativeDuration`, each run rounded up to the minute
 (`core/audit/AuditQueryService.java:211-274`): every dispatched task's attempts from start call to end, a for-each parent, a carried-over task, a wait
 and an attempt that never started giving nothing (`core/audit/CumulativeDuration.java:39-89`). The `quotas` setting `unmetered.workflows` lists system
 workflows whose runs, and their links' runs, use none of the month: marked on both events, left out of the live count, never refused by either monthly
-check (`core/UnmeteredWorkflows.java:61-130`, `workflow/QuotaService.java:414-495`). A child run is never checked against either monthly quota, so a
+check (`core/UnmeteredWorkflows.java:61-130`, `workflow/QuotaService.java:416-497`). A child run is never checked against either monthly quota, so a
 parent is never stopped halfway, and still counts (`workflow/WorkflowService.java:2319-2334`). The queue caps the runs waiting for a workspace slot
 (`max.workflowrun.queued`) and ends one waiting longer than `workflowrun`/`queue.max.age` (`engine/WorkflowWatcher.java:125-126`). A stored quota
 overlays the platform default only where present (`workflow/QuotaService.java:191-222`); a check enforces it only when positive

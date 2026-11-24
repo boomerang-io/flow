@@ -303,7 +303,7 @@ class FormIntegrationTest extends AbstractEngineIntegrationTest {
   private List<AuditEventEntity> events(String workspace) {
     return auditEventRepository.findAll().stream()
         .filter(e -> "integration".equals(e.getResourceType()) && "microsoft".equals(e.getResourceId()))
-        .filter(e -> workspace.equals(e.getWorkspaceId()))
+        .filter(e -> workspace.equals(e.getWorkspaceName()))
         .sorted(Comparator.comparing(AuditEventEntity::getTime))
         .toList();
   }

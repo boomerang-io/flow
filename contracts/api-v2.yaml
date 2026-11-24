@@ -229,6 +229,8 @@ components:
           type: "string"
         workspaceId:
           type: "string"
+        workspaceName:
+          type: "string"
       type: "object"
     AuditStats:
       properties:
@@ -3384,7 +3386,8 @@ paths:
         required: false
         schema:
           type: "string"
-      - description: "Owning workspace ids to filter for"
+      - description: "Owning workspaces to filter for, each by id or name; a name\
+          \ is read as the workspace that holds it now"
         in: "query"
         name: "workspaceId"
         required: false
