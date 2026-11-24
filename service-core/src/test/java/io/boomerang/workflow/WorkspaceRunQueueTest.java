@@ -6,6 +6,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import io.boomerang.common.entity.TaskRunEntity;
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
@@ -551,6 +552,93 @@ class WorkspaceRunQueueTest extends AbstractEngineIntegrationTest {
       ids.add(workflowRunRepository.save(run).getId());
     }
     return ids;
+  }
+
+  // A dependency naming a task the run does not have: the run's graph cannot be built.
+  private void breakGraphOf(List<String> runIds) {
+    mongoTemplate.updateMulti(
+        Query.query(Criteria.where("workflowRunRef").in(runIds).and("name").is("work")),
+        new Update().set("dependencies.0.taskRef", "missing-task"),
+        TaskRunEntity.class);
+  }
+
+  // An admitted run whose start fails, here because its graph cannot be built, can never start:
+  // the sweep ends it invalid on its second sighting, and its completion frees its slot for the
+  // run parked behind it.
+  @Test
+  void anAdmittedRunThatCannotStartEndsInvalidAndFreesItsSlot() {
+    String workspace = workspace("run-queue-unstartable", 5, null);
+    createWorkflow(workspace, "run-queue-unstartable-workflow", 1);
+    // Other classes' admitted runs can fill the sweep's page in a shared database: clear room first,
+    // so this run is on the page for both sightings.
+    awaitEngine("the sweep's page to have room")
+        .until(
+            () -> {
+              workflowWatcher.startAdmittedRuns();
+              return workflowRunStateHelper.findAdmittedNotStarted(SWEEP_PAGE_SIZE).size()
+                  < SWEEP_PAGE_SIZE;
+            });
+    WorkflowRun broken = submit(workspace, "run-queue-unstartable-workflow", false);
+    breakGraphOf(List.of(broken.getId()));
+    assertTrue(
+        workflowRunStateHelper.findAdmittedNotStarted(SWEEP_PAGE_SIZE).stream()
+            .anyMatch(r -> r.getId().equals(broken.getId())),
+        "the sweep's page holds the run");
+    WorkflowRun parked = submit(workspace, "run-queue-unstartable-workflow", true);
+    assertParked(parked.getId(), WORKFLOW_FULL_OF_ONE);
+    List<WorkflowRunTransition> completions = new CopyOnWriteArrayList<>();
+    ApplicationListener<PayloadApplicationEvent<?>> completed =
+        event -> {
+          if (event.getPayload() instanceof WorkflowRunTransition transition
+              && broken.getId().equals(transition.id())
+              && RunPhase.completed == transition.toPhase()) {
+            completions.add(transition);
+          }
+        };
+    applicationContext.addApplicationListener(completed);
+    try {
+      workflowWatcher.startAdmittedRuns();
+      assertEquals(RunStatus.ready, run(broken.getId()).getStatus(), "one sighting is a start on its way");
+
+      workflowWatcher.startAdmittedRuns();
+
+      WorkflowRunEntity ended = run(broken.getId());
+      assertEquals(RunStatus.invalid, ended.getStatus());
+      assertEquals(RunPhase.completed, ended.getPhase());
+      assertEquals(StatusReason.WORKFLOW_INVALID, ended.getStatusReason());
+      assertEquals(
+          "Failed to run workflow: unable to process Workflow and start it.", ended.getStatusMessage());
+      assertEquals(1, completions.size(), "the completion is published once");
+      assertEquals(RunStatus.ready, completions.get(0).fromStatus());
+      assertEquals(RunStatus.invalid, completions.get(0).toStatus());
+      awaitRunning(parked.getId());
+    } finally {
+      applicationContext.removeApplicationListener(completed);
+    }
+  }
+
+  // More runs that cannot start than the sweep reads at once never hide a lost start behind them:
+  // each ends invalid, and the page moves on to the run that can start.
+  @Test
+  void runsThatCannotStartNeverHideALostStartBehindThem() {
+    setFeatureSetting(QUOTA_FEATURE, false);
+    String workspace = workspace("run-queue-unstartable-page", 0, null);
+    createWorkflow(workspace, "run-queue-unstartable-page-workflow", null);
+    List<String> broken = new ArrayList<>();
+    for (int i = 0; i < 51; i++) {
+      broken.add(submit(workspace, "run-queue-unstartable-page-workflow", false).getId());
+    }
+    breakGraphOf(broken);
+    WorkflowRun lost = submit(workspace, "run-queue-unstartable-page-workflow", false);
+
+    for (int sweep = 0; sweep < 8 && RunStatus.ready.equals(run(lost.getId()).getStatus()); sweep++) {
+      workflowWatcher.startAdmittedRuns();
+    }
+
+    awaitRunning(lost.getId());
+    for (String id : broken) {
+      assertEquals(RunStatus.invalid, run(id).getStatus(), id);
+    }
   }
 
   @Test

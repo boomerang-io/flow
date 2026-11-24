@@ -135,6 +135,11 @@ tag's release notes.
 
 ### Fixed
 
+- **A run that cannot start now ends `invalid` instead of waiting forever.** A run admitted but never started, such
+  as one whose graph names a task it does not have, was tried again on every recovery sweep and stayed `ready`.
+  Fifty of them filled the sweep's page, so no later run whose start was lost was ever started. Such a run now ends
+  `invalid` with the `WorkflowInvalid` reason, and its end frees its slot and notifies a parent run as any end does.
+  A database error during the start ends nothing: the run is tried again on the next sweep.
 - **`DELETE /api/v2/workspace/{workspace}` takes the workspace's id as well as its name**, as `GET` and `PATCH` do.
 - **A change to a workspace addressed by id touches that workspace alone**, even where a 3.5 upgrade left another
   workspace of the same name: its graph node, its members and its name.

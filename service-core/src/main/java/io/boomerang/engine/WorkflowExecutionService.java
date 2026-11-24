@@ -41,6 +41,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.context.annotation.Lazy;
 import org.springframework.core.task.TaskExecutor;
+import org.springframework.dao.DataAccessException;
 import org.springframework.scheduling.annotation.Async;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
@@ -260,7 +261,9 @@ public class WorkflowExecutionService {
 
   /**
    * Start a run admitted with nothing to provision whose start was lost, if it still waits for
-   * one. A caller that started it first wins, and this does nothing.
+   * one. A caller that started it first wins, and this does nothing. A run that cannot start, such
+   * as one whose graph cannot be built, ends invalid instead of being tried again on every sweep;
+   * a database error leaves it to the next sweep.
    */
   public void startAdmitted(String wfRunId) {
     WorkflowRunEntity run = workflowRunRepository.findById(wfRunId).orElse(null);
@@ -273,11 +276,34 @@ public class WorkflowExecutionService {
     LOGGER.info("[{}] Admitted WorkflowRun never started. Starting it.", wfRunId);
     try {
       start(wfRunId);
-    } catch (BoomerangException lostRace) {
-      if (!BoomerangError.WORKFLOWRUN_INVALID_PHASE.getReason().equals(lostRace.getReason())) {
-        throw lostRace;
+    } catch (RuntimeException ex) {
+      if (ex instanceof BoomerangException lostRace
+          && BoomerangError.WORKFLOWRUN_INVALID_PHASE.getReason().equals(lostRace.getReason())) {
+        LOGGER.debug("[{}] WorkflowRun already started by another caller. Nothing to do.", wfRunId);
+        return;
       }
-      LOGGER.debug("[{}] WorkflowRun already started by another caller. Nothing to do.", wfRunId);
+      // A database that failed for a moment says nothing about the run: try it on the next sweep.
+      if (ex instanceof DataAccessException) {
+        throw ex;
+      }
+      // The completion Compare-And-Set from pending: a run started meanwhile is left alone.
+      if (workflowRunStateHelper.tryComplete(
+              wfRunId,
+              List.of(RunPhase.pending),
+              RunStatus.invalid,
+              StatusReason.WORKFLOW_INVALID,
+              "Failed to run workflow: unable to process Workflow and start it.",
+              RunTimeouts.executionMillis(run, new Date()))
+          == null) {
+        LOGGER.info("[{}] WorkflowRun no longer waiting to start. Nothing to end.", wfRunId);
+        return;
+      }
+      LOGGER.warn(
+          "[{}] Admitted WorkflowRun cannot start; ended it invalid. Cause: {}",
+          wfRunId,
+          (ex instanceof BoomerangException boomerang)
+              ? boomerang.getReason() + " " + Arrays.toString(boomerang.getArgs())
+              : ex.toString());
     }
   }
 

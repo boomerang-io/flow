@@ -32,9 +32,12 @@ test("submitted run is visible in Activity with the correct status", async ({ pa
 
   const row = page.getByTestId("configuration-property-table-row").filter({ hasText: workflow.displayName });
   await expect(row).toBeVisible();
-  // A submit starts its run, so the status moves on after the submit answers: compare the row
-  // with the run's status as the API reports it now, retried until both agree.
+  // A submit starts its run, so the status moves on after the submit answers and after the page
+  // loads: reload, then compare the row with the run's status as the API reports it now, retried
+  // until both agree.
   await expect(async () => {
+    await page.reload();
+    await expect(row).toBeVisible();
     const current = await getWorkflowRun(request, workspace.name, run.id);
     const expectedStatusText = executionStatusCopy[current.status];
     expect(expectedStatusText, `no UI copy mapped for backend status "${current.status}" - update support/api.ts`).toBeTruthy();
