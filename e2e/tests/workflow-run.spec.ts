@@ -4,14 +4,15 @@ import {
   createWorkspace,
   createWorkflow,
   submitWorkflowRun,
+  getWorkflowRun,
   executionStatusCopy,
   APP_BASENAME,
 } from "../support/api";
 
 /*
  * Submit a run via the API (no agent is part of this stack - see docker-compose.yml's
- * comment on why - so a run never leaves `ready`/`invalid`; it does not need to reach
- * `running`/`succeeded` to be a meaningful UI journey), then confirm the Activity list and
+ * comment on why - so a started run stays `running`; it does not need to reach `succeeded` to
+ * be a meaningful UI journey), then confirm the Activity list and
  * the run detail page both show the run with the *real* backend status, not a mock/stale
  * value.
  *
@@ -27,14 +28,18 @@ test("submitted run is visible in Activity with the correct status", async ({ pa
   const workflow = await createWorkflow(request, workspace.name, uniqueName("e2e-run-wf"));
   const run = await submitWorkflowRun(request, workspace.name, workflow.name);
 
-  const expectedStatusText = executionStatusCopy[run.status];
-  expect(expectedStatusText, `no UI copy mapped for backend status "${run.status}" - update support/api.ts`).toBeTruthy();
-
   await page.goto(`${APP_BASENAME}/${workspace.name}/activity`);
 
   const row = page.getByTestId("configuration-property-table-row").filter({ hasText: workflow.displayName });
   await expect(row).toBeVisible();
-  await expect(row).toContainText(expectedStatusText);
+  // A submit starts its run, so the status moves on after the submit answers: compare the row
+  // with the run's status as the API reports it now, retried until both agree.
+  await expect(async () => {
+    const current = await getWorkflowRun(request, workspace.name, run.id);
+    const expectedStatusText = executionStatusCopy[current.status];
+    expect(expectedStatusText, `no UI copy mapped for backend status "${current.status}" - update support/api.ts`).toBeTruthy();
+    await expect(row).toContainText(expectedStatusText, { timeout: 2_000 });
+  }).toPass({ timeout: 20_000 });
 
   await row.click();
   await expect(page).toHaveURL(new RegExp(`/${workspace.name}/activity/${run.id}`));

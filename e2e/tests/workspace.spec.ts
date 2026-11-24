@@ -1,5 +1,5 @@
 import { test, expect } from "@playwright/test";
-import { uniqueName, uiKebabName, getWorkspace, APP_BASENAME } from "../support/api";
+import { uniqueName, uiWorkspaceName, getWorkspace, APP_BASENAME } from "../support/api";
 
 /*
  * Create a workspace end to end through the UI, then confirm it actually exists in the real
@@ -23,8 +23,8 @@ test("create a workspace and see it in the workspace list", async ({ page, reque
   await expect(page.getByTestId("workflow-card-title").filter({ hasText: displayName })).toBeVisible();
 
   // Cross-check against the real backend - the UI showing the card is not proof the write
-  // persisted, only that the response looked like success. The UI kebab-cases the display name
-  // into the resource name (see uiKebabName's contract note).
-  const workspace = await getWorkspace(request, uiKebabName(displayName));
+  // persisted, only that the response looked like success. The UI derives the workspace's name
+  // from the display name by the server's rule (see uiWorkspaceName).
+  const workspace = await getWorkspace(request, uiWorkspaceName(displayName));
   expect(workspace.displayName).toBe(displayName);
 });

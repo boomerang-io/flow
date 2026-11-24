@@ -7,11 +7,18 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.RunPhase;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
+import io.boomerang.common.enums.WorkflowType;
+import io.boomerang.common.model.AbstractParam;
 import io.boomerang.common.model.DispatcherRegistrationRequest;
+import io.boomerang.common.model.RunParam;
+import io.boomerang.common.model.Task;
 import io.boomerang.common.model.Trigger;
 import io.boomerang.common.model.Workflow;
+import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowTrigger;
 import io.boomerang.core.entity.RelationshipEdgeEntity;
 import io.boomerang.core.entity.RelationshipNodeEntity;
@@ -46,6 +53,7 @@ import jakarta.servlet.Filter;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.LinkedHashMap;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -62,6 +70,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.data.domain.Sort;
 import org.springframework.data.mongodb.core.MongoTemplate;
 import org.springframework.mock.web.MockHttpServletRequest;
+import org.springframework.mock.web.MockHttpServletResponse;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.http.HttpHeaders;
 import org.springframework.security.core.context.SecurityContextHolder;
@@ -82,6 +91,9 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
 
   private static final String TASK_SLUG = "relationship-reads-task";
   private static final String NODES = "find rel_nodes";
+  private static final String SYSTEM = "system";
+  private static final List<String> CHILD_TASK_TYPES =
+      List.of("runworkflow", "runscheduledworkflow");
 
   @Autowired private WebApplicationContext context;
   @Autowired private TokenService tokenService;
@@ -354,30 +366,38 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
    * A member's Workflows page, served over HTTP with their session: authentication reads the
    * member's memberships and every lookup after it in the request uses that one read. The page
    * finds the workspace's workflows in one walk and reads no workflow whole to list the templates
-   * beside them.
+   * beside them. It lists every active template of the install, which other classes add to: a
+   * template's child workflow is found by its own owning edge, one per reference on the page,
+   * whatever the number of workflows the system workspace holds.
    */
   @Test
   void aMembersWorkflowsPageReadsTheirMembershipsOnceAndWalksTheWorkspaceOnce() {
+    String leaf = systemTemplateWithAChild();
     String member = memberOfThreeWorkspaces();
     String email = userRepository.findById(member).orElseThrow().getEmail();
     String session =
         "Bearer " + tokenService.createSessionTokenWithRaw(email, "Rel", "Reads", false, false).rawToken();
 
-    Recorded<Integer> page =
+    Recorded<MockHttpServletResponse> page =
         http(
             () ->
-                status(
+                response(
                     get("/api/v2/workspace/" + workspace + "/workflow/query")
                         .header(HttpHeaders.AUTHORIZATION, session)));
     List<String> names = page.names().stream().map(name -> name.replace(" flowtest_", " ")).toList();
     System.out.printf(
         "REL DOCS | member's workflows page | %d edges %d nodes | %s%n",
         page.documentsRead("rel_edges"), page.documentsRead("rel_nodes"), names);
-    assertThat(page.result()).isEqualTo(200);
-    // The member's three memberships once, the workspace's one workflow edge for the walk, and
-    // the same edge as the workspace's own.
-    assertThat(page.documentsRead("rel_edges")).isEqualTo(3 + 1 + 1);
-    assertThat(names.stream().filter(name -> name.equals("find rel_edges"))).hasSize(3);
+    assertThat(page.result().getStatus()).isEqualTo(200);
+    long children = childReferences(page.result());
+    assertThat(childReferenceValues(page.result()))
+        .as("the seeded template's child, by its slug")
+        .contains(leaf);
+    // The member's three memberships once, the workspace's one workflow edge for the walk, the
+    // same edge as the workspace's own, and one owning edge for each template's child.
+    assertThat(page.documentsRead("rel_edges")).isEqualTo(3 + 1 + 1 + children);
+    assertThat(names.stream().filter(name -> name.equals("find rel_edges")))
+        .hasSize(3 + (int) children);
     // No workflow is read by id to find the templates the workspace already links.
     assertThat(names.stream().filter(name -> name.equals("find workflows")).count())
         .isLessThanOrEqualTo(3);
@@ -571,7 +591,7 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
   }
 
   // A served request: no identity but the bearer's, and the request scope the filter chain opens.
-  private Recorded<Integer> http(Callable<Integer> request) {
+  private <T> Recorded<T> http(Callable<T> request) {
     SecurityContextHolder.clearContext();
     RequestContextHolder.resetRequestAttributes();
     try {
@@ -592,6 +612,73 @@ class RelationshipReadsDatabaseCommandsTest extends AbstractEngineIntegrationTes
       org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
       throws Exception {
     return mockMvc.perform(request).andReturn().getResponse().getStatus();
+  }
+
+  private MockHttpServletResponse response(
+      org.springframework.test.web.servlet.request.MockHttpServletRequestBuilder request)
+      throws Exception {
+    return mockMvc.perform(request).andReturn().getResponse();
+  }
+
+  // The child workflows a Workflows page names, as each runworkflow task's workflowRef.
+  private static long childReferences(MockHttpServletResponse page) {
+    return childReferenceValues(page).size();
+  }
+
+  private static List<String> childReferenceValues(MockHttpServletResponse page) {
+    String body;
+    try {
+      body = page.getContentAsString();
+    } catch (java.io.UnsupportedEncodingException e) {
+      throw new IllegalStateException(e);
+    }
+    return Document.parse(body).getList("content", Document.class).stream()
+        .flatMap(workflow -> workflow.getList("tasks", Document.class, List.of()).stream())
+        .filter(task -> CHILD_TASK_TYPES.contains(task.getString("type")))
+        .flatMap(task -> task.getList("params", Document.class, List.of()).stream())
+        .filter(param -> "workflowRef".equals(param.getString("name")) && param.get("value") != null)
+        .map(param -> param.get("value").toString())
+        .toList();
+  }
+
+  // A template in the system workspace whose runworkflow task runs another template there; the
+  // child's name.
+  private String systemTemplateWithAChild() {
+    if (!relationshipService.doesSlugOrRefExistForType(RelationshipType.WORKSPACE, SYSTEM)) {
+      relationshipService.createNode(RelationshipType.WORKSPACE, SYSTEM, SYSTEM, Optional.empty());
+    }
+    Task runWorkflow = new Task();
+    runWorkflow.setName("rel-reads-run-workflow-" + nonce);
+    runWorkflow.setType(TaskType.runworkflow);
+    runWorkflow.getSpec().setParams(List.of(paramSpec("workflowRef"), paramSpec("wait")));
+    String runWorkflowSlug = taskService.createGlobal(runWorkflow).getName();
+
+    Workflow leaf = runnableWorkflow("rel-reads-leaf-" + nonce, TASK_SLUG);
+    leaf.setType(WorkflowType.template);
+    workflowService.create(SYSTEM, leaf);
+    Workflow parent = runnableWorkflow("rel-reads-parent-" + nonce, TASK_SLUG);
+    parent.setType(WorkflowType.template);
+    WorkflowTask child = new WorkflowTask();
+    child.setName("child");
+    child.setType(TaskType.runworkflow);
+    child.setTaskRef(runWorkflowSlug);
+    child.setParams(
+        new LinkedList<>(
+            List.of(new RunParam("workflowRef", leaf.getName()), new RunParam("wait", "false"))));
+    WorkflowTaskDependency afterStart = new WorkflowTaskDependency();
+    afterStart.setTaskRef("start");
+    child.setDependencies(new LinkedList<>(List.of(afterStart)));
+    parent.getTasks().add(1, child);
+    parent.getTasks().get(2).getDependencies().get(0).setTaskRef("child");
+    workflowService.create(SYSTEM, parent);
+    return leaf.getName();
+  }
+
+  private static AbstractParam paramSpec(String name) {
+    AbstractParam spec = new AbstractParam();
+    spec.setName(name);
+    spec.setType("text");
+    return spec;
   }
 
   private static List<String> nodeReads(Recorded<?> recorded) {
