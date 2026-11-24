@@ -36,6 +36,18 @@ export function uiKebabName(displayName: string): string {
   return (displayName.match(/[a-zA-Z]+|\d+/g) ?? []).map((part) => part.toLowerCase()).join("-");
 }
 
+// A workspace's name follows the server's own rule (client-web's Utils/workspaceName.ts, after
+// service-core's StringUtil.kebabCase), not lodash: letters and digits kept together, so
+// "e2e-workspace" stays "e2e-workspace". Workflow names still use uiKebabName above.
+export function uiWorkspaceName(displayName: string): string {
+  return displayName
+    .replace(/[^A-Za-z0-9' -]/g, "")
+    .replace(/\s+/g, "-")
+    .replace(/'/g, "-")
+    .replace(/-+/g, "-")
+    .toLowerCase();
+}
+
 // The webapp's SSR server always mounts the app under this basename (client-web's
 // react-router.config.ts: `basename: "/apps/flow"`, baked into the server build at build time -
 // it does not follow docker-compose.yml's APP_ROOT env var, which only feeds
@@ -116,6 +128,18 @@ export async function submitWorkflowRun(
   });
   if (!res.ok()) {
     throw new Error(`submitWorkflowRun(${workspace}, ${workflowName}) failed: ${res.status()} ${await res.text()}`);
+  }
+  return res.json();
+}
+
+export async function getWorkflowRun(
+  request: APIRequestContext,
+  workspace: string,
+  id: string,
+): Promise<WorkflowRun> {
+  const res = await request.get(`${API_ORIGIN}/api/v2/workspace/${workspace}/workflowrun/${id}`);
+  if (!res.ok()) {
+    throw new Error(`getWorkflowRun(${workspace}, ${id}) failed: ${res.status()} ${await res.text()}`);
   }
   return res.json();
 }

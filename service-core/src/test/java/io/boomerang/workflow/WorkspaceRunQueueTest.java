@@ -1,8 +1,10 @@
 package io.boomerang.workflow;
 
+import static io.boomerang.engine.EngineConstants.SWEEP_PAGE_SIZE;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertThrows;
+import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.enums.RunPhase;
@@ -476,7 +478,9 @@ class WorkspaceRunQueueTest extends AbstractEngineIntegrationTest {
 
   // The instance that admitted a run with nothing to provision stopped before it started it. Two
   // sweeps in a row find it still waiting and start it; a run with a workspace is left to its
-  // dispatcher.
+  // dispatcher. The sweep reads the oldest page of admitted runs, and the shared database holds
+  // runs other classes left admitted: a backlog of more than a page, older than anything here,
+  // stands in for them.
   @Test
   void anAdmittedRunWhoseStartWasLostIsStartedByTheSweep() {
     setFeatureSetting(QUOTA_FEATURE, false);
@@ -487,23 +491,66 @@ class WorkspaceRunQueueTest extends AbstractEngineIntegrationTest {
     volume.setSize("1Gi");
     withVolume.setWorkspace(volume);
     workflowService.create(workspace, withVolume);
-    // Admitted and not started: the state the lost start leaves.
-    WorkflowRun lost = submit(workspace, "run-queue-lost-start-workflow", false);
-    WorkflowRun provisioned = submit(workspace, "run-queue-lost-start-volume", false);
-    assertEquals(RunStatus.ready, run(lost.getId()).getStatus());
+    List<String> backlog =
+        admittedBacklog(
+            workflowRef(workspace, "run-queue-lost-start-workflow"), SWEEP_PAGE_SIZE + 10);
+    try {
+      // Each sweep starts the runs it sees for the second time, so a few clear the backlog and
+      // leave the page room for the run below.
+      awaitEngine("the sweep to start the older admitted runs")
+          .until(
+              () -> {
+                workflowWatcher.startAdmittedRuns();
+                return workflowRunStateHelper.findAdmittedNotStarted(SWEEP_PAGE_SIZE).size()
+                    < SWEEP_PAGE_SIZE;
+              });
 
-    workflowWatcher.startAdmittedRuns();
-    // One sighting is a start on its way: nothing is started, now or a second later.
-    Awaitility.await("the run to stay unstarted after one sighting")
-        .during(Duration.ofSeconds(1))
-        .atMost(Duration.ofSeconds(3))
-        .until(() -> RunStatus.ready.equals(run(lost.getId()).getStatus()));
+      // Admitted and not started: the state the lost start leaves.
+      WorkflowRun lost = submit(workspace, "run-queue-lost-start-workflow", false);
+      WorkflowRun provisioned = submit(workspace, "run-queue-lost-start-volume", false);
+      assertEquals(RunStatus.ready, run(lost.getId()).getStatus());
+      assertTrue(
+          workflowRunStateHelper.findAdmittedNotStarted(SWEEP_PAGE_SIZE).stream()
+              .anyMatch(r -> r.getId().equals(lost.getId())),
+          "the sweep's page holds the run");
 
-    workflowWatcher.startAdmittedRuns();
+      workflowWatcher.startAdmittedRuns();
+      // One sighting is a start on its way: nothing is started, now or a second later.
+      Awaitility.await("the run to stay unstarted after one sighting")
+          .during(Duration.ofSeconds(1))
+          .atMost(Duration.ofSeconds(3))
+          .until(() -> RunStatus.ready.equals(run(lost.getId()).getStatus()));
 
-    awaitRunning(lost.getId());
-    assertEquals(RunStatus.ready, run(provisioned.getId()).getStatus(), "the dispatcher's to start");
-    assertEquals(RunPhase.pending, run(provisioned.getId()).getPhase());
+      awaitEngine("the sweep to start the lost run")
+          .untilAsserted(
+              () -> {
+                workflowWatcher.startAdmittedRuns();
+                assertEquals(RunStatus.running, run(lost.getId()).getStatus());
+              });
+      assertEquals(
+          RunStatus.ready, run(provisioned.getId()).getStatus(), "the dispatcher's to start");
+      assertEquals(RunPhase.pending, run(provisioned.getId()).getPhase());
+    } finally {
+      mongoTemplate.updateMulti(
+          Query.query(Criteria.where("_id").in(backlog)),
+          new Update().set("status", RunStatus.cancelled).set("phase", RunPhase.completed),
+          WorkflowRunEntity.class);
+    }
+  }
+
+  // Runs admitted and never started, an hour old and older than any run a test submits.
+  private List<String> admittedBacklog(String workflowRef, int count) {
+    long anHourAgo = System.currentTimeMillis() - 3_600_000L;
+    List<String> ids = new ArrayList<>();
+    for (int i = 0; i < count; i++) {
+      WorkflowRunEntity run = new WorkflowRunEntity();
+      run.setWorkflowRef(workflowRef);
+      run.setStatus(RunStatus.ready);
+      run.setPhase(RunPhase.pending);
+      run.setCreationDate(new Date(anHourAgo + i));
+      ids.add(workflowRunRepository.save(run).getId());
+    }
+    return ids;
   }
 
   @Test

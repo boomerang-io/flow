@@ -1607,10 +1607,7 @@ public class WorkflowService {
                                     || SHARED_TYPES.contains(workflow.getType());
                             List<String> slugs =
                                 shared
-                                    ? ownedWorkflows(SYSTEM_WORKSPACE).stream()
-                                        .filter(n -> n.getRef().equals(param.getValue().toString()))
-                                        .map(RelationshipNodeEntity::getSlug)
-                                        .toList()
+                                    ? systemWorkflowSlug(param.getValue().toString())
                                     : relationshipService.filter(
                                         RelationshipType.WORKFLOW,
                                         Optional.of(List.of(param.getValue().toString())),
@@ -2687,6 +2684,27 @@ public class WorkflowService {
         .filter(node -> name.isEmpty() || name.get().equals(node.getSlug()))
         .map(RelationshipNodeEntity::getRef)
         .toList();
+  }
+
+  /*
+   * The slug of the system workspace's workflow with this ref, or none: its node and the edge that
+   * owns it, read whatever the number of workflows the system workspace holds.
+   */
+  private List<String> systemWorkflowSlug(String ref) {
+    RelationshipNodeEntity node =
+        relationshipService.nodesByRef(List.of(ref), RelationshipType.WORKFLOW).get(ref);
+    Optional<RelationshipNodeEntity> system =
+        relationshipService.findNode(RelationshipType.WORKSPACE, SYSTEM_WORKSPACE);
+    if (node == null || system.isEmpty()) {
+      return List.of();
+    }
+    RelationshipNodeEntity owner =
+        relationshipService
+            .parentsByLabel(RelationshipLabel.HAS_WORKFLOW, List.of(node.getId()))
+            .get(node.getId());
+    return (owner != null && owner.getId().equals(system.get().getId()))
+        ? List.of(node.getSlug())
+        : List.of();
   }
 
   private List<RelationshipNodeEntity> ownedWorkflows(String workspace) {
