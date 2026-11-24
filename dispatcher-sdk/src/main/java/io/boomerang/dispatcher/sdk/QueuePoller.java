@@ -153,8 +153,11 @@ final class QueuePoller<T> {
         return;
       }
     } catch (RuntimeException e) {
-      // A poll cut short by stop is not a failure worth reporting.
-      if (!Thread.currentThread().isInterrupted()) {
+      // A poll cut short by stop is not a failure worth reporting: the I/O error a cut connection
+      // raises may clear the interrupt, so the stop request is checked as well.
+      if (stopRequested || Thread.currentThread().isInterrupted()) {
+        LOGGER.debug("Poll (" + name + ") ended by the stop: " + e.getMessage());
+      } else {
         LOGGER.warn("Poll (" + name + ") failed: " + e.getMessage());
       }
     }
