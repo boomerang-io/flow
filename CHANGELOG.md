@@ -5,6 +5,8 @@ tag's release notes.
 
 ## Unreleased
 
+## 5.0.1 (2026-11-25)
+
 ### Upgrading
 
 - **Run one instance while upgrading to 5.0.1**, or the runs recorded by older instances during the roll-out drop out
