@@ -1242,6 +1242,122 @@ class ParameterManagerTest {
     assertEquals("deploy-eu", resolved(run, "target"));
   }
 
+  // An array param set to one reference takes the referenced list as it is.
+  @Test
+  void anArrayParamSetToOneReferenceTakesTheReferencedList() {
+    WorkflowRunEntity run = run(array("tools", List.of("read", "bash")));
+    TaskRunEntity task = taskWith(array("workspaceTools", "$(workflow.params.tools)"));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertTrue(unresolved.isEmpty());
+    assertEquals(List.of("read", "bash"), taskValue(task, "workspaceTools"));
+    assertEquals(ParamType.array, taskType(task, "workspaceTools"));
+  }
+
+  // A reference that resolves to a JSON array string, from a param or a task result, is parsed.
+  @Test
+  void anArrayParamSetToAReferenceHoldingAJsonArrayStringIsParsed() {
+    stubTask("t1", new RunResult("r1", "[\"read\", \"edit\"]"));
+    WorkflowRunEntity run = run(str("tools", "[\"read\",\"bash\"]"));
+    TaskRunEntity task =
+        taskWith(
+            array("fromParam", "$(workflow.params.tools)"),
+            array("fromResult", "$(tasks.t1.results.r1)"));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(List.of("read", "bash"), taskValue(task, "fromParam"));
+    assertEquals(List.of("read", "edit"), taskValue(task, "fromResult"));
+  }
+
+  // A reference to a plain string, or a string that is not a JSON array, is a list of one; a blank
+  // string is an empty list.
+  @Test
+  void anArrayParamSetToAPlainStringIsAListOfOne() {
+    WorkflowRunEntity run = run(str("tool", "read"));
+    TaskRunEntity task =
+        taskWith(
+            array("viaReference", "$(workflow.params.tool)"),
+            array("text", "read,edit"),
+            array("json", "[\"write\"]"),
+            array("notJson", "[read"),
+            array("blank", ""));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(List.of("read"), taskValue(task, "viaReference"));
+    assertEquals(List.of("read,edit"), taskValue(task, "text"));
+    assertEquals(List.of("write"), taskValue(task, "json"));
+    assertEquals(List.of("[read"), taskValue(task, "notJson"));
+    assertEquals(List.of(), taskValue(task, "blank"));
+  }
+
+  // Each string element of a list resolves; a literal one stays as written.
+  @Test
+  void anArrayMixingALiteralAndAReferenceResolvesBoth() {
+    WorkflowRunEntity run = run(str("extra", "bash"));
+    TaskRunEntity task = taskWith(array("workspaceTools", List.of("read", "$(workflow.params.extra)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(List.of("read", "bash"), taskValue(task, "workspaceTools"));
+  }
+
+  // Elements that are not strings are kept as they are, whatever kind of list holds them.
+  @Test
+  void anArrayOfNonStringElementsIsKeptAsItIs() {
+    Map<String, Object> config = Map.of("k", "$(workflow.params.extra)");
+    WorkflowRunEntity run = run(str("extra", "bash"));
+    TaskRunEntity task = taskWith(array("mixed", List.of(1, true, config)));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertTrue(unresolved.isEmpty());
+    assertEquals(List.of(1, true, config), taskValue(task, "mixed"));
+  }
+
+  // A reference naming nothing declared fails admission, as it does on a string param.
+  @Test
+  void anArrayParamSetToAnUndeclaredReferenceIsUnresolved() {
+    WorkflowRunEntity run = run();
+    TaskRunEntity task = taskWith(array("workspaceTools", "$(workflow.params.nope)"));
+
+    Map<String, Set<String>> unresolved = parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(
+        Set.of("$(workflow.params.nope): no such workflow param 'nope'"),
+        unresolved.get("param 'workspaceTools'"));
+  }
+
+  // A secret referenced into an array reaches the task and keeps the array its type; the run-wide
+  // value scrub on reads covers it.
+  @Test
+  void aSecretReferencedIntoAnArrayReachesTheTask() {
+    WorkflowRunEntity run = run(secret("token", "sk-live-0001"));
+    TaskRunEntity task =
+        taskWith(
+            array("whole", "$(workflow.params.token)"),
+            array("element", List.of("--token=$(workflow.params.token)")));
+
+    parameterManager.resolveParamLayers(run, Optional.of(task));
+
+    assertEquals(List.of("sk-live-0001"), taskValue(task, "whole"));
+    assertEquals(List.of("--token=sk-live-0001"), taskValue(task, "element"));
+    assertEquals(ParamType.array, taskType(task, "whole"));
+  }
+
+  private static RunParam array(String name, Object value) {
+    return new RunParam(name, value, ParamType.array);
+  }
+
+  private static TaskRunEntity taskWith(RunParam... params) {
+    TaskRunEntity task = new TaskRunEntity();
+    task.setName("work");
+    task.setParams(new ArrayList<>(List.of(params)));
+    return task;
+  }
+
   private void stubTask(String name, RunResult result) {
     TaskRunEntity task = new TaskRunEntity();
     task.setResults(List.of(result));

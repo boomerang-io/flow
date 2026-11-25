@@ -137,6 +137,84 @@ describe("Template task node --- what Apply saves", () => {
 });
 
 /*
+ * A `multiselect` param is a list of the chosen option keys: the node saves the array itself, the engine runs it as
+ * an `array` param, and the container reads it as JSON. Re-opening the node shows the saved keys as selected tags.
+ */
+describe("Template task node --- a multiselect parameter", () => {
+  const multiselectTask = {
+    ...task,
+    spec: {
+      ...task.spec,
+      params: [
+        {
+          name: "workspaceTools",
+          label: "Workspace Tools",
+          type: "multiselect",
+          options: [
+            { key: "read", value: "Read" },
+            { key: "edit", value: "Edit" },
+            { key: "write", value: "Write" },
+            { key: "bash", value: "Bash" },
+          ],
+        },
+      ],
+    },
+  } as unknown as Task;
+  const multiselectNodeData = { ...nodeData, params: [] } as unknown as WorkflowNodeData;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  function chooseOption(label: string) {
+    // The menu stays open after a choice, so it is opened only when it is closed.
+    const combobox = screen.getByRole("combobox", { hidden: true, name: "Workspace Tools" });
+    if (!within(combobox).queryByRole("listbox", { hidden: true })) {
+      fireEvent.click(within(combobox).getByRole("button", { hidden: true, name: "open menu" }));
+    }
+    fireEvent.click(within(combobox).getByRole("option", { hidden: true, name: label }));
+  }
+
+  async function apply() {
+    const button = await screen.findByRole("button", { hidden: true, name: "Apply" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+  }
+
+  it("saves the keys of the options chosen as an array", async () => {
+    await renderNode(undefined, { data: multiselectNodeData, latest: multiselectTask });
+
+    chooseOption("Read");
+    chooseOption("Edit");
+    await apply();
+
+    await waitFor(() => expect(savedNode()).not.toBe(multiselectNodeData));
+    expect(savedNode().params).toEqual([{ name: "workspaceTools", value: ["read", "edit"] }]);
+  });
+
+  it("shows the saved keys as selected tags when the node is opened again", async () => {
+    const data = {
+      ...multiselectNodeData,
+      params: [{ name: "workspaceTools", value: ["read", "bash"] }],
+    } as unknown as WorkflowNodeData;
+    await renderNode(undefined, { data, latest: multiselectTask });
+
+    // With the menu closed, an option's label shows only as the tag of a selected option.
+    const dialog = await screen.findByRole("dialog", { hidden: true });
+    expect(within(dialog).getByText("Read")).toBeInTheDocument();
+    expect(within(dialog).getByText("Bash")).toBeInTheDocument();
+    expect(within(dialog).queryByText("Edit")).not.toBeInTheDocument();
+    expect(within(dialog).queryByText("Write")).not.toBeInTheDocument();
+
+    // Applying without a change keeps the array as it was.
+    await apply();
+    await waitFor(() => expect(savedNode()).not.toBe(data));
+    expect(savedNode().params).toEqual([{ name: "workspaceTools", value: ["read", "bash"] }]);
+  });
+});
+
+/*
  * A node that names a task version is pinned to it; one set to "latest" follows the latest. The editor holds each
  * task at its latest version (v5 here), so a Latest node's form is that version's.
  */
