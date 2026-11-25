@@ -227,7 +227,7 @@ public class KubeJobsExecutorTest {
                         && "/dev/termination-log".equals(e.getValue())));
     assertTrue(
         env.stream()
-            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4094".equals(e.getValue())));
   }
 
   @Test
@@ -298,7 +298,7 @@ public class KubeJobsExecutorTest {
                         && "/dev/termination-log".equals(e.getValue())));
     assertTrue(
         env.stream()
-            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4094".equals(e.getValue())));
   }
 
   @Test
@@ -362,6 +362,21 @@ public class KubeJobsExecutorTest {
     assertEquals(1, results.size());
     assertEquals("greeting", results.get(0).getName());
     assertEquals("hello", results.get(0).getValue());
+  }
+
+  @Test
+  public void testParseTerminationMessageKeepsARawJsonValueAsItsJsonText() {
+    // A task may write an object or array value as raw JSON rather than as an escaped string,
+    // which spends no bytes on escaping; the result is the same JSON text either way.
+    List<RunResult> raw =
+        TerminationMessageParser.parse("{\"plan\":{\"a\":1,\"b\":[\"x\"]}}", List.of())
+            .orElseThrow();
+    List<RunResult> escaped =
+        TerminationMessageParser.parse(
+                "{\"plan\":\"{\\\"a\\\":1,\\\"b\\\":[\\\"x\\\"]}\"}", List.of())
+            .orElseThrow();
+    assertEquals("{\"a\":1,\"b\":[\"x\"]}", raw.get(0).getValue());
+    assertEquals(raw.get(0).getValue(), escaped.get(0).getValue());
   }
 
   @Test
@@ -763,6 +778,56 @@ class KubeJobsExecutorReconcileTest {
     TaskExecutionException ex =
         assertThrows(TaskExecutionException.class, () -> kubeJobsExecutor.watch(task, 30L));
     assertEquals("ResultsTooLarge", ex.getStatusReason());
+  }
+
+  /*
+   * A task told RESULTS_MAX_BYTES for its declared results, and writing exactly that many bytes of
+   * values with nothing to escape, fills the termination message to the 4096-byte ceiling and no
+   * further: the results come back whole and the task is not refused as too large.
+   */
+  @Test
+  public void testResultsWrittenToExactlyTheBudgetFillTheMessageAndAreKept() throws Exception {
+    TaskRun task = task("taskrun-results-at-budget");
+    List<String> names = List.of("output", "usage", "model", "turns", "toolCalls");
+    task.setResults(names.stream().map(n -> new RunResult(n, null)).toList());
+    kubeJobsExecutor.create(task, 30L);
+
+    Job created = client.batch().v1().jobs().inAnyNamespace().list().getItems().get(0);
+    String budget =
+        created.getSpec().getTemplate().getSpec().getContainers().get(0).getEnv().stream()
+            .filter(e -> "RESULTS_MAX_BYTES".equals(e.getName()))
+            .findFirst()
+            .orElseThrow()
+            .getValue();
+    assertEquals(String.valueOf(ResultsBudget.forObject(4096, task.getResults())), budget);
+    assertEquals("4035", budget);
+
+    JobCondition complete = new JobCondition();
+    complete.setType("Complete");
+    complete.setStatus("True");
+    complete.setReason("JobComplete");
+    complete.setMessage("The Job completed successfully.");
+    JobStatus status = new JobStatus();
+    status.setSucceeded(1);
+    status.setConditions(List.of(complete));
+    created.setStatus(status);
+    client.batch().v1().jobs().resource(created).updateStatus();
+
+    // 4035 bytes of values over five results: 807 each.
+    int each = Integer.parseInt(budget) / names.size();
+    StringBuilder message = new StringBuilder("{");
+    for (int i = 0; i < names.size(); i++) {
+      message.append(i == 0 ? "" : ",").append('"').append(names.get(i)).append("\":\"");
+      message.append(String.valueOf((char) ('a' + i)).repeat(each)).append('"');
+    }
+    message.append('}');
+    assertEquals(4096, message.length());
+    seedTerminationMessage(created, message.toString());
+
+    List<RunResult> results = kubeJobsExecutor.watch(task, 30L);
+    assertEquals(5, results.size());
+    assertEquals("e".repeat(each), results.get(4).getValue());
+    assertEquals(names, results.stream().map(RunResult::getName).toList());
   }
 
   // The Job controller stamps its Job's name on the pod; the executor reads the pod by it.

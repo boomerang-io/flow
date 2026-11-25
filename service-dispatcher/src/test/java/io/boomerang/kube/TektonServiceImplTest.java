@@ -236,7 +236,7 @@ public class TektonServiceImplTest {
             new RunParam("endpoint", "https://api.example.com/v1"),
             new RunParam("maxTokens", 1024),
             new RunParam("prompt", "Summarise the run")));
-    task.setResults(List.of());
+    task.setResults(List.of(new RunResult("output", null), new RunResult("usage", null)));
     task.setWorkspace(null);
     TaskRunSpec spec = new TaskRunSpec();
     spec.setImage("boomerangio/task-ai:1.2.3");
@@ -269,7 +269,11 @@ public class TektonServiceImplTest {
                 e -> "RESULTS_PATH".equals(e.getName()) && "/tekton/results".equals(e.getValue())));
     assertTrue(
         env.stream()
-            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "4096".equals(e.getValue())));
+            .anyMatch(e -> "RESULTS_MAX_BYTES".equals(e.getName()) && "3953".equals(e.getValue())));
+    // The limit less Tekton's array for the two declared results and its own start-time entry.
+    assertEquals(
+        String.valueOf(io.boomerang.executor.ResultsBudget.forTektonArray(4096, task.getResults())),
+        env.stream().filter(e -> "RESULTS_MAX_BYTES".equals(e.getName())).findFirst().orElseThrow().getValue());
   }
 
   @Test
@@ -317,6 +321,17 @@ public class TektonServiceImplTest {
             .allMatch(
                 t -> "TaskRunCancelled".equals(t.getStatus().getConditions().get(0).getReason())),
         "every attempt is cancelled: " + taskRuns);
+  }
+
+  @Test
+  public void testToRunResultsKeepsJsonWrittenToAResultFileAsItsText() {
+    // A Tekton result is a file, read back as a string, so JSON written to it arrives as the same
+    // text a Jobs task's raw JSON value does; Tekton still escapes it inside its own message.
+    TaskRunResult tknResult = new TaskRunResult();
+    tknResult.setName("plan");
+    tknResult.setValue(new ParamValue("{\"a\":1}"));
+
+    assertEquals("{\"a\":1}", TektonServiceImpl.toRunResults(List.of(tknResult)).get(0).getValue());
   }
 
   @Test

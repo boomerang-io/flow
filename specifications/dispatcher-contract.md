@@ -217,8 +217,9 @@ asynchronously, so `queued` in the answer is normal (`engine/TaskExecutionServic
 | `ClusterUnavailable` | The runtime's control plane could not be reached (a timeout, a refused connection, a 5xx), whether the call was a create or a watch |
 | `DispatcherStopping` | The dispatcher is stopping and never started the claim (the SDK sends it, "Leases and heartbeat") |
 
-**Caps.** The params cap is the engine's. The results limit is the dispatcher's (`dispatcher-kubernetes.md`, "Results
-on Kubernetes"); the engine's results setting only guards storage against MongoDB's 16 MB document limit.
+**Caps.** The params cap is the engine's; its results setting only guards storage against MongoDB's 16 MB document
+limit. The results limit is the dispatcher's, and one whose limit covers a payload envelope SHOULD tell the task what is
+left for values; Flow's Kubernetes dispatcher does (`dispatcher-kubernetes.md`, "Results on Kubernetes").
 
 | Cap | Property (`service-core/src/main/resources/application.properties:244-245`) | Where checked | Effect |
 | --- | --- | --- | --- |
