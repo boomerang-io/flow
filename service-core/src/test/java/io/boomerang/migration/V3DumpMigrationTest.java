@@ -676,11 +676,11 @@ class V3DumpMigrationTest {
     // _0006__V3MigrateTaskCatalogue's javadoc. _0017__SeedTaskCatalogue reconciles the 89-task
     // seed catalogue against them by name (all 87 legacy ones already present by legacy _id/name)
     // and inserts the new tasks: the v5-native ai-prompt and ai-agent entries and task-flow 3.3.0's
-    // 16 GitHub, Teams, SharePoint and Google Drive tasks; the install's own extra 2 (Kubernetes
+    // 16 GitHub, Teams, SharePoint and Google Drive tasks, and task-ai 2.2.0's ai-coding-agent; the install's own extra 2 (Kubernetes
     // CLI, Tysons Test Task) are untouched additions. _0018__SeedArtifactTasks then adds the
     // upload-artifact and download-artifact tasks, and _0023__SeedAiTaskFamily and
     // _0035__SeedTaskFlowIntegrationTasks find their tasks already present.
-    assertThat(collection("tasks").countDocuments()).isEqualTo(109);
+    assertThat(collection("tasks").countDocuments()).isEqualTo(110);
 
     // 131 real v3 revisions migrated 1:1, plus the additions _0017__SeedTaskCatalogue reconciles
     // (the seed catalogue's Manual Approval v2, absent from this install's own older snapshot,
@@ -691,8 +691,9 @@ class V3DumpMigrationTest {
     // defaulting their key to the Google integration's parameter, and the Acquire Lock task's
     // version 2 stating its timeout in milliseconds) and the two artifact tasks' version 1
     // (_0018__SeedArtifactTasks), and task-flow 3.4.0's 8 catalogue revisions
-    // (_0049__SeedTaskFlow34Revisions).
-    assertThat(collection("task_revisions").countDocuments()).isEqualTo(230);
+    // (_0049__SeedTaskFlow34Revisions), and task-ai 2.2.0's ai-agent version 3 and ai-coding-agent
+    // version 1 (_0057__SeedTaskAi22).
+    assertThat(collection("task_revisions").countDocuments()).isEqualTo(232);
 
     // Every task_revisions document has a non-null parentRef resolving to an existing task.
     List<String> taskIds = new ArrayList<>();
@@ -1529,14 +1530,14 @@ class V3DumpMigrationTest {
 
     // ---- Task graph: every one of the 89 migrated tasks is global/root-scoped - v3 has no
     // workspace-scoped tasks, so zero "workspacetask" nodes are ever written for v3 data. The seeded
-    // ai-prompt, ai-agent, upload-artifact and download-artifact tasks and task-flow 3.3.0's 16, which
-    // no v3 install can hold, make 109 and are root-scoped the same way. ----
-    assertThat(collection("tasks").countDocuments()).isEqualTo(109);
-    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(109);
+    // ai-prompt, ai-agent, ai-coding-agent, upload-artifact and download-artifact tasks and task-flow
+    // 3.3.0's 16, which no v3 install can hold, make 110 and are root-scoped the same way. ----
+    assertThat(collection("tasks").countDocuments()).isEqualTo(110);
+    assertThat(collection("rel_nodes").countDocuments(Filters.eq("type", "task"))).isEqualTo(110);
     assertThat(
             collection("rel_edges")
                 .countDocuments(Filters.and(Filters.eq("from", "root:root"), Filters.eq("label", "hasTask"))))
-        .isEqualTo(109);
+        .isEqualTo(110);
     assertThat(collection("rel_nodes").countDocuments(Filters.in("type", "teamtask", "workspacetask")))
         .as("v3 task_templates carries no team-scoping field at all")
         .isZero();

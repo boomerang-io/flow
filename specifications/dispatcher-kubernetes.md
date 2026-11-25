@@ -320,11 +320,11 @@ exactly as it does for `custom` or `template`: a revision with an image and no c
 entrypoint, and one with no image is refused as `NO_TASK_IMAGE` (`executor/TaskImageResolver.java:124-143`,
 `dispatcher/TaskService.java:122-127`). There is no worker-image property: every `ai` revision declares its image.
 That image MUST start with one of `flow.dispatcher.ai.image-prefixes` (comma-separated, default `boomerangio/task-ai`,
-which admits every tag and digest of the Boomerang worker); the dispatcher refuses any other `ai` task before it
-creates anything, failing it with `statusReason=ImageNotAllowed` and a message naming the image and the property
-(`dispatcher/TaskService.java:128-134`, `executor/TaskImageResolver.java:71-77`), so a dispatcher registered for `ai`
-stays the egress zone for the worker alone unless an operator adds a prefix. An `ai` task never runs a script
-(`executor/TaskImageResolver.java:149-151`).
+which admits every tag and digest of the Boomerang workers `task-ai` and `task-ai-coding`); the dispatcher refuses any
+other `ai` task before it creates anything, failing it with `statusReason=ImageNotAllowed` and a message naming the
+image and the property (`dispatcher/TaskService.java:128-134`, `executor/TaskImageResolver.java:71-77`), so a
+dispatcher registered for `ai` stays the egress zone for the workers alone unless an operator adds a prefix. An `ai`
+task never runs a script (`executor/TaskImageResolver.java:149-151`).
 
 **Credential defaults.** A dispatcher may carry the endpoint and token itself: `flow.dispatcher.ai.endpoint` and
 `flow.dispatcher.ai.token` (both blank by default) reach every `ai` pod as `OPENAI_BASE_URL` and `OPENAI_API_KEY`,

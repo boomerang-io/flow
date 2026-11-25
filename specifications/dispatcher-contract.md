@@ -348,24 +348,24 @@ and reaches a Latest node from the next run that starts.
 
 ## AI tasks
 
-An `ai` task calls an OpenAI-compatible endpoint. The node references one of two seeded catalogue tasks of type `ai`,
-the engine treats it as any other dispatched type, and a dispatcher runs the image and command the revision declares:
-`boomerangio/task-ai:2.1.0` at revision 2 and `2.0.0` at revision 1, with the command `prompt` or `agent`
-(`dispatcher-kubernetes.md`, "AI tasks"; an in-process dispatcher ignores the image). Admission labels the task run
-`boomerang.io/model` with its `model` param's value unless that param is secret
+An `ai` task calls an OpenAI-compatible endpoint. The node references one of three seeded catalogue tasks of type
+`ai`, the engine treats it as any other dispatched type, and a dispatcher runs the image and command the revision
+declares: `boomerangio/task-ai:2.<n-1>.0` at revision n, `boomerangio/task-ai-coding:2.2.0` for the coding agent, with
+the command `prompt` or `agent` (`dispatcher-kubernetes.md`, "AI tasks"; an in-process dispatcher ignores the image).
+Admission labels the task run `boomerang.io/model` with its `model` param's value unless that param is secret
 (`engine/TaskExecutionService.java:254-264`). Everything the model call needs is a declared param:
 
 | Task | Params | Results |
 | --- | --- | --- |
 | `ai-prompt`, one completion | 17: `model` (required), `prompt` or `promptFile`, `systemPrompt`, `messages` or `messagesFile` (an exact message array replacing the prompts), `endpoint` and `token` (optional; the executor's defaults apply when absent), `temperature`, `maxTokens`, `seed`, `parameters` (an open JSON map passed through, winning on conflict), `responseFormat`, `jsonSchema`, `files`, `maxContextBytes`, `outputFile` (the full reply written to the run workspace); revision 2 adds `images` (run-workspace paths or https URLs, sent as image content parts), `imageDetail` and `maxImageBytes`, 20 in all | 9: `output`, `finishReason`, `model`, `promptTokens`, `completionTokens`, `totalTokens`, `reasoningTokens`, `cachedPromptTokens`, `cost` (the last three empty when the endpoint does not report them) |
-| `ai-agent`, a tool-calling loop | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all, 29 at revision 2 with the same three image params | The 9 plus `turns` and `toolCalls` |
+| `ai-agent`, a tool-calling loop; `ai-coding-agent`, the same loop on an image with node, a JDK, Python and Go, whose revision 1 has `ai-agent` revision 3's params | The 17 plus `tools`, `mcpServers`, `mcpTokens` (password-typed, the only place a tool credential travels), `allowedTools`, `toolContext`, `maxTurns`, `maxToolCalls`, `parallelToolCalls`, `toolResultReinforcement`; 26 in all, 29 at revision 2 with the same three image params; 33 at revision 3 with `workspaceTools` (a multiselect of `read`, `edit`, `write` and `bash`, none by default), confined to `workdir`, and the time limits `bashTimeoutSeconds` and `timeoutSeconds` | The 9 plus `turns` and `toolCalls` |
 
-Revision 1 of each stays seeded beside revision 2, so a workflow pinned to it keeps running unchanged. A workspace
+Earlier revisions stay seeded beside the newest, so a workflow pinned to one keeps running unchanged. A workspace
 image over `maxImageBytes` fails the task with `FILE_TOO_LARGE`; a JSON-valued param that does not parse fails it with
 `INVALID_PARAM`. Results fall under every task's caps ("Ending"), so a long `output` fails the task with
 `ResultsTooLarge` rather than truncating; `outputFile` and the task log carry what does not fit. The seed entries copy
-the definition files in the `boomerang-io/tasks` repository (`tasks/ai/catalog/ai-prompt.json`, `ai-agent.json`), the
-source of the contract (`migration/_0023__SeedAiTaskFamily.java`); each revision pins the exact worker image, and a
+the definition files in the `boomerang-io/tasks` repository (`tasks/ai/catalog/`), the source of the contract
+(`migration/_0023__SeedAiTaskFamily.java`, `_0057__SeedTaskAi22.java`); each revision pins the exact worker image, and a
 deployment moves to a newer worker by seeding a new revision. `token` is password-typed, so it is a `secret` param:
 masked on reads and scrubbed from the log stream (`parameters.md`, "Sensitive parameters"), but a plain `PARAM_TOKEN`
 environment variable on a Kubernetes pod, readable by anyone who can read the pod spec.

@@ -5,6 +5,20 @@ tag's release notes.
 
 ## Unreleased
 
+## 5.1.0 (2026-11-26)
+
+### Upgrading
+
+- **A workflow with nothing between start and end is refused at submit** with `400 WORKFLOW_NOT_RUNNABLE` (1225).
+  In 5.0.1 such a submit answered `200` with a run that had already ended `invalid`; a client that read that run's
+  status now gets the refusal instead, and no run is created. Saving such a workflow is unchanged.
+- **`RESULTS_MAX_BYTES` is smaller than before**: the bytes left for result values once the envelope of the task's
+  declared results is taken off the 4096-byte termination message. A task that budgets against it now fits.
+- **A workflow task's `taskVersion` reads as `"latest"`** on a node set to follow the latest version. Nodes stay
+  pinned by default, so existing workflows and clients only see numbers.
+- **The change unit `_0057__SeedTaskAi22`** runs as the server starts and adds the AI Coding Agent and AI Agent
+  revision 3 to an install that lacks them. No manual step.
+
 ### Added
 
 - **A task node can follow its task's latest version, set explicitly as `latest`; nodes stay pinned by default.** On
@@ -17,6 +31,12 @@ tag's release notes.
 - **Schedules filter by label.** `GET …/schedule/query` takes `labels`, in the form the run and workflow lists
   take: URL-encoded `key=value` entries, all of which a schedule must carry. It combines with `workflows`,
   `statuses` and `types`.
+- **AI Agent gets workspace tools, and a new AI Coding Agent task, from task-ai 2.2.0.** AI Agent revision 3
+  (`boomerangio/task-ai:2.2.0`) adds **Workspace Tools** (Read, Edit, Write, Bash; none by default), confined to a
+  **Working directory** on the run workspace, with a command time limit and a time limit for the whole loop. **AI
+  Coding Agent** (`ai-coding-agent`, `boomerangio/task-ai-coding:2.2.0`) is the same agent on an image with node, a
+  JDK with Maven and Gradle, Python and Go, so it can edit a checkout and run its build or tests. A change unit adds
+  both where an install lacks them; revisions already held, which workflows may pin, are not changed.
 
 ### Fixed
 
