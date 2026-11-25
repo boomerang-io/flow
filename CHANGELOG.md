@@ -5,6 +5,11 @@ tag's release notes.
 
 ## Unreleased
 
+### Fixed
+
+- **A refused child run says why.** A run-workflow or run-scheduled-workflow task whose child run is refused fails
+  with the refusal, such as `QUOTA_EXCEEDED: maximum queued runs`, where its message was empty.
+
 ## 5.0.1 (2026-11-25)
 
 ### Upgrading
