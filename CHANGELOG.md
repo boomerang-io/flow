@@ -7,6 +7,13 @@ tag's release notes.
 
 ### Added
 
+- **A task node can follow its task's latest version, set explicitly as `latest`; nodes stay pinned by default.** On
+  the node's **Configure** tab, **Task version** offers "Latest" above each version: a Latest node runs the version
+  that is latest when each run starts, and a pinned one keeps its version until you change it. Every node with a task
+  version now has the Configure tab, and the node and its edit modal carry a grey tag, "Latest (v5)" or "v4". A pinned
+  node behind the latest links to the New version review; a Latest node lists the latest version's fields it doesn't
+  set. In the API and YAML a node's `taskVersion` is a number or `"latest"`; left out, the save pins the current
+  version as before, and any other value is `400 WORKFLOW_INVALID_TASK_REF`.
 - **Schedules filter by label.** `GET …/schedule/query` takes `labels`, in the form the run and workflow lists
   take: URL-encoded `key=value` entries, all of which a schedule must carry. It combines with `workflows`,
   `statuses` and `types`.

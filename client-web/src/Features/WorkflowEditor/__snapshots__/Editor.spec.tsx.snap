@@ -12116,6 +12116,19 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                             >
                               Create Spreadsheet 1
                             </h3>
+                            <div
+                              class="cds--tag _versionTag_5d4317 cds--tag--sm cds--layout--size-sm cds--tag--gray"
+                              data-testid="version-tag"
+                              id="tag-id-[generated-id]"
+                            >
+                              <span
+                                class="cds--tag__label"
+                                dir="auto"
+                                title="v1"
+                              >
+                                v1
+                              </span>
+                            </div>
                           </header>
                           <p
                             class="_subtitle_5d4317"
@@ -12186,6 +12199,7 @@ exports[`Editor --- Snapshot > Capturing Snapshot of Editor 1`] = `
                           </svg>
                           <svg
                             alt="Workflow warning button"
+                            aria-label="Workflow warning button"
                             class="_button_f89d84 _updateButton_5d4317"
                             height="26"
                             role="button"

@@ -26,5 +26,15 @@ public interface TaskRevisionRepository extends MongoRepository<TaskRevisionEnti
       pipeline = {"{'$match':{'parentRef': ?0}}", "{'$sort': {version: -1}}", "{'$limit': 1}"})
   Optional<TaskRevisionEntity> findByParentRefAndLatestVersion(String parent);
 
+  /** The latest revision of each of the given parents, in one round trip. */
+  @Aggregation(
+      pipeline = {
+        "{'$match':{'parentRef': {'$in': ?0}}}",
+        "{'$sort': {version: -1}}",
+        "{'$group': {'_id': '$parentRef', 'latest': {'$first': '$$ROOT'}}}",
+        "{'$replaceRoot': {'newRoot': '$latest'}}"
+      })
+  List<TaskRevisionEntity> findLatestByParentRefIn(Collection<String> parentRefs);
+
   void deleteByParentRef(String parent);
 }

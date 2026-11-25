@@ -321,6 +321,15 @@ step with their own definitions MUST update in place and MUST NOT delete and rec
 | `PUT …/workflow?replace=true` | Overwrites the latest version in place (`:2279-2286`) and replaces labels and annotations. Runs already made from that version then show the new definition |
 | `DELETE /api/v2/workspace/{workspace}/workflow/{name}` | Marks the workflow deleted and removes its schedules, workflow tokens, actions and relationship node at once (`workflow/WorkflowService.java:1083-1113,2498-2510`); once its runs have finished, the watcher hard-deletes them, their task runs, artifacts and the versions (`workflow/WorkflowRetentionService.java:271-311`). The monthly run quota still counts the old runs; Insights does not |
 
+A task node's `taskVersion` is a number or the string `"latest"`, on the workflow, its YAML and the canvas
+(`common/model/WorkflowTask.java:64-106`, `workflow/model/CanvasNodeData.java`). A number pins the node to that
+version. Left out, the save pins the node to the version that is latest then, as it always has
+(`workflow/WorkflowService.java:1957-1963`). `"latest"` makes the node follow the latest: the save checks its params,
+their names and their secrets against the latest version and stores no version, every read shows it as `"latest"`,
+it is offered no upgrade (`:2835-2846`), and each run takes the version that is latest when it starts
+(`engine/DAGUtility.java:278-282`). Any other value is `400 WORKFLOW_INVALID_TASK_REF` naming the node and
+`<task>@<value>` (`workflow/WorkflowService.java:1677-1683`). A task run's `taskVersion` is always the number it ran.
+
 Every update without `replace` adds a version, so a client that applies its definitions on start-up SHOULD skip the call when nothing changed, for example by storing a hash of the definition in its
 own annotation. A top-level field the workflow model does not carry is ignored, so the response shows exactly what was stored (`common/model/Workflow.java:24`).
 

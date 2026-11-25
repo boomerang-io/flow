@@ -233,7 +233,7 @@ down (255 px before).
 | Tab | Shown for | Holds |
 | --- | --- | --- |
 | Parameters | every task | the task's own inputs; a custom or script task's editable result list (`src/Features/Reactflow/components/shared/inputs.tsx`, `ResultsInput`) |
-| Configure | a type that can run for each item (`template`, `script`, `custom`, `ai`, `generic`, `uploadartifact`, `downloadartifact`; `src/Features/Reactflow/components/shared/foreach.ts:24-32`) | how the task runs ("Run for each item") |
+| Configure | every node with a task version, which is every type but start and end | Version first (`src/Features/Reactflow/components/shared/taskVersion.tsx`); then Retry and "Run for each item" on a type that can repeat (`template`, `script`, `custom`, `ai`, `generic`, `uploadartifact`, `downloadartifact`; `src/Features/Reactflow/components/shared/foreach.ts:24-32`) |
 | Results | a task whose catalogue entry declares results | each result's name in monospace and its description, read-only (`TaskFormTabs.tsx`, `ResultsList`) |
 
 - The tabs sit inside one `ModalForm`/`DynamicFormik` form, so Apply saves every tab and validation is shared. A type
@@ -241,6 +241,10 @@ down (255 px before).
 - A tab label MUST show state the user cannot see from the other tab: a purple `Tag` ("For each") while a setting on
   that tab is on, and a `WarningFilled` icon in the error colour, with an `aria-label` "<Tab> has an error", while
   one of its fields is invalid. Apply never fails for a reason on a tab the user is not looking at.
+- **Version** is one `Select`, "Task version" ("Latest (currently: v5)", then each version newest first), whose helper
+  text says what the choice does. Below it, in plain words, an info notification with a "Review changes" action (the
+  New version modal) for a pinned node behind the latest, or an info notification listing every field of the latest a
+  Latest node doesn't set; neither blocks Apply. The canvas node and the modal title carry a small grey `Tag`, "Latest (v5)" or "v4".
 - The modal resets button padding, so the tab list restores Carbon's tab padding itself
   (`src/Features/Reactflow/components/shared/TaskFormTabs.module.scss`).
 

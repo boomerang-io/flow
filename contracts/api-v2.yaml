@@ -336,8 +336,13 @@ components:
         taskRef:
           type: "string"
         taskVersion:
-          format: "int32"
-          type: "integer"
+          description: "The pinned task version, or \"latest\" to run the version\
+            \ that is latest when each run starts. Left out on save, the node is pinned\
+            \ to the current version."
+          oneOf:
+          - format: "int32"
+            type: "integer"
+          - type: "string"
         timeout:
           format: "int64"
           type: "integer"
@@ -3026,8 +3031,13 @@ components:
         taskRef:
           type: "string"
         taskVersion:
-          format: "int32"
-          type: "integer"
+          description: "The pinned task version, or \"latest\" to run the version\
+            \ that is latest when each run starts. Left out on save, the node is pinned\
+            \ to the current version."
+          oneOf:
+          - format: "int32"
+            type: "integer"
+          - type: "string"
         timeout:
           format: "int64"
           type: "integer"
