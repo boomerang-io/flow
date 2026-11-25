@@ -51,25 +51,31 @@ function matchesWithoutFocusVisible(this: Element, selector: string) {
   return selector === ":focus-visible" ? false : matches.call(this, selector);
 }
 
-async function renderNode(TaskForm?: React.FC<any>) {
+async function renderNode(
+  TaskForm?: React.FC<any>,
+  { data = nodeData, latest = task, open = true }: { data?: WorkflowNodeData; latest?: Task; open?: boolean } = {},
+) {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   vi.spyOn(Element.prototype, "matches").mockImplementation(matchesWithoutFocusVisible);
   const nodeTypes = { ai: (props: WorkflowNodeProps) => <TemplateNode {...props} TaskForm={TaskForm} /> };
-  render(
+  const view = render(
     <div style={{ width: 800, height: 600 }}>
       <EditorContextProvider
         value={{ availableParameters: [], revisionState: {} as WorkflowCanvas, workflowsQueryData: {} as any }}
       >
-        <WorkflowProvider value={{ mode: WorkflowEngineMode.Edit, tasks: { [taskRef]: [task] } }}>
-          <ReactFlow defaultNodes={[initialNode]} nodeTypes={nodeTypes}>
+        <WorkflowProvider value={{ mode: WorkflowEngineMode.Edit, tasks: { [taskRef]: [latest] } }}>
+          <ReactFlow defaultNodes={[{ ...initialNode, data }]} nodeTypes={nodeTypes}>
             <NodesProbe />
           </ReactFlow>
         </WorkflowProvider>
       </EditorContextProvider>
     </div>,
   );
-  // Unmeasured in jsdom, the canvas keeps its nodes hidden, so the edit button has no accessible name.
-  fireEvent.click(await screen.findByTitle("edit"));
+  if (open) {
+    // Unmeasured in jsdom, the canvas keeps its nodes hidden, so the edit button has no accessible name.
+    fireEvent.click(await screen.findByTitle("edit"));
+  }
+  return view;
 }
 
 function savedNode() {
@@ -127,5 +133,135 @@ describe("Template task node --- what Apply saves", () => {
 
     await waitFor(() => expect(savedNode().results).toEqual(userResults));
     expect(savedNode().params).toEqual([{ name: "model", value: "b-model" }]);
+  });
+});
+
+/*
+ * A node that names a task version is pinned to it; one that names none follows the latest. The editor holds each
+ * task at its latest version (v5 here), so a Latest node's form is that version's.
+ */
+describe("Template task node --- the task version", () => {
+  const latestTask = { ...task, version: 5 } as Task;
+  const { taskVersion: _pinned, ...latestNodeData } = nodeData;
+
+  afterEach(() => {
+    vi.restoreAllMocks();
+    vi.unstubAllGlobals();
+  });
+
+  function openConfigure() {
+    fireEvent.click(screen.getByRole("tab", { hidden: true, name: /Configure/ }));
+  }
+
+  function chooseVersion(value: string) {
+    fireEvent.change(screen.getByLabelText("Task version"), { target: { value } });
+  }
+
+  async function apply() {
+    const button = await screen.findByRole("button", { hidden: true, name: "Apply" });
+    await waitFor(() => expect(button).toBeEnabled());
+    fireEvent.click(button);
+  }
+
+  it("tags a Latest node with the version it runs, on the canvas and in the edit modal's title", async () => {
+    await renderNode(undefined, { data: latestNodeData as WorkflowNodeData, latest: latestTask });
+
+    expect(screen.getByTestId("version-tag")).toHaveTextContent("Latest (v5)");
+    const dialog = await screen.findByRole("dialog", { hidden: true });
+    expect(within(dialog).getByRole("heading", { hidden: true, name: "Edit AI Latest (v5)" })).toBeInTheDocument();
+  });
+
+  it("tags a pinned node with its own version", async () => {
+    await renderNode(undefined, { data: { ...nodeData, taskVersion: 4 }, latest: latestTask });
+
+    expect(screen.getByTestId("version-tag")).toHaveTextContent(/^v4$/);
+    const dialog = await screen.findByRole("dialog", { hidden: true });
+    expect(within(dialog).getByRole("heading", { hidden: true, name: "Edit AI v4" })).toBeInTheDocument();
+  });
+
+  it("never offers a Latest node the upgrade, which a pinned node behind the latest still gets", async () => {
+    const upgrade = "Workflow warning button";
+    const { unmount } = await renderNode(undefined, {
+      data: { ...(latestNodeData as WorkflowNodeData), upgradesAvailable: true },
+      latest: latestTask,
+      open: false,
+    });
+    await screen.findByTestId("version-tag");
+    expect(screen.queryByLabelText(upgrade)).not.toBeInTheDocument();
+    unmount();
+
+    await renderNode(undefined, {
+      data: { ...nodeData, taskVersion: 4, upgradesAvailable: true },
+      latest: latestTask,
+      open: false,
+    });
+    await screen.findByTestId("version-tag");
+    expect(screen.getByLabelText(upgrade)).toBeInTheDocument();
+  });
+
+  it("drops the version when a pinned node is switched to Latest", async () => {
+    await renderNode(undefined, { data: { ...nodeData, taskVersion: 4, upgradesAvailable: true }, latest: latestTask });
+    openConfigure();
+
+    chooseVersion("latest");
+    await apply();
+
+    await waitFor(() => expect(savedNode()).not.toBe(nodeData));
+    expect(savedNode().taskVersion).toBeUndefined();
+    expect(savedNode().upgradesAvailable).toBe(false);
+  });
+
+  it("pins the version chosen for a Latest node", async () => {
+    await renderNode(undefined, { data: latestNodeData as WorkflowNodeData, latest: latestTask });
+    openConfigure();
+
+    chooseVersion("4");
+    await apply();
+
+    await waitFor(() => expect(savedNode().taskVersion).toBe(4));
+    expect(savedNode().upgradesAvailable).toBe(true);
+  });
+
+  it("keeps the node's version when the form leaves the select alone", async () => {
+    await renderNode(undefined, { data: { ...nodeData, taskVersion: 4 }, latest: latestTask });
+
+    await apply();
+
+    await waitFor(() => expect(savedNode()).not.toBe(nodeData));
+    expect(savedNode().taskVersion).toBe(4);
+  });
+
+  it("links a pinned node behind the latest to the New version modal", async () => {
+    vi.stubGlobal("fetch", vi.fn().mockRejectedValue(new Error("offline")));
+    await renderNode(undefined, { data: { ...nodeData, taskVersion: 4 }, latest: latestTask });
+    openConfigure();
+
+    expect(screen.getByText("v5 is available.")).toBeInTheDocument();
+    expect(screen.getByText("Review the changes before you move this node to it.")).toBeInTheDocument();
+    fireEvent.click(screen.getByRole("button", { hidden: true, name: "Review changes" }));
+
+    expect(await screen.findByText("New version available")).toBeInTheDocument();
+  });
+
+  it("warns a Latest node that the latest needs a param it does not set, and holds Apply until it does", async () => {
+    const withoutModel = {
+      ...latestNodeData,
+      params: nodeData.params.filter((param) => param.name !== "model"),
+    } as WorkflowNodeData;
+    await renderNode(undefined, { data: withoutModel, latest: latestTask });
+
+    const apply = await screen.findByRole("button", { hidden: true, name: "Apply" });
+    await waitFor(() => expect(apply).toBeDisabled());
+    expect(screen.getByRole("img", { hidden: true, name: "Parameters has an error" })).toBeInTheDocument();
+    openConfigure();
+    expect(
+      screen.getByText("v5 needs Model, and this node doesn't set it yet. Fill it in on Parameters before you apply."),
+    ).toBeInTheDocument();
+
+    fireEvent.click(screen.getByRole("tab", { hidden: true, name: /Parameters/ }));
+    fireEvent.change(screen.getByLabelText(/^Model/), { target: { value: "a-model" } });
+
+    await waitFor(() => expect(apply).toBeEnabled());
+    expect(screen.queryByText(/v5 needs Model/)).not.toBeInTheDocument();
   });
 });

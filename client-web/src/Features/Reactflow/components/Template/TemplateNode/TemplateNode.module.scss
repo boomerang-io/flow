@@ -1,4 +1,5 @@
 @use "@carbon/react/scss/colors";
+@use "@carbon/react/scss/spacing" as *;
 
 @import "Styles/mixins";
 
@@ -23,6 +24,22 @@
 .updateTaskModalContainer {
   max-height: 62.5rem !important;
   max-width: 60rem !important;
+}
+
+// The node's version, plain grey, at the end of the header row and of the edit modal's title.
+.versionTag {
+  flex-shrink: 0;
+  margin: 0 0 0 auto;
+}
+
+.modalTitle {
+  align-items: center;
+  display: inline-flex;
+  gap: $spacing-03;
+
+  .versionTag {
+    margin: 0;
+  }
 }
 
 // The edit modal's subtitle: the add-ons ComposedModal renders it inside its own <p> and gives no
@@ -126,6 +143,7 @@
 
 .title {
   height: 1.125rem;
+  min-width: 0;
   color: var(--cds-text-primary);
   font-size: 0.875rem;
   line-height: 1.125rem;

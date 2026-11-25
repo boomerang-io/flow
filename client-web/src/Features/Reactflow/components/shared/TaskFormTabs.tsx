@@ -30,12 +30,13 @@ import {
   RETRY_MAX_HELPER_TEXT,
   RETRY_MAX_KEY,
 } from "./retry";
+import { TASK_VERSION_KEY, TaskVersionContextValue, VersionFields, useTaskVersion } from "./taskVersion";
 
 // The input DynamicFormik renders in the header block rather than on a tab.
 const TASK_NAME_KEY = "taskName";
 
 // Every form value the Configure tab owns.
-const CONFIGURE_KEYS = [...FOREACH_KEYS, ...RETRY_KEYS];
+const CONFIGURE_KEYS = [TASK_VERSION_KEY, ...FOREACH_KEYS, ...RETRY_KEYS];
 
 type TaskResult = { name: string; description: string };
 
@@ -43,7 +44,7 @@ interface TaskFormTabsProps {
   /** The rendered inputs DynamicFormik hands its children, each keyed by its input key. */
   inputs: Array<React.ReactNode>;
   formikProps: FormikProps<any>;
-  /** The node type of the task being edited; only FOREACH_TASK_TYPES (the types that retry too) get the Configure tab. */
+  /** The node type of the task being edited; FOREACH_TASK_TYPES (the types that retry too) get Retry and For each. */
   taskType?: string;
   /** The results the task declares, listed read-only on a Results tab; none means no tab. */
   results?: Array<TaskResult> | null;
@@ -52,10 +53,10 @@ interface TaskFormTabsProps {
 /**
  * The body of every task edit form. A header block carries the task name and the tab list, so
  * the modal's own header, the name and the tabs read as one; the tab panel follows. The tabs
- * are Parameters (the task's own inputs), Configure (retry and run the task for each item of a list,
- * for a type that can) and Results (what the task declares, when it declares any). One Formik form
- * spans every tab, so Apply saves them all. A type with nothing to configure and no results
- * has no tabs: the name alone sits above its inputs.
+ * are Parameters (the task's own inputs), Configure (the task version for a node that has one, then
+ * retry and run the task for each item of a list, for a type that can) and Results (what the task
+ * declares, when it declares any). One Formik form spans every tab, so Apply saves them all. A form
+ * with nothing to configure and no results has no tabs: the name alone sits above its inputs.
  */
 export default function TaskFormTabs({ inputs, formikProps, taskType, results: declaredResults }: TaskFormTabsProps) {
   // A task that declares no results is read from the API with `results: null`, which a default does not replace.
@@ -64,7 +65,9 @@ export default function TaskFormTabs({ inputs, formikProps, taskType, results: d
   const isNameInput = (input: React.ReactNode) => React.isValidElement(input) && input.key === TASK_NAME_KEY;
   const nameInputs = inputs.filter(isNameInput);
   const parameterInputs = inputs.filter((input) => !isNameInput(input));
-  const hasConfigure = Boolean(taskType) && FOREACH_TASK_TYPES.includes(taskType as string);
+  const version = useTaskVersion();
+  const canRepeat = Boolean(taskType) && FOREACH_TASK_TYPES.includes(taskType as string);
+  const hasConfigure = Boolean(version) || canRepeat;
   const hasResults = results.length > 0;
 
   if (!hasConfigure && !hasResults) {
@@ -108,7 +111,7 @@ export default function TaskFormTabs({ inputs, formikProps, taskType, results: d
           {hasConfigureError ? <TabErrorIcon tabName="Configure" /> : null}
         </span>
       ),
-      panel: <ConfigureFields formikProps={formikProps} />,
+      panel: <ConfigureFields formikProps={formikProps} canRepeat={canRepeat} version={version} />,
     });
   }
   if (hasResults) {
@@ -162,11 +165,25 @@ function ResultsList({ results }: { results: Array<TaskResult> }) {
   );
 }
 
-function ConfigureFields({ formikProps }: { formikProps: FormikProps<any> }) {
+// The version comes first, for every node that has one; retry and for each only for a type that can repeat.
+function ConfigureFields({
+  canRepeat,
+  formikProps,
+  version,
+}: {
+  canRepeat: boolean;
+  formikProps: FormikProps<any>;
+  version: TaskVersionContextValue | null;
+}) {
   return (
     <div className={styles.configure}>
-      <RetryFields formikProps={formikProps} />
-      <ForeachFields formikProps={formikProps} />
+      {version ? <VersionFields formikProps={formikProps} version={version} /> : null}
+      {canRepeat ? (
+        <>
+          <RetryFields formikProps={formikProps} />
+          <ForeachFields formikProps={formikProps} />
+        </>
+      ) : null}
     </div>
   );
 }

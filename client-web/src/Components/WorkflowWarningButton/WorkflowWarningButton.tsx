@@ -19,6 +19,7 @@ const WorkflowWarningButton: React.FC<WorkflowWarningButtonProps> = ({
   return (
     <EditButton
       alt={alt}
+      aria-label={alt}
       className={cx(styles.button, className)}
       onClick={onClick}
       onKeyDown={(e: React.MouseEvent<HTMLButtonElement, MouseEvent>) =>

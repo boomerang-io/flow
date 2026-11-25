@@ -1,4 +1,5 @@
 import React from "react";
+import { Tag } from "@carbon/react";
 import { Bee } from "@carbon/react/icons";
 import { ComposedModal } from "@boomerang-io/carbon-addons-boomerang-react";
 import { Handle, Position, useEdges, useReactFlow } from "@xyflow/react";
@@ -17,6 +18,7 @@ import { RunStatus, WorkflowEngineModeType } from "Types";
 import { isFinallyNode, useIsValidConnection } from "../../shared/finally";
 import { splitForeachValues } from "../../shared/foreach";
 import { splitRetryValues } from "../../shared/retry";
+import { TaskVersionContext, isLatest, splitTaskVersionValues, versionTagText } from "../../shared/taskVersion";
 import { TaskForm as DefaultTaskForm } from "./TaskForm";
 import styles from "./TemplateNode.module.scss";
 
@@ -55,6 +57,11 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
   const otherTaskNames = nodes.map((node) => node.data.name).filter((name) => name !== props.data.name);
 
   const taskTemplate = mergeFormInputs(props.taskTemplate, props.formInputsToMerge);
+  // The editor holds each task at its latest version; a node with no version follows it.
+  const latestVersion = taskTemplate.version;
+  const isLatestNode = isLatest(props.data.taskVersion);
+  const versionTag = versionTagText(props.data.taskVersion, latestVersion);
+  const [isNewVersionOpen, setIsNewVersionOpen] = React.useState(false);
 
   const handleOnUpdateTaskVersion = ({ inputs, version }: { inputs: Record<string, string>; version: number }) => {
     const nameAndParamListRecord = inputRecordToNameAndParamListRecord(inputs);
@@ -78,8 +85,16 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
     inputs: Record<string, string>,
     results?: Array<{ name: string; description: string }>,
   ) => {
-    // The for-each setting shares the form with the params but is not a param.
-    const { foreach, rest: withoutForeach } = splitForeachValues(inputs);
+    // The version, the for-each setting and the retry setting share the form with the params but are not params.
+    const { changed: versionChanged, taskVersion, rest: withoutVersion } = splitTaskVersionValues(inputs);
+    // Latest drops the version; a pinned one is offered the upgrade while it is behind.
+    const version = versionChanged
+      ? {
+          taskVersion: taskVersion ?? undefined,
+          upgradesAvailable: taskVersion !== null && taskVersion < latestVersion,
+        }
+      : {};
+    const { foreach, rest: withoutForeach } = splitForeachValues(withoutVersion);
     // So is the retry setting; none saves as an absent `retry`.
     const { retry, rest } = splitRetryValues(withoutForeach);
     const nameAndParamListRecord = inputRecordToNameAndParamListRecord(rest);
@@ -87,7 +102,14 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
       if (node.id === props.id) {
         return {
           ...node,
-          data: { ...node.data, ...nameAndParamListRecord, results: results ?? node.data.results, foreach, retry },
+          data: {
+            ...node.data,
+            ...version,
+            ...nameAndParamListRecord,
+            results: results ?? node.data.results,
+            foreach,
+            retry,
+          },
         };
       } else {
         return node;
@@ -106,6 +128,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
       nodeProps={props}
       title={props.data.name}
       subtitle={taskTemplate.description}
+      versionTag={versionTag}
     >
       <ComposedModal
         isOpen={nodeToEdit === props.id}
@@ -113,7 +136,14 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
           if (nodeToEdit === props.id) clearNodeToEdit?.();
         }}
         modalHeaderProps={{
-          title: `Edit ${taskTemplate.displayName}`,
+          title: (
+            <span className={styles.modalTitle}>
+              Edit {taskTemplate.displayName}
+              <Tag className={styles.versionTag} size="sm" type="gray">
+                {versionTag}
+              </Tag>
+            </span>
+          ),
           // One line, clipped, with the whole description on hover: the fields get the height.
           subtitle: (
             <span className={styles.modalSubtitle} title={taskTemplate.description || "Configure the task"}>
@@ -124,16 +154,28 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
         modalTrigger={({ openModal }) => <WorkflowEditButton className={styles.editButton} onClick={openModal} />}
       >
         {({ closeModal }) => (
-          <TaskForm
-            availableParameters={availableParameters}
-            additionalFormInputs={props.additionalFormInputs}
-            closeModal={closeModal}
-            node={props.data}
-            nodeType={props.type}
-            onSave={handleOnSaveTaskConfig}
-            otherTaskNames={otherTaskNames}
-            task={taskTemplate}
-          />
+          <TaskVersionContext.Provider
+            value={{
+              taskVersion: props.data.taskVersion,
+              latestVersion,
+              params: taskTemplate.spec.params ?? [],
+              onReviewNewVersion: () => {
+                closeModal();
+                setIsNewVersionOpen(true);
+              },
+            }}
+          >
+            <TaskForm
+              availableParameters={availableParameters}
+              additionalFormInputs={props.additionalFormInputs}
+              closeModal={closeModal}
+              node={props.data}
+              nodeType={props.type}
+              onSave={handleOnSaveTaskConfig}
+              otherTaskNames={otherTaskNames}
+              task={taskTemplate}
+            />
+          </TaskVersionContext.Provider>
         )}
       </ComposedModal>
       <ComposedModal
@@ -141,13 +183,16 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
           containerClassName: styles.updateTaskModalContainer,
           shouldCloseOnOverlayClick: false,
         }}
+        isOpen={isNewVersionOpen}
+        onCloseModal={() => setIsNewVersionOpen(false)}
         modalHeaderProps={{
           title: `New version available`,
           subtitle:
             "The managers of this task have made some changes that were significant enough for a new version. You can still use the current version, but it’s usually a good idea to update when available. The details of the change are outlined below. If you’d like to update, review the changes below and make adjustments if needed. This process will only update the task in this Workflow - not any other workflows where this task appears.",
         }}
         modalTrigger={({ openModal }) =>
-          props.data?.upgradesAvailable ? (
+          // A Latest node always runs the newest version, so it is never offered an upgrade.
+          props.data?.upgradesAvailable && !isLatestNode ? (
             <WorkflowWarningButton className={styles.updateButton} onClick={openModal} />
           ) : null
         }
@@ -264,10 +309,13 @@ interface BaseNodeProps {
   subtitle?: string;
   title?: string;
   status?: RunStatus;
+  // Edit mode only: the node's version, "Latest (v5)" or "v4".
+  versionTag?: string;
 }
 
 function BaseNode(props: BaseNodeProps) {
-  const { isConnectable, children, className, foreachProgress, icon, onClick, status, subtitle, title } = props;
+  const { isConnectable, children, className, foreachProgress, icon, onClick, status, subtitle, title, versionTag } =
+    props;
   const reactFlowInstance = useReactFlow<WorkflowNode, WorkflowEdge>();
   let Icon = () => <Bee style={{ willChange: "auto" }} />;
 
@@ -323,6 +371,11 @@ function BaseNode(props: BaseNodeProps) {
         <h3 title={title || "Task"} className={styles.title}>
           {title || "Task"}
         </h3>
+        {versionTag ? (
+          <Tag className={styles.versionTag} data-testid="version-tag" size="sm" type="gray">
+            {versionTag}
+          </Tag>
+        ) : null}
       </header>
       <p title={subtitle} className={styles.subtitle}>
         {subtitle || "Task"}

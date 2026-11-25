@@ -85,7 +85,7 @@ export default function TaskUpdateModal(props: TaskUpdateModalProps) {
     let cancelled = false;
     (async () => {
       try {
-        const response = await fetch(resourceRoute.task({ name: node.taskRef, version: node.taskVersion }), {
+        const response = await fetch(resourceRoute.task({ name: node.taskRef, version: node.taskVersion ?? undefined }), {
           credentials: "same-origin",
         });
         const body = response.ok ? ((await response.json()) as { ok: boolean; task?: Task }) : { ok: false };

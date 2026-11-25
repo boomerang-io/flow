@@ -341,9 +341,10 @@ the seed later needs a change unit of its own (`migration/_0049__SeedTaskFlow34R
 takes the `task` settings' `default.image`, seeded as `boomerangio/task-flow:3.4.0` and moved from 3.3.0 on an install
 still holding that (`migration/_0048__DefaultTaskImageTaskFlow34.java`), when its task run is created (`engine/DAGUtility.java:389-392`).
 
-A workflow node's task version is pinned when the workflow is saved, to the version it asked for or the latest
-(`workflow/WorkflowService.java:1942-1943`), and the task run records it (`engine/DAGUtility.java:282`), so a new
-task revision changes nothing for a saved workflow until it is saved again.
+A workflow node either names a task version and is pinned to it, or names none and follows the latest; the save
+keeps whichever it was (`workflow/WorkflowService.java:1950-1952`). A task run records the version its run started
+with (`engine/DAGUtility.java:278-282`), so a new task revision changes nothing for a pinned node until it is moved,
+and reaches a Latest node from the next run that starts.
 
 ## AI tasks
 

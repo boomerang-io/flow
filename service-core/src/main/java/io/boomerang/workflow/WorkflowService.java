@@ -325,17 +325,29 @@ public class WorkflowService {
    * type is stamped from the task's spec here as well as at save, so a revision saved before
    * stamping existed is hidden too; the specs are resolved in one batch for the whole page. The
    * canvas reads (composeGet, composeApply) are filtered the same way. Must run while the task refs
-   * are still refs, before convertTaskRefsToSlugs.
+   * are still refs, before convertTaskRefsToSlugs. A node with no task version reads its task's
+   * latest spec.
    */
   private void filterSensitiveValues(List<Workflow> workflows) {
-    Set<TaskService.TaskRef> refs =
+    List<WorkflowTask> nodes =
         workflows.stream()
             .filter(w -> w.getTasks() != null)
             .flatMap(w -> w.getTasks().stream())
-            .filter(t -> t.getTaskRef() != null && t.getTaskVersion() != null)
-            .map(t -> new TaskService.TaskRef(t.getTaskRef(), t.getTaskVersion()))
-            .collect(Collectors.toSet());
-    Map<TaskService.TaskRef, TaskSpec> specs = taskService.getSpecs(refs);
+            .filter(t -> t.getTaskRef() != null)
+            .toList();
+    Map<String, Integer> latest =
+        taskService.latestVersions(
+            nodes.stream()
+                .filter(t -> t.getTaskVersion() == null)
+                .map(WorkflowTask::getTaskRef)
+                .collect(Collectors.toSet()));
+    Function<WorkflowTask, TaskService.TaskRef> specRef =
+        t ->
+            new TaskService.TaskRef(
+                t.getTaskRef(),
+                (t.getTaskVersion() != null ? t.getTaskVersion() : latest.get(t.getTaskRef())));
+    Map<TaskService.TaskRef, TaskSpec> specs =
+        taskService.getSpecs(nodes.stream().map(specRef).collect(Collectors.toSet()));
     for (Workflow workflow : workflows) {
       DataAdapterUtil.filterParamSpecValueByFieldType(
           workflow.getParams(), FieldType.PASSWORD.value());
@@ -343,7 +355,7 @@ public class WorkflowService {
         continue;
       }
       for (WorkflowTask task : workflow.getTasks()) {
-        TaskSpec spec = specs.get(new TaskService.TaskRef(task.getTaskRef(), task.getTaskVersion()));
+        TaskSpec spec = task.getTaskRef() != null ? specs.get(specRef.apply(task)) : null;
         if (spec != null) {
           ParameterUtil.stampSecretParams(task.getParams(), spec.getParams());
         }
@@ -1935,9 +1947,9 @@ public class WorkflowService {
               "A " + wfTask.getType() + " task cannot run for each item.");
         }
       } else {
-        // Shared utility with DAGUtility
+        // Shared utility with DAGUtility. A node that names a version is pinned to it; one that
+        // names none follows the latest, is checked against the latest here, and stays unpinned.
         Task taskTemplate = taskService.retrieveAndValidateTask(wfTask);
-        wfTask.setTaskVersion(taskTemplate.getVersion());
 
         // The node's type decides how it runs, so it must be the type of the Task it references.
         if (wfTask.getType() != taskTemplate.getType()) {

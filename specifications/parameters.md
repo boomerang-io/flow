@@ -113,9 +113,9 @@ same layers (`engine/ParameterManager.java:459-490`). Decision 0016 records why.
 
 The editor warns when a saved version reads a workspace parameter the workspace does not provide, so such a run
 fails here. It reads `$(workspace.params.x)` and `$(team.params.x)` anywhere in a node's values, and in its task's
-defaults where the node leaves a param out (or leaves a `password` empty) and pins the task version the editor
-holds; names match in any case, and a parameter with no value, or any while workspace parameters are off, counts
-as missing. The save goes ahead (`client-web/src/Utils/workspaceParamReferences.ts:23-59`,
+defaults where the node leaves a param out (or leaves a `password` empty) and runs the task version the editor
+holds, the latest, which a node with no version follows; names match in any case, and a parameter with no value, or any while workspace parameters are off, counts
+as missing. The save goes ahead (`client-web/src/Utils/workspaceParamReferences.ts:23-60`,
 `client-web/src/Features/WorkflowEditor/Editor.tsx:236-240,257-266`).
 
 ## Names

@@ -966,6 +966,20 @@ public class TaskService {
     return specs;
   }
 
+  /**
+   * Return the latest version of each given catalogue task, by id, in one query. A workflow node
+   * with no {@code taskVersion} follows its task's latest; a task with no revision is absent.
+   */
+  public Map<String, Integer> latestVersions(Collection<String> refs) {
+    if (refs == null || refs.isEmpty()) {
+      return Map.of();
+    }
+    return taskRevisionRepository.findLatestByParentRefIn(refs).stream()
+        .collect(
+            Collectors.toMap(
+                TaskRevisionEntity::getParentRef, TaskRevisionEntity::getVersion, (a, b) -> a));
+  }
+
   private static String revisionKey(String parentRef, Integer version) {
     return parentRef + "@" + version;
   }
