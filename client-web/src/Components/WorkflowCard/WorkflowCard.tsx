@@ -19,7 +19,7 @@ import { useFetcher, Link, useNavigate } from "react-router-dom";
 import WorkflowWarningButton from "Components/WorkflowWarningButton";
 // @ts-ignore:next-line
 import { swapValue } from "Utils";
-import { WorkflowView } from "Constants";
+import { NodeType, WorkflowView } from "Constants";
 import { appLink, FeatureFlag } from "Config/appConfig";
 import { resourceRoute } from "Config/resourceRoutes";
 import {
@@ -98,6 +98,8 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
     Boolean(quotas) &&
     isQuotaLimited(quotas?.maxCumulativeDuration) &&
     quotas!.maxCumulativeDuration <= (quotas!.currentCumulativeDuration ?? 0);
+  const nothingToRunNote =
+    "Nothing to run yet, mate: this workflow has no tasks between start and end. Add a task and give it another go.";
   const cumulativeSpentNote = `This workspace has used its ${quotas?.maxCumulativeDuration} minutes of task time this month. Runs already going will finish. Ask an admin to raise the quota, or try again when it resets.`;
   const areSlotsBusy =
     Boolean(quotas) && isQuotaLimited(quotas?.maxConcurrentRuns) && quotas!.maxConcurrentRuns <= quotas!.currentConcurrentRuns;
@@ -347,8 +349,17 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
   // Busy slots alone never stop a run: it waits in the queue. Only a full queue does.
   const isDisabledViaQueueQuota = workspaceQuotasEnabled && isQueueFull;
   const isDisabledViaTrigger = canRunManually === false;
+  // A workflow with nothing between start and end saves, but a submit of it is refused. A read
+  // that carries no tasks at all says nothing either way, so it is left to the submit.
+  const tasks = workflow.tasks ?? [];
+  const isDisabledViaNothingToRun =
+    tasks.length > 0 && tasks.every((task) => task.type === NodeType.Start || task.type === NodeType.End);
   const isDisabled =
-    isDisabledViaRunQuota || isDisabledViaCumulativeQuota || isDisabledViaQueueQuota || isDisabledViaTrigger;
+    isDisabledViaRunQuota ||
+    isDisabledViaCumulativeQuota ||
+    isDisabledViaQueueQuota ||
+    isDisabledViaTrigger ||
+    isDisabledViaNothingToRun;
   const queueNote = workspaceQuotasEnabled && willQueue ? runWillWaitNote : null;
 
   // A disabled button raises no hover events, so the tooltip that says why hangs off a wrapper.
@@ -364,6 +375,13 @@ const WorkflowCard: React.FC<WorkflowCardProps> = ({ workspaceName, quotas, work
         Run it
       </Button>
     );
+    if (isDisabledViaNothingToRun) {
+      return (
+        <TooltipHover direction="top" tooltipContent={nothingToRunNote}>
+          <div data-testid="workflow-card-run-nothing">{button}</div>
+        </TooltipHover>
+      );
+    }
     return isDisabledViaCumulativeQuota ? (
       <TooltipHover direction="top" tooltipContent={cumulativeSpentNote}>
         <div data-testid="workflow-card-run-quota">{button}</div>

@@ -41,6 +41,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 class WorkflowSubmitTriggerTest extends AbstractEngineIntegrationTest {
 
+  private static final String TASK_SLUG = "submit-trigger-test-task";
+
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkspaceService workspaceService;
 
@@ -49,6 +51,7 @@ class WorkflowSubmitTriggerTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void aWorkspaceAndAMember() {
+    seedGlobalTask(TASK_SLUG);
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName("trigger-ws-" + System.nanoTime());
     request.setDisplayName(request.getName());
@@ -162,9 +165,17 @@ class WorkflowSubmitTriggerTest extends AbstractEngineIntegrationTest {
     end.setName("end");
     end.setType(TaskType.end);
     WorkflowTaskDependency dependency = new WorkflowTaskDependency();
-    dependency.setTaskRef("start");
+    dependency.setTaskRef("work");
     end.setDependencies(new LinkedList<>(List.of(dependency)));
-    workflow.setTasks(new LinkedList<>(List.of(start, end)));
+    // One task between start and end: a workflow with nothing between them is refused at submit.
+    WorkflowTask work = new WorkflowTask();
+    work.setName("work");
+    work.setType(TaskType.template);
+    work.setTaskRef(TASK_SLUG);
+    WorkflowTaskDependency afterStartForWork = new WorkflowTaskDependency();
+    afterStartForWork.setTaskRef("start");
+    work.setDependencies(new LinkedList<>(List.of(afterStartForWork)));
+    workflow.setTasks(new LinkedList<>(List.of(start, work, end)));
     return workflowService.create(workspace.getName(), workflow).getName();
   }
 }

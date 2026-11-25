@@ -6,6 +6,7 @@ import io.boomerang.common.entity.WorkflowRunEntity;
 import io.boomerang.common.entity.WorkflowScheduleEntity;
 import io.boomerang.common.enums.RunPhase;
 import io.boomerang.common.enums.RunStatus;
+import io.boomerang.common.enums.TaskType;
 import io.boomerang.common.enums.TriggerEnum;
 import io.boomerang.common.enums.WorkflowScheduleStatus;
 import io.boomerang.common.enums.WorkflowScheduleType;
@@ -14,6 +15,8 @@ import io.boomerang.common.model.Trigger;
 import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
+import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowTrigger;
 import io.boomerang.core.audit.AuditEventEntity;
 import io.boomerang.core.audit.AuditEventRepository;
@@ -30,6 +33,7 @@ import io.boomerang.workspace.model.Quotas;
 import io.boomerang.workspace.model.WorkspaceRequest;
 import java.time.Instant;
 import java.util.Date;
+import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import org.assertj.core.api.InstanceOfAssertFactories;
@@ -178,6 +182,34 @@ class DroppedScheduleFireTest extends AbstractEngineIntegrationTest {
             });
   }
 
+  // A workflow with nothing between start and end refuses every fire before a run exists, so the
+  // fire is dropped and its entry carries that refusal.
+  @Test
+  void aFireOfAWorkflowWithNothingToRunLeavesAnEntryCarryingTheRefusal() {
+    String workspace = workspace("dropped-fire-not-runnable", 0);
+    String workflowRef = startAndEndWorkflow(workspace, "dropped-fire-not-runnable-workflow");
+    WorkflowScheduleEntity schedule = recurring(workflowRef, "nightly");
+
+    fireUntilDropped(schedule.getId());
+
+    assertThat(workflowRunRepository.findByWorkflowRefAndPhaseIn(workflowRef, List.of(RunPhase.values())))
+        .as("the entry is the only run")
+        .singleElement()
+        .satisfies(
+            entry -> {
+              assertThat(entry.getStatus()).isEqualTo(RunStatus.cancelled);
+              assertThat(entry.getPhase()).isEqualTo(RunPhase.completed);
+              assertThat(entry.getStatusReason()).isEqualTo(StatusReason.SUBMIT_REFUSED);
+              assertThat(entry.getStatusMessage())
+                  .matches(
+                      "Schedule \"nightly\" fired at \\d\\d:00 UTC and no run started after 3"
+                          + " attempts\\. WORKFLOW_NOT_RUNNABLE: no tasks between start and end");
+              assertThat(entry.getTrigger()).isEqualTo("schedule");
+              assertThat(entry.getInitiatedByRef()).isEqualTo(schedule.getId());
+              assertThat(taskRunRepository.findByWorkflowRunRef(entry.getId())).isEmpty();
+            });
+  }
+
   // Retrying the entry runs what the fire asked for. The retry is a real run: it carries no
   // SubmitRefused reason, so it is a run of the month, where the entry it came from is not.
   @Test
@@ -287,6 +319,29 @@ class DroppedScheduleFireTest extends AbstractEngineIntegrationTest {
     WorkflowTrigger triggers = new WorkflowTrigger();
     triggers.setManual(new Trigger(true));
     triggers.setSchedule(new Trigger(scheduleTrigger));
+    workflow.setTriggers(triggers);
+    workflowService.create(workspace, workflow);
+    return relationshipService
+        .refsInWorkspace(RelationshipType.WORKFLOW, workspace, Optional.of(List.of(name)))
+        .get(0);
+  }
+
+  private String startAndEndWorkflow(String workspace, String name) {
+    WorkflowTask start = new WorkflowTask();
+    start.setName("start");
+    start.setType(TaskType.start);
+    WorkflowTask end = new WorkflowTask();
+    end.setName("end");
+    end.setType(TaskType.end);
+    WorkflowTaskDependency afterStart = new WorkflowTaskDependency();
+    afterStart.setTaskRef("start");
+    end.setDependencies(new LinkedList<>(List.of(afterStart)));
+    Workflow workflow = new Workflow();
+    workflow.setName(name);
+    workflow.setTasks(new LinkedList<>(List.of(start, end)));
+    WorkflowTrigger triggers = new WorkflowTrigger();
+    triggers.setManual(new Trigger(true));
+    triggers.setSchedule(new Trigger(true));
     workflow.setTriggers(triggers);
     workflowService.create(workspace, workflow);
     return relationshipService
