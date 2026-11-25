@@ -98,6 +98,7 @@ class ScheduleSecretParamTest extends AbstractEngineIntegrationTest {
                 Sort.by("creationDate"),
                 Optional.empty(),
                 Optional.empty(),
+                Optional.empty(),
                 Optional.empty())
             .getContent()
             .stream()

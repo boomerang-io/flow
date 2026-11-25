@@ -123,7 +123,8 @@ public class ScheduleService {
       Sort sort,
       Optional<List<String>> queryStatus,
       Optional<List<String>> queryTypes,
-      Optional<List<String>> queryWorkflows) {
+      Optional<List<String>> queryWorkflows,
+      Optional<List<String>> queryLabels) {
     List<String> refs =
         relationshipService.refsInWorkspace(RelationshipType.WORKFLOW, queryTeam, queryWorkflows);
     if (!refs.isEmpty()) {
@@ -133,6 +134,7 @@ public class ScheduleService {
                   .in("workflowRef", refs)
                   .in("status", WorkflowScheduleStatus.class, queryStatus, "status")
                   .in("type", queryTypes)
+                  .labels(queryLabels)
                   .build());
       final Pageable pageable = PagingUtil.apply(query, queryLimit, queryPage, sort);
 
@@ -200,7 +202,9 @@ public class ScheduleService {
             .get(schedule.getWorkflowRef(), Optional.empty(), false)
             .getBody();
     WorkflowScheduleEntity scheduleEntity = new WorkflowScheduleEntity();
-    BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id");
+    // The creation date is the server's: a request without one would otherwise store none, and
+    // every read would then show the entity's default, the time of the read.
+    BeanUtils.copyProperties(schedule, scheduleEntity, "schedulerRef", "id", "creationDate");
     stampSecretParams(scheduleEntity, workflow);
     // Nothing is stored yet, so a redaction marker sent on create is no value, never the secret.
     DataAdapterUtil.keepRunParamValueByFieldType(

@@ -119,6 +119,15 @@ public class WorkspaceScheduleControllerV2 {
               required = false)
           @RequestParam(required = false)
           Optional<List<String>> workflows,
+      @Parameter(
+              name = "labels",
+              description =
+                  "List of url encoded labels, all of which a schedule must carry. For example"
+                      + " Organization=Boomerang,customKey=test would be encoded as"
+                      + " Organization%3DBoomerang,customKey%3Dtest)",
+              required = false)
+          @RequestParam(required = false)
+          Optional<List<String>> labels,
       @Parameter(name = "limit", description = "Result Size. Defaults to every match.", example = "10")
           @RequestParam(required = false)
           Optional<Integer> limit,
@@ -132,7 +141,8 @@ public class WorkspaceScheduleControllerV2 {
           @RequestParam(defaultValue = "ASC")
           Optional<Direction> order) {
     final Sort sort = Sort.by(new Order(order.orElse(Direction.ASC), "creationDate"));
-    return workflowScheduleService.query(workspace, page, limit, sort, statuses, types, workflows);
+    return workflowScheduleService.query(
+        workspace, page, limit, sort, statuses, types, workflows, labels);
   }
 
   @GetMapping(value = "/calendars")
