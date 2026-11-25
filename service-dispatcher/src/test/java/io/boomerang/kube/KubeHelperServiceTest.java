@@ -77,6 +77,28 @@ public class KubeHelperServiceTest {
         "dbPassword,host,untyped", findEnv(envVars, "PARAM_NAMES").orElseThrow().getValue());
   }
 
+  // A multiselect param arrives on the claim typed array, a list of the chosen option keys, and
+  // reaches the container as a JSON array; an empty selection is "[]", never an empty string.
+  @Test
+  public void testAnArrayParamOnTheClaimBecomesAJsonArrayEnvVar() {
+    TaskRun claimed =
+        new ObjectMapper()
+            .readValue(
+                "{\"id\": \"tr-1\", \"params\": ["
+                    + "{\"name\": \"workspaceTools\", \"value\": [\"read\", \"edit\"],"
+                    + " \"type\": \"array\"},"
+                    + "{\"name\": \"none\", \"value\": [], \"type\": \"array\"}]}",
+                TaskRun.class);
+
+    assertEquals(ParamType.array, claimed.getParams().get(0).getType());
+    List<EnvVar> envVars =
+        helperKubeService.createTaskEnvVars(false, claimed.getParams(), List.of());
+
+    assertEquals(
+        "[\"read\",\"edit\"]", findEnv(envVars, "PARAM_WORKSPACETOOLS").orElseThrow().getValue());
+    assertEquals("[]", findEnv(envVars, "PARAM_NONE").orElseThrow().getValue());
+  }
+
   @Test
   public void testCreateTaskEnvVarsExposesOriginalParamNames() {
     List<RunParam> params =

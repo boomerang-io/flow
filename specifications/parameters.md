@@ -86,6 +86,39 @@ leaf that is a whole reference to an object is written as JSON. If substitution 
 itself, say) the value is passed through unchanged and the failure is logged with its shape, never its content
 (`engine/ParameterManager.java:1005-1013`).
 
+## Multiselect parameters
+
+A task param of field type `multiselect` holds a list of option keys. It is declared like a `select`, with
+`options` of `key` (what the task receives) and `value` (the label the editor shows), and its default is a list:
+
+```json
+{ "name": "workspaceTools", "label": "Workspace Tools", "type": "multiselect", "default": ["read"],
+  "options": [{ "key": "read", "value": "Read" }, { "key": "edit", "value": "Edit" },
+              { "key": "write", "value": "Write" }, { "key": "bash", "value": "Bash" }] }
+```
+
+(A catalogue seed file is a database dump and spells the default `defaultValue`.) Task save stores the type as
+written. The editor renders the param as the add-ons' multi-select, each chosen option a tag, and saves the node's
+value as the array of chosen keys, `["read","edit"]`, unchanged (`client-web/src/Features/Reactflow/components/Template/TemplateNode/TemplateNode.tsx:274-290`);
+a saved array, or a comma-separated string, pre-selects its options when the node is opened again
+(`TaskForm/TaskForm.tsx:64-75`). The field type maps to `ParamType.array` (`common/util/ParameterUtil.java:339-344`),
+which the task run takes from the declaration whatever the node sent (`:75-79,123-144`,
+`engine/DAGUtility.java:313-316`). At admission an `array` param resolves by its value
+(`engine/ParameterManager.java:193-224,254-270`):
+
+| Value | Resolves to |
+| --- | --- |
+| A list | Each string element substituted as a string, so `["read", "$(params.extra)"]` resolves its second; numbers, booleans and objects kept as they are |
+| One reference, `$(workflow.params.tools)` or `$(tasks.t.results.r)` | The referenced list as it is; a JSON array string parsed; anything else a list of one, so `"read"` is `["read"]` |
+| Any other string | Substituted, then the same: a JSON array parsed, a blank string `[]`, other text a list of one (`"read,edit"` is `["read,edit"]`) |
+
+A reference naming nothing declared fails admission as on a string param. A secret substituted into an array keeps
+the `array` type, and run reads replace the whole value with `*****` (Sensitive parameters, below). A node that
+leaves the param out runs the default; no default arrives as an empty string, so a multiselect SHOULD default to
+`[]`. The container gets `PARAM_WORKSPACETOOLS=["read","edit"]` and reads it with
+`JSON.parse(process.env.PARAM_WORKSPACETOOLS || "[]")`, splitting on commas when the value does not start with `[`
+(`dispatcher-kubernetes.md`, "What the container receives").
+
 ## Admission checks
 
 Admission checks each Flow reference (`$(params.…)`, `$(<scope>.params.…)`, `$(tasks.<name>.results.…)`) in
