@@ -29,6 +29,8 @@ import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.workflow.TaskService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
+import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.common.enums.WorkflowStatus;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -54,6 +56,7 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
 
   @Autowired private TaskService taskService;
   @Autowired private WorkflowService workflowService;
+  @Autowired private WorkflowRepository workflowRepository;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private ChildWorkflowRunListener childWorkflowRunListener;
 
@@ -367,6 +370,32 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
                 leafWorkflowId,
                 List.of(RunPhase.pending, RunPhase.queued, RunPhase.running, RunPhase.completed))
             .isEmpty());
+  }
+
+  // A child the engine refuses to start fails the parent's task saying why, not with an empty
+  // message: here the child workflow is not active.
+  @Test
+  void aRefusedChildFailsTheParentTaskWithTheRefusal() {
+    String leafWorkflowId = createLeafWorkflow("refused-leaf");
+    String parentWorkflowId = createParentWorkflow("refused-parent", leafWorkflowId, false);
+    workflowRepository
+        .findById(leafWorkflowId)
+        .ifPresent(
+            leaf -> {
+              leaf.setStatus(WorkflowStatus.inactive);
+              workflowRepository.save(leaf);
+            });
+
+    String parentRunId = submit(parentWorkflowId);
+
+    awaitEngine("the parent's runworkflow task failed on the refusal")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity task = parentTask(parentRunId);
+              assertNotNull(task);
+              assertEquals(RunStatus.failed, task.getStatus());
+              assertEquals("WORKFLOW_NOT_ACTIVE: workflow not active", task.getStatusMessage());
+            });
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────

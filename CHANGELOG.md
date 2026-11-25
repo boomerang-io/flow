@@ -5,13 +5,6 @@ tag's release notes.
 
 ## Unreleased
 
-### Fixed
-
-- **A task is told its real results budget.** `RESULTS_MAX_BYTES` is now the bytes left for result values once the
-  envelope of the task's declared results is taken from the 4096-byte termination message, so a task that fills its
-  budget no longer lands a few bytes over and fails `ResultsTooLarge`. A task with no declared results is told 4094 on
-  Jobs; each declared result takes its name plus 6 bytes on Jobs and plus 31 on Tekton. Escaped characters in a value
-  (`"`, `\`, newlines) still count twice.
 ### Added
 
 - **Schedules filter by label.** `GET …/schedule/query` takes `labels`, in the form the run and workflow lists
@@ -29,6 +22,13 @@ tag's release notes.
   date, so every read showed the time of the read. New schedules now store the time they were created. A schedule
   created before this fix reads the time of the read until it is edited, enabled, disabled or completed, which
   stores the time of that change.
+- **A refused child run says why.** A run-workflow or run-scheduled-workflow task whose child run is refused fails
+  with the refusal, such as `QUOTA_EXCEEDED: maximum queued runs`, where its message was empty.
+- **A task is told its real results budget.** `RESULTS_MAX_BYTES` is now the bytes left for result values once the
+  envelope of the task's declared results is taken from the 4096-byte termination message, so a task that fills its
+  budget no longer lands a few bytes over and fails `ResultsTooLarge`. A task with no declared results is told 4094 on
+  Jobs; each declared result takes its name plus 6 bytes on Jobs and plus 31 on Tekton. Escaped characters in a value
+  (`"`, `\`, newlines) still count twice.
 
 ## 5.0.1 (2026-11-25)
 
