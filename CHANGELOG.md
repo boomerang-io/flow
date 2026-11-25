@@ -7,13 +7,13 @@ tag's release notes.
 
 ### Added
 
-- **A workflow node can follow its task's latest version.** On the node's **Configure** tab, **Task version** offers
-  "Latest" above each version: a Latest node runs the version that is latest when each run starts, and a pinned one
-  keeps its version until you change it. Every node with a task version now has the Configure tab, and the node and its
-  edit modal carry a grey tag, "Latest (v5)" or "v4". A pinned node behind the latest links to the New version review;
-  a Latest node whose latest version needs a param it doesn't set says so, and Apply waits until it is filled in. In the
-  API a node with no `taskVersion` follows the latest: the save checks it against the latest and stores no version.
-  Existing nodes, and nodes dropped on the canvas, stay pinned.
+- **A task node can follow its task's latest version, set explicitly as `latest`; nodes stay pinned by default.** On
+  the node's **Configure** tab, **Task version** offers "Latest" above each version: a Latest node runs the version
+  that is latest when each run starts, and a pinned one keeps its version until you change it. Every node with a task
+  version now has the Configure tab, and the node and its edit modal carry a grey tag, "Latest (v5)" or "v4". A pinned
+  node behind the latest links to the New version review; a Latest node lists the latest version's fields it doesn't
+  set. In the API and YAML a node's `taskVersion` is a number or `"latest"`; left out, the save pins the current
+  version as before, and any other value is `400 WORKFLOW_INVALID_TASK_REF`.
 
 ## 5.0.1 (2026-11-25)
 

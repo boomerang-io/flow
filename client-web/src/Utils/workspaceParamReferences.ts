@@ -17,7 +17,7 @@ const WORKSPACE_KEY = "workspace.params.";
  * The workspace parameters a run of these nodes would read that the workspace does not provide, so the run would
  * fail at that task. A node's value wins over its task's default, as at run time, except a password left empty,
  * which falls back to the default; a default counts only while the node runs the task version the editor holds: the
- * latest, which a node with no version follows, or a pin to it.
+ * latest, which a node set to "latest" follows, or a pin to it.
  * Names match in any case, as admission does. `availableParameters` holds `workspace.params.<name>` for each
  * workspace parameter with a value, and none while workspace parameters are off.
  */
@@ -34,8 +34,9 @@ export function missingWorkspaceParams(
   const missing: Array<MissingWorkspaceParam> = [];
   for (const node of nodes) {
     const task = tasksByName[node.data.taskRef]?.[0];
-    // A node with no version follows the latest, which is the version the editor holds.
-    const declared = task && (node.data.taskVersion ?? task.version) === task.version ? (task.spec.params ?? []) : [];
+    // "latest", or no version yet (pinned to the latest on save), runs the version the editor holds.
+    const version = typeof node.data.taskVersion === "number" ? node.data.taskVersion : task?.version;
+    const declared = task && version === task.version ? (task.spec.params ?? []) : [];
     const values = new Map<string, { param: string; value: unknown }>();
     declared.forEach((param) =>
       values.set(param.name.toLowerCase(), { param: param.name, value: param.default ?? param.defaultValue }),

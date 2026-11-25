@@ -1444,7 +1444,7 @@ public class WorkflowService {
           nodeData.setParams(task.getParams());
           nodeData.setResults(task.getResults());
           nodeData.setTaskRef(task.getTaskRef());
-          nodeData.setTaskVersion(task.getTaskVersion());
+          nodeData.setTaskVersion(task.versionOnWire());
           nodeData.setUpgradesAvailable(task.getUpgradesAvailable());
           nodeData.setForeach(task.getForeach());
           nodeData.setWorkspace(task.getWorkspace());
@@ -1517,7 +1517,7 @@ public class WorkflowService {
           task.setParams(node.getData().getParams());
           task.setResults(node.getData().getResults());
           task.setTaskRef(node.getData().getTaskRef());
-          task.setTaskVersion(node.getData().getTaskVersion());
+          task.requestVersion(node.getData().getTaskVersion());
           task.setForeach(node.getData().getForeach());
           task.setWorkspace(node.getData().getWorkspace());
           task.setTimeout(node.getData().getTimeout());
@@ -1674,6 +1674,13 @@ public class WorkflowService {
         taskService.refsBySlug(workspace, nodes.stream().map(WorkflowTask::getTaskRef).toList());
     nodes.forEach(
         t -> {
+          // A version is a number or "latest".
+          if (t.getInvalidTaskVersion() != null) {
+            throw new BoomerangException(
+                BoomerangError.WORKFLOW_INVALID_TASK_REF,
+                t.getName(),
+                t.getTaskRef() + "@" + t.getInvalidTaskVersion());
+          }
           if (!taskRefs.containsKey(t.getTaskRef())) {
             throw new BoomerangException(
                 BoomerangError.WORKFLOW_INVALID_TASK_REF, t.getName(), t.getTaskRef());
@@ -1947,9 +1954,13 @@ public class WorkflowService {
               "A " + wfTask.getType() + " task cannot run for each item.");
         }
       } else {
-        // Shared utility with DAGUtility. A node that names a version is pinned to it; one that
-        // names none follows the latest, is checked against the latest here, and stays unpinned.
+        // Shared utility with DAGUtility. A node is checked against the version it names, or the
+        // latest. One a request left without a version is pinned to the latest, as it always was;
+        // one set to "latest" keeps no version and follows the latest at each run's start.
         Task taskTemplate = taskService.retrieveAndValidateTask(wfTask);
+        if (wfTask.isPinOnSave()) {
+          wfTask.setTaskVersion(taskTemplate.getVersion());
+        }
 
         // The node's type decides how it runs, so it must be the type of the Task it references.
         if (wfTask.getType() != taskTemplate.getType()) {

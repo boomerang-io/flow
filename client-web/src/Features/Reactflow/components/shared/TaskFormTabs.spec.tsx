@@ -105,11 +105,12 @@ describe("Task form header block", () => {
 
 /*
  * Every node with a task version gets the Configure tab, with the Version section first; Retry and For each stay
- * with the types that can repeat. The prompt stands in for a required param of the latest version.
+ * with the types that can repeat. The prompt and a token stand in for the latest version's params, required or not.
  */
 describe("Task form Version section", () => {
-  const required = [
+  const latestParams = [
     { name: "prompt", label: "Prompt", required: true },
+    { name: "token", label: "Token" },
   ] as unknown as TaskVersionContextValue["params"];
 
   function configure() {
@@ -137,7 +138,7 @@ describe("Task form Version section", () => {
   });
 
   it("offers Latest first, then each version newest first", () => {
-    renderTabs({ taskType: "approval" }, { taskVersion: null, latestVersion: 3, params: [] });
+    renderTabs({ taskType: "approval" }, { taskVersion: "latest", latestVersion: 3, params: [] });
 
     configure();
     const options = within(screen.getByLabelText("Task version")).getAllByRole("option");
@@ -145,7 +146,7 @@ describe("Task form Version section", () => {
   });
 
   it("explains each choice, and switching changes the helper text both ways", () => {
-    renderTabs({ taskType: "approval" }, { taskVersion: undefined, latestVersion: 5, params: [] });
+    renderTabs({ taskType: "approval" }, { taskVersion: "latest", latestVersion: 5, params: [] });
     configure();
     const select = screen.getByLabelText("Task version");
 
@@ -173,20 +174,29 @@ describe("Task form Version section", () => {
     expect(screen.queryByText("v5 is available.")).not.toBeInTheDocument();
   });
 
-  it("warns a Latest node of a required param of the latest it leaves unset, until it is filled in", () => {
-    renderTabs({ taskType: "approval" }, { taskVersion: null, latestVersion: 5, params: required });
+  it("shows a node with no version yet as pinned to the latest, which the save pins it to", () => {
+    renderTabs({ taskType: "approval" }, { taskVersion: undefined, latestVersion: 5, params: [] });
     configure();
 
-    const warning = "v5 needs Prompt, and this node doesn't set it yet. Fill it in on Parameters before you apply.";
-    expect(screen.getByText(warning)).toBeInTheDocument();
+    expect(screen.getByLabelText("Task version")).toHaveValue("5");
+    expect(screen.getByText("Pinned: runs keep using v5 until you change it.")).toBeInTheDocument();
+  });
+
+  it("tells a Latest node, as information, every field of the latest it doesn't set, required or not", () => {
+    renderTabs({ taskType: "approval" }, { taskVersion: "latest", latestVersion: 5, params: latestParams });
+    configure();
+
+    const notice = screen.getByText("v5 has fields this node doesn't set: Prompt, Token.");
+    expect(notice).toBeInTheDocument();
+    expect(screen.getByRole("status")).toHaveClass("cds--inline-notification--info");
 
     fireEvent.change(screen.getByLabelText("Task version"), { target: { value: "5" } });
-    expect(screen.queryByText(warning)).not.toBeInTheDocument();
+    expect(screen.queryByText(/has fields this node doesn't set/)).not.toBeInTheDocument();
     fireEvent.change(screen.getByLabelText("Task version"), { target: { value: "latest" } });
 
     fireEvent.click(screen.getByRole("tab", { name: /Parameters/ }));
     fireEvent.change(screen.getByLabelText("Prompt"), { target: { value: "Summarise" } });
     configure();
-    expect(screen.queryByText(warning)).not.toBeInTheDocument();
+    expect(screen.getByText("v5 has fields this node doesn't set: Token.")).toBeInTheDocument();
   });
 });

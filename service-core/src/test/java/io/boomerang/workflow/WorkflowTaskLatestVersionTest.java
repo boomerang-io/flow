@@ -19,6 +19,8 @@ import io.boomerang.common.util.DataAdapterUtil;
 import io.boomerang.core.enums.RelationshipType;
 import io.boomerang.engine.AbstractEngineIntegrationTest;
 import io.boomerang.workflow.model.CanvasNode;
+import io.boomerang.workflow.model.CanvasNodePosition;
+import io.boomerang.workflow.model.WorkflowCanvas;
 import io.boomerang.workflow.repository.WorkflowRevisionRepository;
 import io.boomerang.workspace.WorkspaceService;
 import io.boomerang.workspace.model.WorkspaceRequest;
@@ -28,11 +30,13 @@ import java.util.Optional;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import tools.jackson.databind.ObjectMapper;
 
 /**
- * A workflow node with no {@code taskVersion} follows its task's latest version: the save checks it
- * against the latest and stores no version, a read returns it with none, and each run takes the
- * version that is latest when it starts. A node that names a version stays pinned to it.
+ * A workflow node's {@code taskVersion} on the wire is a number, {@code "latest"}, or left out. A
+ * number pins the node. Left out, the save pins the version that is latest then, as it always has.
+ * {@code "latest"} is stored as no version, reads back as {@code "latest"}, and each run takes the
+ * version that is latest when it starts. Anything else is refused.
  */
 class WorkflowTaskLatestVersionTest extends AbstractEngineIntegrationTest {
 
@@ -41,6 +45,7 @@ class WorkflowTaskLatestVersionTest extends AbstractEngineIntegrationTest {
   @Autowired private WorkflowService workflowService;
   @Autowired private WorkflowRevisionRepository workflowRevisionRepository;
   @Autowired private WorkspaceService workspaceService;
+  @Autowired private ObjectMapper objectMapper;
 
   @BeforeEach
   void seedFixtures() {
@@ -54,28 +59,57 @@ class WorkflowTaskLatestVersionTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
-  void aLatestNodeSavesAndReadsWithNoVersion() {
+  void aNodeThatNamesNoVersionIsPinnedToTheLatestOnSave() {
+    String task = taskWithParams("latest-omitted-task", param("greeting", "text"));
+    publishNextVersion(task, List.of("echo", "v2"), param("greeting", "text"));
+
+    workflowService.create(WORKSPACE, fromJson("latest-omitted-wf", task, ""));
+
+    assertEquals(2, storedNode("latest-omitted-wf").getTaskVersion());
+    assertEquals(2, readNode("latest-omitted-wf").versionOnWire());
+  }
+
+  @Test
+  void aLatestNodeIsStoredWithNoVersionAndReadsBackAsLatest() {
     String task = taskWithParams("latest-save-task", param("greeting", "text"));
 
-    workflowService.create(WORKSPACE, workflow("latest-save-wf", task, null));
+    workflowService.create(
+        WORKSPACE, fromJson("latest-save-wf", task, ",\"taskVersion\":\"latest\""));
 
     assertNull(storedNode("latest-save-wf").getTaskVersion(), "the save must not pin the node");
-    assertNull(
-        work(workflowService.get(WORKSPACE, "latest-save-wf", Optional.empty(), true))
-            .getTaskVersion(),
-        "a read must not fill the version in");
-    CanvasNode canvasNode =
-        workflowService.composeGet(WORKSPACE, "latest-save-wf", Optional.empty()).getNodes().stream()
-            .filter(node -> "work".equals(node.getData().getName()))
-            .findFirst()
-            .orElseThrow();
-    assertNull(canvasNode.getData().getTaskVersion(), "the editor must see the node as Latest");
+    assertEquals("latest", readNode("latest-save-wf").versionOnWire());
+    assertEquals(
+        "latest",
+        objectMapper
+            .valueToTree(workflowService.get(WORKSPACE, "latest-save-wf", Optional.empty(), true))
+            .get("tasks")
+            .get(1)
+            .get("taskVersion")
+            .asString());
+    assertEquals("latest", canvasNode("latest-save-wf").getData().getTaskVersion());
+  }
+
+  @Test
+  void aLatestNodeSavedThroughTheCanvasStaysLatestAndAnOmittedOneIsPinned() {
+    String task = taskWithParams("latest-canvas-task", param("greeting", "text"));
+    workflowService.create(WORKSPACE, workflow("latest-canvas-wf", task, 1));
+    WorkflowCanvas canvas = workflowService.composeGet(WORKSPACE, "latest-canvas-wf", Optional.empty());
+    // The editor sends every node's position; a workflow saved through the API has none.
+    canvas.getNodes().forEach(node -> node.setPosition(new CanvasNodePosition()));
+    work(canvas).getData().setTaskVersion("latest");
+
+    workflowService.composeApply(WORKSPACE, canvas, false);
+    assertNull(storedNode("latest-canvas-wf").getTaskVersion());
+
+    work(canvas).getData().setTaskVersion(null);
+    workflowService.composeApply(WORKSPACE, canvas, false);
+    assertEquals(1, storedNode("latest-canvas-wf").getTaskVersion());
   }
 
   @Test
   void aLatestNodeRunsTheVersionThatIsLatestWhenTheRunStarts() {
     String task = taskWithParams("latest-run-task", param("greeting", "text"));
-    workflowService.create(WORKSPACE, workflow("latest-run-wf", task, null));
+    workflowService.create(WORKSPACE, workflow("latest-run-wf", task, "latest"));
     publishNextVersion(task, List.of("echo", "v2"), param("greeting", "text"));
 
     TaskRunEntity work = runWork("latest-run-wf");
@@ -97,6 +131,23 @@ class WorkflowTaskLatestVersionTest extends AbstractEngineIntegrationTest {
   }
 
   @Test
+  void aVersionThatIsNeitherANumberNorLatestIsRefused() {
+    String task = taskWithParams("latest-invalid-task", param("greeting", "text"));
+
+    BoomerangException refused =
+        assertThrows(
+            BoomerangException.class,
+            () ->
+                workflowService.create(
+                    WORKSPACE,
+                    fromJson("latest-invalid-wf", task, ",\"taskVersion\":\"newest\"")));
+
+    assertEquals("WORKFLOW_INVALID_TASK_REF", refused.getReason());
+    assertEquals(400, refused.getStatus().value());
+    assertEquals(List.of("work", task + "@newest"), List.of(refused.getArgs()));
+  }
+
+  @Test
   void aLatestNodeIsCheckedAgainstTheLatestVersionOnSave() {
     String task = taskWithParams("latest-check-task", param("greeting", "text"));
     publishNextVersion(
@@ -104,7 +155,7 @@ class WorkflowTaskLatestVersionTest extends AbstractEngineIntegrationTest {
 
     // The latest declares registry, so a Latest node may set it...
     workflowService.create(
-        WORKSPACE, workflow("latest-check-wf", task, null, new RunParam("registry", "r")));
+        WORKSPACE, workflow("latest-check-wf", task, "latest", new RunParam("registry", "r")));
     // ...while a node pinned to version 1, which does not declare it, may not.
     BoomerangException pinned =
         assertThrows(
@@ -120,23 +171,31 @@ class WorkflowTaskLatestVersionTest extends AbstractEngineIntegrationTest {
             () ->
                 workflowService.create(
                     WORKSPACE,
-                    workflow("latest-check-undeclared-wf", task, null, new RunParam("shout", "x"))));
+                    workflow(
+                        "latest-check-undeclared-wf", task, "latest", new RunParam("shout", "x"))));
     assertEquals("WORKFLOW_INVALID_TASK_PARAM", undeclared.getReason());
+  }
+
+  @Test
+  void aDuplicateOfALatestNodeStaysLatest() {
+    String task = taskWithParams("latest-duplicate-task", param("greeting", "text"));
+    workflowService.create(WORKSPACE, workflow("latest-duplicate-wf", task, "latest"));
+
+    workflowService.duplicate(WORKSPACE, "latest-duplicate-wf");
+
+    assertNull(storedNode("latest-duplicate-wf-duplicate").getTaskVersion());
   }
 
   @Test
   void aLatestNodeReadsItsSecretsByTheLatestVersion() {
     String task = taskWithParams("latest-secret-task", param("token", "text"));
     workflowService.create(
-        WORKSPACE, workflow("latest-secret-wf", task, null, new RunParam("token", "s3cret")));
+        WORKSPACE,
+        workflow("latest-secret-wf", task, "latest", new RunParam("token", "s3cret")));
     // A later version makes the param a secret: the node's value is hidden on every read.
     publishNextVersion(task, List.of("echo"), param("token", "password"));
 
-    RunParam token =
-        work(workflowService.get(WORKSPACE, "latest-secret-wf", Optional.empty(), true))
-            .getParams()
-            .get(0);
-    assertEquals(DataAdapterUtil.REDACTED, token.getValue());
+    assertEquals(DataAdapterUtil.REDACTED, readNode("latest-secret-wf").getParams().get(0).getValue());
   }
 
   private TaskRunEntity runWork(String workflowName) {
@@ -155,26 +214,48 @@ class WorkflowTaskLatestVersionTest extends AbstractEngineIntegrationTest {
         relationshipService
             .refsInWorkspace(RelationshipType.WORKFLOW, WORKSPACE, Optional.of(List.of(workflowName)))
             .get(0);
-    return workflowRevisionRepository.findByWorkflowRefAndLatestVersion(ref).orElseThrow().getTasks()
-        .stream()
-        .filter(t -> "work".equals(t.getName()))
+    return work(workflowRevisionRepository.findByWorkflowRefAndLatestVersion(ref).orElseThrow().getTasks());
+  }
+
+  private WorkflowTask readNode(String workflowName) {
+    return work(workflowService.get(WORKSPACE, workflowName, Optional.empty(), true).getTasks());
+  }
+
+  private CanvasNode canvasNode(String workflowName) {
+    return work(workflowService.composeGet(WORKSPACE, workflowName, Optional.empty()));
+  }
+
+  private static CanvasNode work(WorkflowCanvas canvas) {
+    return canvas.getNodes().stream()
+        .filter(node -> "work".equals(node.getData().getName()))
         .findFirst()
         .orElseThrow();
   }
 
-  private static WorkflowTask work(Workflow workflow) {
-    return workflow.getTasks().stream()
-        .filter(t -> "work".equals(t.getName()))
-        .findFirst()
-        .orElseThrow();
+  private static WorkflowTask work(List<WorkflowTask> tasks) {
+    return tasks.stream().filter(t -> "work".equals(t.getName())).findFirst().orElseThrow();
   }
 
-  private Workflow workflow(String name, String taskSlug, Integer version, RunParam... params) {
+  /** start -> work -> end, the work node's version given as the wire would give it. */
+  private Workflow workflow(String name, String taskSlug, Object version, RunParam... params) {
     Workflow workflow = runnableWorkflow(name, taskSlug);
-    WorkflowTask work = work(workflow);
-    work.setTaskVersion(version);
+    WorkflowTask work = work(workflow.getTasks());
+    work.requestVersion(version);
     work.setParams(new LinkedList<>(List.of(params)));
     return workflow;
+  }
+
+  /** The same workflow read by the application's own mapper, the work node carrying {@code version}. */
+  private Workflow fromJson(String name, String taskSlug, String version) {
+    String json =
+        """
+        {"name":"%s","tasks":[
+          {"name":"start","type":"start"},
+          {"name":"work","type":"template","taskRef":"%s"%s,"dependencies":[{"taskRef":"start"}]},
+          {"name":"end","type":"end","dependencies":[{"taskRef":"work"}]}]}
+        """
+            .formatted(name, taskSlug, version);
+    return objectMapper.readValue(json, Workflow.class);
   }
 
   private String taskWithParams(String name, AbstractParam... params) {

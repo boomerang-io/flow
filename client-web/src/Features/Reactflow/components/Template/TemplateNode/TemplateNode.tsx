@@ -57,7 +57,7 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
   const otherTaskNames = nodes.map((node) => node.data.name).filter((name) => name !== props.data.name);
 
   const taskTemplate = mergeFormInputs(props.taskTemplate, props.formInputsToMerge);
-  // The editor holds each task at its latest version; a node with no version follows it.
+  // The editor holds each task at its latest version, which a node set to "latest" follows.
   const latestVersion = taskTemplate.version;
   const isLatestNode = isLatest(props.data.taskVersion);
   const versionTag = versionTagText(props.data.taskVersion, latestVersion);
@@ -87,12 +87,9 @@ function TaskTemplateNodeEditor(props: TaskTemplateNodeEditorProps) {
   ) => {
     // The version, the for-each setting and the retry setting share the form with the params but are not params.
     const { changed: versionChanged, taskVersion, rest: withoutVersion } = splitTaskVersionValues(inputs);
-    // Latest drops the version; a pinned one is offered the upgrade while it is behind.
+    // A pinned node is offered the upgrade while it is behind the latest; a Latest node never is.
     const version = versionChanged
-      ? {
-          taskVersion: taskVersion ?? undefined,
-          upgradesAvailable: taskVersion !== null && taskVersion < latestVersion,
-        }
+      ? { taskVersion, upgradesAvailable: typeof taskVersion === "number" && taskVersion < latestVersion }
       : {};
     const { foreach, rest: withoutForeach } = splitForeachValues(withoutVersion);
     // So is the retry setting; none saves as an absent `retry`.

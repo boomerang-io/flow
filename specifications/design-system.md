@@ -243,8 +243,8 @@ down (255 px before).
   one of its fields is invalid. Apply never fails for a reason on a tab the user is not looking at.
 - **Version** is one `Select`, "Task version" ("Latest (currently: v5)", then each version newest first), whose helper
   text says what the choice does. Below it, in plain words, an info notification with a "Review changes" action (the
-  New version modal) for a pinned node behind the latest, or a warning naming the required params of the latest a
-  Latest node leaves unset. The canvas node and the modal title carry a small grey `Tag`, "Latest (v5)" or "v4".
+  New version modal) for a pinned node behind the latest, or an info notification listing every field of the latest a
+  Latest node doesn't set; neither blocks Apply. The canvas node and the modal title carry a small grey `Tag`, "Latest (v5)" or "v4".
 - The modal resets button padding, so the tab list restores Carbon's tab padding itself
   (`src/Features/Reactflow/components/shared/TaskFormTabs.module.scss`).
 

@@ -203,8 +203,8 @@ export interface WorkflowTask {
   name: string;
   type: string;
   taskRef?: string;
-  /** The pinned task version; absent follows the task's latest version, read when each run starts. */
-  taskVersion?: number;
+  /** The pinned task version, or "latest", read when each run starts; absent, the save pins the latest. */
+  taskVersion?: number | "latest";
   upgradesAvailable?: boolean;
   timeout?: number;
   dependencies?: Array<WorkflowTaskDependency>;
@@ -408,8 +408,8 @@ export interface AuditStats {
 export type WorkflowNodeData = {
   name: string;
   taskRef: string;
-  /** The pinned task version; absent (or null from the API) follows the task's latest version. */
-  taskVersion?: number | null;
+  /** The pinned task version, or "latest" to follow the task's latest; absent, the save pins the latest. */
+  taskVersion?: number | "latest" | null;
   upgradesAvailable: boolean;
   params: Array<{ name: string; value: string }>;
   results: Array<{ name: string; description: string }>;

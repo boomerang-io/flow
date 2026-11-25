@@ -137,12 +137,12 @@ describe("Template task node --- what Apply saves", () => {
 });
 
 /*
- * A node that names a task version is pinned to it; one that names none follows the latest. The editor holds each
+ * A node that names a task version is pinned to it; one set to "latest" follows the latest. The editor holds each
  * task at its latest version (v5 here), so a Latest node's form is that version's.
  */
 describe("Template task node --- the task version", () => {
   const latestTask = { ...task, version: 5 } as Task;
-  const { taskVersion: _pinned, ...latestNodeData } = nodeData;
+  const latestNodeData = { ...nodeData, taskVersion: "latest" } as WorkflowNodeData;
 
   afterEach(() => {
     vi.restoreAllMocks();
@@ -164,7 +164,7 @@ describe("Template task node --- the task version", () => {
   }
 
   it("tags a Latest node with the version it runs, on the canvas and in the edit modal's title", async () => {
-    await renderNode(undefined, { data: latestNodeData as WorkflowNodeData, latest: latestTask });
+    await renderNode(undefined, { data: latestNodeData, latest: latestTask });
 
     expect(screen.getByTestId("version-tag")).toHaveTextContent("Latest (v5)");
     const dialog = await screen.findByRole("dialog", { hidden: true });
@@ -182,7 +182,7 @@ describe("Template task node --- the task version", () => {
   it("never offers a Latest node the upgrade, which a pinned node behind the latest still gets", async () => {
     const upgrade = "Workflow warning button";
     const { unmount } = await renderNode(undefined, {
-      data: { ...(latestNodeData as WorkflowNodeData), upgradesAvailable: true },
+      data: { ...latestNodeData, upgradesAvailable: true },
       latest: latestTask,
       open: false,
     });
@@ -199,7 +199,7 @@ describe("Template task node --- the task version", () => {
     expect(screen.getByLabelText(upgrade)).toBeInTheDocument();
   });
 
-  it("drops the version when a pinned node is switched to Latest", async () => {
+  it('saves "latest" when a pinned node is switched to Latest', async () => {
     await renderNode(undefined, { data: { ...nodeData, taskVersion: 4, upgradesAvailable: true }, latest: latestTask });
     openConfigure();
 
@@ -207,12 +207,12 @@ describe("Template task node --- the task version", () => {
     await apply();
 
     await waitFor(() => expect(savedNode()).not.toBe(nodeData));
-    expect(savedNode().taskVersion).toBeUndefined();
+    expect(savedNode().taskVersion).toBe("latest");
     expect(savedNode().upgradesAvailable).toBe(false);
   });
 
   it("pins the version chosen for a Latest node", async () => {
-    await renderNode(undefined, { data: latestNodeData as WorkflowNodeData, latest: latestTask });
+    await renderNode(undefined, { data: latestNodeData, latest: latestTask });
     openConfigure();
 
     chooseVersion("4");
@@ -243,25 +243,13 @@ describe("Template task node --- the task version", () => {
     expect(await screen.findByText("New version available")).toBeInTheDocument();
   });
 
-  it("warns a Latest node that the latest needs a param it does not set, and holds Apply until it does", async () => {
-    const withoutModel = {
-      ...latestNodeData,
-      params: nodeData.params.filter((param) => param.name !== "model"),
-    } as WorkflowNodeData;
-    await renderNode(undefined, { data: withoutModel, latest: latestTask });
+  it("tells a Latest node which fields of the latest it doesn't set, and adds nothing that holds Apply", async () => {
+    await renderNode(undefined, { data: latestNodeData, latest: latestTask });
 
     const apply = await screen.findByRole("button", { hidden: true, name: "Apply" });
-    await waitFor(() => expect(apply).toBeDisabled());
-    expect(screen.getByRole("img", { hidden: true, name: "Parameters has an error" })).toBeInTheDocument();
-    openConfigure();
-    expect(
-      screen.getByText("v5 needs Model, and this node doesn't set it yet. Fill it in on Parameters before you apply."),
-    ).toBeInTheDocument();
-
-    fireEvent.click(screen.getByRole("tab", { hidden: true, name: /Parameters/ }));
-    fireEvent.change(screen.getByLabelText(/^Model/), { target: { value: "a-model" } });
-
     await waitFor(() => expect(apply).toBeEnabled());
-    expect(screen.queryByText(/v5 needs Model/)).not.toBeInTheDocument();
+    openConfigure();
+    expect(screen.getByText(/^v5 has fields this node doesn't set: .*System Prompt/)).toBeInTheDocument();
+    expect(apply).toBeEnabled();
   });
 });

@@ -15,7 +15,7 @@ const githubTask = {
 } as unknown as Task;
 const tasksByName = { [githubTask.name]: [githubTask] };
 
-function node(params: Array<{ name: string; value: any }>, taskVersion: number | null = 3): WorkflowNode {
+function node(params: Array<{ name: string; value: any }>, taskVersion: number | "latest" | null = 3): WorkflowNode {
   return {
     id: "Get repository",
     position: { x: 0, y: 0 },
@@ -75,7 +75,7 @@ describe("missingWorkspaceParams", () => {
   });
 
   it("reads the defaults of the latest version for a node that follows the latest", () => {
-    expect(missingWorkspaceParams([node([], null)], tasksByName, [])).toEqual([
+    expect(missingWorkspaceParams([node([], "latest")], tasksByName, [])).toEqual([
       { node: "Get repository", param: "token", name: "github-token" },
       { node: "Get repository", param: "url", name: "github-url" },
     ]);

@@ -6,6 +6,7 @@ import java.util.Map;
 import com.fasterxml.jackson.annotation.JsonAnyGetter;
 import com.fasterxml.jackson.annotation.JsonAnySetter;
 import com.fasterxml.jackson.annotation.JsonIgnore;
+import io.swagger.v3.oas.annotations.media.Schema;
 import io.boomerang.common.model.ResultSpec;
 import io.boomerang.common.model.RunParam;
 import io.boomerang.common.model.WorkflowTaskForeach;
@@ -17,7 +18,9 @@ public class CanvasNodeData {
   List<RunParam> params;
   List<ResultSpec> results;
   String taskRef;
-  Integer taskVersion;
+  // A number pins the node; "latest" follows the task's latest version; none pins the current one
+  // on save (WorkflowTask.requestVersion).
+  Object taskVersion;
   boolean upgradesAvailable;
   WorkflowTaskForeach foreach;
   // Absent or true mounts the run's workspace; false opts the task out. Carried so an editor
@@ -86,11 +89,16 @@ public class CanvasNodeData {
     this.taskRef = templateRef;
   }
   
-  public Integer getTaskVersion() {
+  @Schema(
+      oneOf = {Integer.class, String.class},
+      description =
+          "The pinned task version, or \"latest\" to run the version that is latest when each run starts."
+              + " Left out on save, the node is pinned to the current version.")
+  public Object getTaskVersion() {
     return taskVersion;
   }
 
-  public void setTaskVersion(Integer taskVersion) {
+  public void setTaskVersion(Object taskVersion) {
     this.taskVersion = taskVersion;
   }
 

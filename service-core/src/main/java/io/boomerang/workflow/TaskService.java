@@ -967,7 +967,7 @@ public class TaskService {
   }
 
   /**
-   * Return the latest version of each given catalogue task, by id, in one query. A workflow node
+   * Return the latest version of each given catalogue task, by id, in one query. A stored workflow node
    * with no {@code taskVersion} follows its task's latest; a task with no revision is absent.
    */
   public Map<String, Integer> latestVersions(Collection<String> refs) {
