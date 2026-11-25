@@ -95,6 +95,7 @@ class ScheduleWorkspaceQueryTest extends AbstractEngineIntegrationTest {
         Sort.by("creationDate"),
         Optional.of(List.of("active")),
         Optional.empty(),
+        Optional.empty(),
         Optional.empty());
   }
 }
