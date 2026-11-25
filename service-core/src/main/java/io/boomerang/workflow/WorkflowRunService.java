@@ -1038,6 +1038,11 @@ public class WorkflowRunService {
       // Resolved against the origin before it is turned into the clone below, and before anything
       // is written: a refused scope leaves the origin untouched.
       RetryPlan plan = retryPlan(wfRunEntity, request);
+      // A retry is a new run of the same revision: one with nothing between start and end is
+      // refused as a submit is, before the clone exists.
+      Optional.ofNullable(wfRunEntity.getWorkflowRevisionRef())
+          .flatMap(workflowRevisionRepository::findById)
+          .ifPresent(revision -> WorkflowService.validateRunnable(revision.getTasks()));
       // The clone is a new run, so it clears the same quotas a submit clears, and it is clamped
       // to the ceiling as it stands now - which may have been lowered since the original submit.
       // The floor cannot have moved: a retry re-runs the same revision with the same request.

@@ -29,6 +29,8 @@ import io.boomerang.common.model.WorkflowRunTransition;
 import io.boomerang.workflow.TaskService;
 import io.boomerang.workflow.WorkflowRunService;
 import io.boomerang.workflow.WorkflowService;
+import io.boomerang.workflow.repository.WorkflowRepository;
+import io.boomerang.common.enums.WorkflowStatus;
 import java.util.LinkedList;
 import java.util.List;
 import java.util.Objects;
@@ -37,6 +39,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Pageable;
 
 /**
  * Child workflow composition end to end: the lineage a runworkflow task stamps on its child, the
@@ -53,6 +56,7 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
 
   @Autowired private TaskService taskService;
   @Autowired private WorkflowService workflowService;
+  @Autowired private WorkflowRepository workflowRepository;
   @Autowired private WorkflowRunService workflowRunService;
   @Autowired private ChildWorkflowRunListener childWorkflowRunListener;
 
@@ -160,19 +164,22 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
   }
 
   /*
-   * A child with nothing to run is completed invalid as it is queued. With a workspace the submit
-   * returns it unstarted, so only its published end can release the parent that waits on it.
+   * A child whose end cannot be reached from its start is completed invalid as it is queued. With
+   * a workspace the submit returns it unstarted, so only its published end can release the parent
+   * that waits on it.
    */
   @Test
   void aChildInvalidWhenQueuedEndsItsWaitingParent() {
     Workflow empty = new Workflow();
     empty.setName("child-invalid-at-queue-" + System.nanoTime());
     empty.setWorkspace(new WorkflowWorkspace());
+    // The task depends on nothing, so no path runs from start to end.
     empty.setTasks(
         new LinkedList<>(
             List.of(
                 node("start", TaskType.start, null, null, null),
-                node("end", TaskType.end, null, "start", null))));
+                node("work", TaskType.template, echoTaskRef, null, null),
+                node("end", TaskType.end, null, "work", null))));
     Workflow child = workflowService.create(empty, false).getBody();
     relationshipService.createNodeAndEdge(
         RelationshipType.WORKSPACE,
@@ -198,6 +205,43 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
     String childRunId = resultValue(parentTask(parentRunId), "workflowRunRef");
     assertEquals(
         RunStatus.invalid, workflowRunRepository.findById(childRunId).orElseThrow().getStatus());
+  }
+
+  // A child workflow with nothing between start and end is refused at its submit: the parent's
+  // task fails and no child run is created.
+  @Test
+  void aChildWithNothingToRunFailsTheParentTaskAndCreatesNoChildRun() {
+    Workflow empty = new Workflow();
+    empty.setName("child-not-runnable-" + System.nanoTime());
+    empty.setTasks(
+        new LinkedList<>(
+            List.of(
+                node("start", TaskType.start, null, null, null),
+                node("end", TaskType.end, null, "start", null))));
+    Workflow child = workflowService.create(empty, false).getBody();
+    relationshipService.createNodeAndEdge(
+        RelationshipType.WORKSPACE,
+        WORKSPACE,
+        RelationshipLabel.HAS_WORKFLOW,
+        RelationshipType.WORKFLOW,
+        child.getId(),
+        child.getName(),
+        Optional.empty(),
+        Optional.empty());
+    String parentWorkflowId = createParentWorkflow("parent-not-runnable-child", child.getId(), true);
+
+    String parentRunId = submit(parentWorkflowId);
+
+    awaitEngine("the parent task fails with the child's refusal")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity task = parentTask(parentRunId);
+              assertNotNull(task);
+              assertEquals(RunPhase.completed, task.getPhase());
+              assertEquals(RunStatus.failed, task.getStatus());
+            });
+    assertEquals(
+        0, workflowRunRepository.findByWorkflowRef(child.getId(), Pageable.unpaged()).size());
   }
 
   @Test
@@ -326,6 +370,32 @@ class ChildWorkflowRunTest extends AbstractEngineIntegrationTest {
                 leafWorkflowId,
                 List.of(RunPhase.pending, RunPhase.queued, RunPhase.running, RunPhase.completed))
             .isEmpty());
+  }
+
+  // A child the engine refuses to start fails the parent's task saying why, not with an empty
+  // message: here the child workflow is not active.
+  @Test
+  void aRefusedChildFailsTheParentTaskWithTheRefusal() {
+    String leafWorkflowId = createLeafWorkflow("refused-leaf");
+    String parentWorkflowId = createParentWorkflow("refused-parent", leafWorkflowId, false);
+    workflowRepository
+        .findById(leafWorkflowId)
+        .ifPresent(
+            leaf -> {
+              leaf.setStatus(WorkflowStatus.inactive);
+              workflowRepository.save(leaf);
+            });
+
+    String parentRunId = submit(parentWorkflowId);
+
+    awaitEngine("the parent's runworkflow task failed on the refusal")
+        .untilAsserted(
+            () -> {
+              TaskRunEntity task = parentTask(parentRunId);
+              assertNotNull(task);
+              assertEquals(RunStatus.failed, task.getStatus());
+              assertEquals("WORKFLOW_NOT_ACTIVE: workflow not active", task.getStatusMessage());
+            });
   }
 
   // ── helpers ───────────────────────────────────────────────────────────────

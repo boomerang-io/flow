@@ -1418,8 +1418,8 @@ public class TaskExecutionService {
       LOGGER.error(
           "[{}] Unable to execute RunWorkflow task. Error: {}",
           taskExecution.getId(),
-          ex.getMessage());
-      taskExecution.setStatusMessage(ex.getMessage());
+          failureMessage(ex));
+      taskExecution.setStatusMessage(failureMessage(ex));
       taskExecution.setStatus(RunStatus.failed);
     }
     // No save here - the execute() endTask branch persists this same taskExecution, writing the
@@ -1568,12 +1568,20 @@ public class TaskExecutionService {
           taskExecution.setStatus(RunStatus.succeeded);
           return;
         } catch (Exception ex) {
-          taskExecution.setStatusMessage(ex.getMessage());
+          taskExecution.setStatusMessage(failureMessage(ex));
           taskExecution.setStatus(RunStatus.failed);
         }
       }
     }
     taskExecution.setStatus(RunStatus.failed);
+  }
+
+  // A coded refusal's message is empty, so the task says which refusal it was, as a schedule's
+  // refused fire does: "QUOTA_EXCEEDED: maximum queued runs". Anything else keeps its message.
+  private static String failureMessage(Exception ex) {
+    return (ex instanceof BoomerangException coded)
+        ? WorkflowService.refusalSummary(coded)
+        : ex.getMessage();
   }
 
   private boolean processWaitForEventTask(TaskRunEntity taskExecution) {

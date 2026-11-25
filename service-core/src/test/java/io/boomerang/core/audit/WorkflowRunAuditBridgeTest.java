@@ -133,8 +133,8 @@ class WorkflowRunAuditBridgeTest extends AbstractEngineIntegrationTest {
   }
 
   /*
-   * A run with nothing to execute is completed invalid when it is queued. That end goes through
-   * the completion Compare-And-Set like any other, so it is audited and counted.
+   * A run whose end cannot be reached from its start is completed invalid when it is queued. That
+   * end goes through the completion Compare-And-Set like any other, so it is audited and counted.
    */
   @Test
   void aRunInvalidWhenQueuedRecordsItsEnd() {
@@ -144,13 +144,18 @@ class WorkflowRunAuditBridgeTest extends AbstractEngineIntegrationTest {
     WorkflowTask start = new WorkflowTask();
     start.setName("start");
     start.setType(TaskType.start);
+    // The task depends on nothing, so no path runs from start to end.
+    WorkflowTask work = new WorkflowTask();
+    work.setName("work");
+    work.setType(TaskType.template);
+    work.setTaskRef(TASK_SLUG);
     WorkflowTask end = new WorkflowTask();
     end.setName("end");
     end.setType(TaskType.end);
-    WorkflowTaskDependency afterStart = new WorkflowTaskDependency();
-    afterStart.setTaskRef("start");
-    end.setDependencies(new LinkedList<>(List.of(afterStart)));
-    empty.setTasks(new LinkedList<>(List.of(start, end)));
+    WorkflowTaskDependency afterWork = new WorkflowTaskDependency();
+    afterWork.setTaskRef("work");
+    end.setDependencies(new LinkedList<>(List.of(afterWork)));
+    empty.setTasks(new LinkedList<>(List.of(start, work, end)));
     workflowService.create(workspace, empty);
 
     WorkflowRun run =

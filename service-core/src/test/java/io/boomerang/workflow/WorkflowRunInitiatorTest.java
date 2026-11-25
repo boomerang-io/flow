@@ -42,8 +42,8 @@ class WorkflowRunInitiatorTest extends AbstractEngineIntegrationTest {
     workspaceRequest.setName("run-initiator-" + suffix);
     workspaceRequest.setDisplayName(workspaceRequest.getName());
     String workspace = workspaceService.create(workspaceRequest).getName();
-    Workflow workflow = new Workflow();
-    workflow.setName("run-initiator-" + suffix);
+    seedGlobalTask("run-initiator-test-task");
+    Workflow workflow = runnableWorkflow("run-initiator-" + suffix, "run-initiator-test-task");
     String workflowName = workflowService.create(workspace, workflow).getName();
 
     UserEntity user = new UserEntity();

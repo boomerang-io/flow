@@ -103,7 +103,10 @@ A `*_INVALID_REF*` reason answers `404`: the resource the path addresses does no
 it. Blank, missing or unusable input is `400` under the matching `*_INVALID_REQ` reason (`common/error/BoomerangError.java:14-16`).
 A reference inside a body that fails to resolve stays `400`, because the route exists and the payload is wrong: a node
 naming a missing task is `WORKFLOW_INVALID_TASK_REF`, one with none `WORKFLOW_MISSING_TASK_REF`, at save and at submit
-(`workflow/WorkflowService.java:1638-1701,2368`); one whose `type` is not its task's is `WORKFLOW_INVALID_TASK_TYPE` (1224) at save (`:1945-1953`). `TASK_INVALID_NAME` (1403) is a name that breaks the slug rules; a lookup,
+(`workflow/WorkflowService.java:1638-1701,2368`); one whose `type` is not its task's is `WORKFLOW_INVALID_TASK_TYPE` (1224) at save (`:1945-1953`).
+A workflow with nothing between start and end saves, so work in progress keeps, but every submit of it (the route, a
+webhook, an event, a schedule's fire, a retry, a child run) is `400 WORKFLOW_NOT_RUNNABLE` (1225) before any run exists
+(`workflow/WorkflowService.java:1653-1659,2380`, `workflow/WorkflowRunService.java:1041-1045`). `TASK_INVALID_NAME` (1403) is a name that breaks the slug rules; a lookup,
 changelog or delete naming a task that does not exist or is out of reach is `TASK_INVALID_REFERENCE` (1401, `404`; `workflow/TaskService.java:175-185,541-547,573-586`).
 
 ## Pagination and filters
@@ -135,6 +138,10 @@ on every route that takes it, and no filter matches everything (`:119-123`):
 | `fromDate`, `toDate` | Half-open: `fromDate` included, `toDate` excluded (`:25-33`) |
 | `statuses`, `phase`, `types` | Read ignoring case; a value that names no constant is `400 QUERY_INVALID_FILTERS` (`:75-79,99-111`). On a field whose absent value reads as a constant, that constant also matches no stored value (`:86-97`) |
 | `search` | Free text, ignoring case and taken literally (regex characters are quoted). The workspace list matches the start of `name` or `displayName` (`workspace/WorkspaceService.java:510-520`); the user list matches any part of `name`, `displayName` or `email` (`core/UserService.java:423,450-457`) |
+
+The schedule list, `GET …/schedule/query`, takes `workflows`, `statuses`, `types` and `labels`; `labels` matches the
+schedule's own labels (`schedule/WorkspaceScheduleControllerV2.java:122-130`, `schedule/ScheduleService.java:130-138`).
+The workspace's schedules are found through `workflowRef` (the `workflow_lookup` index), and the labels filter those.
 
 The task and workflow `/{name}/changelog` routes are not paged: they return every version in ascending order, so the
 last entry is the latest (`workflow/TaskControllerV2.java:233`, `workflow/WorkspaceTaskControllerV2.java:299`,

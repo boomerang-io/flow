@@ -51,7 +51,7 @@ list and run a second dispatcher deployment with `flow.dispatcher.task-types=ai`
   with `DispatcherStopping`, which the engine requeues at once; a task already running then reports nothing, so its
   lease lapses and the engine hands it out again (`sdk/Dispatcher.java:140-189`; `dispatcher-contract.md`, "Leases
   and heartbeat"). Both executors then adopt the object still running under the task's labels rather than create a
-  second one (`kube/KubeJobsExecutor.java:184-196`, `kube/TektonServiceImpl.java:219-232`).
+  second one (`kube/KubeJobsExecutor.java:185-197`, `kube/TektonServiceImpl.java:220-233`).
 - **Storage.** It provisions a claimed run's volume before `workflowrun/{id}/start` (`sdk/WorkflowRunner.java:42-72`),
   and every `flow.dispatcher.workspace.reconcile-ms` (60 s) lists the volumes it holds from the cluster and asks which
   may go (`dispatcher/WorkspaceReconciler.java:57-72`).
@@ -94,7 +94,7 @@ grace (`dispatcher/TaskService.java:44`, `:64-66`, `:220-234`).
 
 Whatever the deletion policy says, a finished runtime object is removed `kube.task.ttlDays` (7) days after
 completion, so retention means the same on both executors. The Jobs executor stamps `ttlSecondsAfterFinished` and
-Kubernetes collects the Job (`kube/KubeJobsExecutor.java:256`). Tekton ships no such controller, so
+Kubernetes collects the Job (`kube/KubeJobsExecutor.java:260`). Tekton ships no such controller, so
 `dispatcher/TaskRuntimeReconciler.java` sweeps instead: on the `tekton` executor, every
 `flow.dispatcher.task.reconcile-ms` (hourly; off with `flow.dispatcher.task.reconcile.enabled=false`) a tick lists
 the TaskRuns carrying this dispatcher's own product and tier labels (`kube/KubeHelperService.java:333-335`), deletes
@@ -113,29 +113,29 @@ still gets `kube.task.timeout` as a per-pod backstop.
 
 | `dispatcher.executor` | Class | Runtime object | Timeout | Results channel | Cancel |
 | --- | --- | --- | --- | --- | --- |
-| `tekton` (default) | `kube/TektonServiceImpl.java:58-60` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`kube/TektonServiceImpl.java:381-398`, `:438-472`) | `spec.timeout` in minutes (`kube/TektonServiceImpl.java:427`, `:462`) | `status.results` (`kube/TektonServiceImpl.java:559-564`, `:583-593`); a 4096-byte overflow is detected from the last line of the pod log (`kube/KubeServiceImpl.java:237-261`) | Overwrite the status condition with `TaskRunCancelled` (`kube/TektonServiceImpl.java:648-689`) |
-| `kube-jobs` | `kube/KubeJobsExecutor.java:71-73` | One `batch/v1` `Job` (`kube/KubeJobsExecutor.java:254-270`); `restartPolicy`, `backoffLimit` and `ttlSecondsAfterFinished` from `kube.task.*` (`kube/KubeJobsExecutor.java:234`, `:255-256`) | `activeDeadlineSeconds` = minutes × 60 (`kube/KubeJobsExecutor.java:257`) | Termination message at `/dev/termination-log`, a JSON object or Tekton's `[{key,value}]` array (`kube/KubeJobsExecutor.java:223`, `:230-231`; `executor/TerminationMessageParser.java:35-62`) | Delete the Job and its script ConfigMap (`kube/KubeJobsExecutor.java:582-604`) |
+| `tekton` (default) | `kube/TektonServiceImpl.java:59-61` | One Tekton v1 `TaskRun` with an inline `taskSpec` and a single step named `task` (`kube/TektonServiceImpl.java:385-402`, `:442-476`) | `spec.timeout` in minutes (`kube/TektonServiceImpl.java:431`, `:466`) | `status.results` (`kube/TektonServiceImpl.java:563-568`, `:587-597`); a 4096-byte overflow is detected from the last line of the pod log (`kube/KubeServiceImpl.java:237-261`) | Overwrite the status condition with `TaskRunCancelled` (`kube/TektonServiceImpl.java:652-693`) |
+| `kube-jobs` | `kube/KubeJobsExecutor.java:72-74` | One `batch/v1` `Job` (`kube/KubeJobsExecutor.java:258-274`); `restartPolicy`, `backoffLimit` and `ttlSecondsAfterFinished` from `kube.task.*` (`kube/KubeJobsExecutor.java:238`, `:259-260`) | `activeDeadlineSeconds` = minutes × 60 (`kube/KubeJobsExecutor.java:261`) | Termination message at `/dev/termination-log`, a JSON object or Tekton's `[{key,value}]` array (`kube/KubeJobsExecutor.java:224`, `:234-235`; `executor/TerminationMessageParser.java:35-62`) | Delete the Job and its script ConfigMap (`kube/KubeJobsExecutor.java:586-608`) |
 
 Both executors hold one thread per task in a reconcile loop: a label-selector watch is the fast path, and every
 `kube.timeout.reconcileSeconds` (30) the loop re-reads the object by name, applies the same terminal logic, and
-re-opens the watch if it was closed (`kube/KubeJobsExecutor.java:425-481`, `kube/TektonServiceImpl.java:495-577`); it
+re-opens the watch if it was closed (`kube/KubeJobsExecutor.java:429-485`, `kube/TektonServiceImpl.java:499-581`); it
 gives up at the timeout plus `kube.timeout.watchGraceMinutes` (2). A Job whose pod count reports a failure before its
 `Failed` condition exists is held until the condition arrives, so a deadline kill is reported as `DeadlineExceeded`
 rather than `JobFailed`; after `kube.timeout.failedConditionGraceSeconds` (60) without a condition it is reported as
 `JobFailed` (`executor/JobWatcher.java:14-22`). Every attempt of a task carries the same labels, so `create` adopts
 an object under them only while it is still running — a Job with no true `Complete` or `Failed` condition
-(`kube/KubeJobsExecutor.java:184-196`, `:281-291`), a TaskRun whose `Succeeded` condition is absent or `Unknown`
-(`kube/TektonServiceImpl.java:219-232`, `:486-492`) — and otherwise creates a new one beside the finished attempt.
+(`kube/KubeJobsExecutor.java:185-197`, `:285-295`), a TaskRun whose `Succeeded` condition is absent or `Unknown`
+(`kube/TektonServiceImpl.java:220-233`, `:490-496`) — and otherwise creates a new one beside the finished attempt.
 Each watch is bound, by name, to the object its attempt created or adopted: events and the reconcile for any other
-Job or TaskRun are ignored (`executor/JobWatcher.java:29-31`, `kube/KubeJobsExecutor.java:454-460`;
-`kube/TaskWatcher.java:19-21`, `kube/TektonServiceImpl.java:535-541`). The pod read for the start check, the failure
+Job or TaskRun are ignored (`executor/JobWatcher.java:29-31`, `kube/KubeJobsExecutor.java:458-464`;
+`kube/TaskWatcher.java:19-21`, `kube/TektonServiceImpl.java:539-545`). The pod read for the start check, the failure
 reason and detail, and the termination message is that object's own, selected by the label its controller stamps on
-it — `job-name` on a Job's pod, `tekton.dev/taskRun` on a TaskRun's (`kube/KubeJobsExecutor.java:159-161`, `:430`,
-`kube/TektonServiceImpl.java:91-94`, `:510`) — never another attempt's pod under the same task labels. A Tekton cancel
-marks every TaskRun still running under the labels (`kube/TektonServiceImpl.java:662-679`). The Jobs executor
+it — `job-name` on a Job's pod, `tekton.dev/taskRun` on a TaskRun's (`kube/KubeJobsExecutor.java:160-162`, `:434`,
+`kube/TektonServiceImpl.java:92-95`, `:514`) — never another attempt's pod under the same task labels. A Tekton cancel
+marks every TaskRun still running under the labels (`kube/TektonServiceImpl.java:666-683`). The Jobs executor
 mounts a `script` task's body from a per-task ConfigMap at
-`/scripts/script`, which MUST start with a shebang (`kube/KubeJobsExecutor.java:347-387`); Tekton runs it as the
-step's `script` (`kube/TektonServiceImpl.java:385-389`).
+`/scripts/script`, which MUST start with a shebang (`kube/KubeJobsExecutor.java:351-391`); Tekton runs it as the
+step's `script` (`kube/TektonServiceImpl.java:389-393`).
 
 **Starting a task.** Starting is bounded apart from running, and a task that never started, or whose cluster could not
 be reached, is handed back rather than failed:
@@ -150,12 +150,12 @@ be reached, is handed back rather than failed:
 | The pod still Pending (unschedulable, held by a quota, never created) `kube.timeout.startMinutes` (15; 0 is off) after the watch began | `StartTimeout` (`executor/PodStartWatch.java:61-68`) | the runtime object is deleted; the engine requeues it |
 
 Each reconcile tick reads the task's pod, every container and init container, until the pod leaves Pending
-(`kube/KubeHelperService.java:482-516`, `kube/KubeJobsExecutor.java:466-480`, `kube/TektonServiceImpl.java:546-556`).
+(`kube/KubeHelperService.java:482-516`, `kube/KubeJobsExecutor.java:470-484`, `kube/TektonServiceImpl.java:550-560`).
 The engine requeues `ExceededQuota`, `StartTimeout` and `ClusterUnavailable` (and `RateLimited`, which this dispatcher
 never sends) on the budget the contract gives (`dispatcher-contract.md`, "Ending"). Any other 4xx stays `DispatchError`.
 A requeue keeps the claim, so before the next attempt is claimable the engine hands the task back as a termination
-order, and `cancel` deletes the Job (`kube/KubeJobsExecutor.java:583-604`) or marks the running TaskRun cancelled
-(`kube/TektonServiceImpl.java:648-679`) under the task's labels; the task never runs twice at once. A create whose
+order, and `cancel` deletes the Job (`kube/KubeJobsExecutor.java:587-608`) or marks the running TaskRun cancelled
+(`kube/TektonServiceImpl.java:652-683`) under the task's labels; the task never runs twice at once. A create whose
 reply was lost is covered the same way, and an attempt claimed again with no order in between adopts the object
 instead (above).
 
@@ -170,7 +170,7 @@ environment variables, a later row winning on a name collision (`kube/KubeHelper
 | Proxy | `PROXY_HOST`, `PROXY_PORT`, `HTTP_PROXY`, `HTTPS_PROXY`, `NO_PROXY` and their lower-case forms, when `proxy.enable=true` (`kube/KubeHelperService.java:90-107`) |
 | `DEBUG`, `CI`, `FLOW_VERSION` | The run's debug flag, `true`, and the dispatcher's `flow.version` |
 | `RESULTS_PATH` | `/tekton/results` (a directory, one file per result) on Tekton; `/dev/termination-log` (one file) on Jobs |
-| `RESULTS_MAX_BYTES` | The most bytes the task may write to `RESULTS_PATH`: `4096` on Jobs (`kube/KubeJobsExecutor.java:80`, `:225-226`); `tekton.results.maxBytes` on Tekton, default `4096`, raised to the cluster's `max-result-size` under sidecar logs (`kube/TektonServiceImpl.java:355-357`). A task budgets against it rather than a constant of its own |
+| `RESULTS_MAX_BYTES` | The bytes the task may spend on result values: the results limit less the envelope its declared results take ("Results on Kubernetes"). The limit is `4096` on Jobs (`kube/KubeJobsExecutor.java:81`, `:225-230`) and `tekton.results.maxBytes` on Tekton, default `4096`, raised to the cluster's `max-result-size` under sidecar logs (`kube/TektonServiceImpl.java:356-361`). A task budgets against it rather than a constant of its own |
 | `PARAM_NAMES` | The original param names, comma-separated, so a library can map `PARAM_PRIVATEKEY` back to `privateKey` |
 | `PARAM_<NAME>` | One per param; the name upper-cased with any character outside `[A-Za-z0-9_]` replaced by `_` (`kube/KubeHelperService.java:170-172`); a string value as is, null as empty, anything else JSON-encoded (`kube/KubeHelperService.java:179-187`). Two params that fold to one name fail the task (`kube/KubeHelperService.java:142-155`) |
 | `TRACEPARENT` | The task's W3C trace context, derived from its run and task run ids, on every task (`dispatcher-contract.md`, "Trace context"; `executor/TaskImageResolver.java:89`) |
@@ -180,7 +180,7 @@ There is no `/params` file directory and no `PARAMS` JSON variable; large inputs
 the param carrying the path. An item of a for-each task carries `item` and `index` like any other param, so the
 container sees `PARAM_ITEM` and `PARAM_INDEX`. A secret-typed param is built into `PARAM_<NAME>` exactly as a string;
 there is no per-task Kubernetes Secret, so anyone who can read the pod spec can read it. On Tekton every param is also
-a param of the TaskRun object (`kube/TektonServiceImpl.java:359-374`), so its value is in the TaskRun as well as the
+a param of the TaskRun object (`kube/TektonServiceImpl.java:363-378`), so its value is in the TaskRun as well as the
 pod.
 
 ## Results on Kubernetes
@@ -192,9 +192,29 @@ Kubernetes truncates a container termination message at 4096 bytes and the trunc
 (`executor/TerminationMessageParser.java:35-62`), and the Jobs executor fails the task with `ResultsTooLarge` when the
 last line of the pod log is Kubernetes' own too-large line or when the unparseable message is at the ceiling; a short
 unparseable message is a task writing something that is not a results payload, so it is logged and carries no
-results (`kube/KubeJobsExecutor.java:544-561`). On Tekton the overflow fails the TaskRun itself and is mapped the same
-way (`kube/TektonServiceImpl.java:608-610`). When the task declares results, the Jobs executor keeps only those names
+results (`kube/KubeJobsExecutor.java:548-565`). On Tekton the overflow fails the TaskRun itself and is mapped the same
+way (`kube/TektonServiceImpl.java:612-614`). When the task declares results, the Jobs executor keeps only those names
 (`executor/TerminationMessageParser.java:64-73`).
+
+The 4096 bytes hold the whole payload, its envelope included, so `RESULTS_MAX_BYTES` is the limit less the envelope
+for the task's declared results, worked out from their names by `ResultsBudget` (`executor/ResultsBudget.java:52-76`).
+In the formulas, `name` is a declared name's length in bytes, each name counted once; the figures are for the five
+names `output`, `usage`, `model`, `turns` and `toolCalls`.
+
+| Executor | What carries the results | Envelope, in bytes | Budget at 4096: no / one / five results |
+| --- | --- | --- | --- |
+| `kube-jobs` | One compact JSON object the task writes, `{"name":"value",…}` | `2` with no results; otherwise 1 + the sum of (name + 6): the braces, and per result its quoted name, the colon, the value's quotes and the comma between results | 4094 / 4083 / 4035 |
+| `tekton` | One file per result, which Tekton's entrypoint wraps as `[{"key":"name","value":"…","type":1},…]` beside its own start-time entry, `{"key":"StartedAt","value":"<time>","type":3}` | 70 + the sum of (name + 31): the brackets, the 68-byte start-time entry, and per result its entry and a comma | 4026 / 3989 / 3841 |
+
+The budget assumes every declared result is written; one left out frees its share. Escaping depends on the values, so
+it is not taken off in advance: a `"`, a `\`, a newline or a tab in a value costs two bytes, any other control
+character six, and on Tekton, whose entrypoint writes Go's JSON, `<`, `>` and `&` cost six too. A character outside
+ASCII costs its UTF-8 bytes unless the task's encoder escapes it. A payload over the limit fails `ResultsTooLarge`
+exactly as above. On Jobs a task can avoid the escaping of a structured value: the parser keeps a JSON object or array
+written raw as its JSON text (`executor/TerminationMessageParser.java:51-56`), so `{"plan":{"a":1}}` stores the same
+`{"a":1}` as `{"plan":"{\"a\":1}"}` in four bytes fewer. On Tekton a result is a file read back as a string
+(`kube/TektonServiceImpl.java:587-597`), so JSON in it is escaped in the message whatever the task writes. Under
+sidecar logs the envelope is taken from `tekton.results.maxBytes` all the same, which errs low.
 
 ## Run labels on Kubernetes objects
 
@@ -215,15 +235,15 @@ failing the volume with a 422.
 ## Volumes and workspaces
 
 Every task gets `/data`, a per-pod `emptyDir`, memory-backed when `kube.task.storage.data.memory=true` and the task's
-`worker.storage.data.memory` param is `true` (`kube/KubeJobsExecutor.java:293-319`,
-`kube/TektonServiceImpl.java:275-298`). Shared storage is one workspace per run, declared on the workflow and copied
+`worker.storage.data.memory` param is `true` (`kube/KubeJobsExecutor.java:297-323`,
+`kube/TektonServiceImpl.java:276-299`). Shared storage is one workspace per run, declared on the workflow and copied
 onto the run and each task run with its `mountPath` settled (`dispatcher-contract.md`, "Storage"). The dispatcher
 provisions one persistent volume claim keyed by the run id, labelled `boomerang.io/tier=workspace` and
 `boomerang.io/workspace-ref=<run id>` (`kube/KubeHelperService.java:345-355`), before the run starts
 (`dispatcher/WorkflowService.java:37-57`), and deletes it when its reconciliation finds the run completed
 (`dispatcher/WorkspaceReconciler.java:57-72`). No volume is shared between runs, a retry and its origin included:
 files that must survive a run are artifacts with scope `workflow` (`data-model.md`, "Artifacts"). Both executors mount
-that one claim at the task run's path (`kube/KubeJobsExecutor.java:322-345`; `kube/TektonServiceImpl.java:248-266`,
+that one claim at the task run's path (`kube/KubeJobsExecutor.java:326-349`; `kube/TektonServiceImpl.java:249-267`,
 one declaration and one binding named `workspace`), `/workspace` when it names none
 (`kube/KubeHelperService.java:533-538`). Finished task pods still hold the claim, so under `Never` it stays
 `Terminating` until retention removes them.
@@ -252,12 +272,12 @@ its revision and is refused at submit with `WORKFLOW_STORAGE_REMOVED` until it i
 ## Isolation and placement
 
 `dispatcher.tasks.runtimeClassName` sets the pod `runtimeClassName` (gVisor, Kata, confidential containers) for every
-task the deployment runs: on the pod spec for Jobs (`kube/KubeJobsExecutor.java:244-246`) and on the TaskRun's pod
-template for Tekton (`kube/TektonServiceImpl.java:448-454`). There is no per-task isolation field: a different tier is
+task the deployment runs: on the pod spec for Jobs (`kube/KubeJobsExecutor.java:248-250`) and on the TaskRun's pod
+template for Tekton (`kube/TektonServiceImpl.java:452-458`). There is no per-task isolation field: a different tier is
 a second dispatcher deployment with its own name and task types. Node selector, tolerations, host aliases and the
 image pull secret are likewise per deployment (`dispatcher.tasks.*`, `kube.image.pullSecret`;
-`kube/KubeJobsExecutor.java:237-240`, `kube/TektonServiceImpl.java:455-458`); `dispatcher.tasks.serviceaccount` is
-set on Jobs only (`kube/KubeJobsExecutor.java:241-243`). Empty toleration or host-alias entries are dropped before
+`kube/KubeJobsExecutor.java:241-244`, `kube/TektonServiceImpl.java:459-462`); `dispatcher.tasks.serviceaccount` is
+set on Jobs only (`kube/KubeJobsExecutor.java:245-247`). Empty toleration or host-alias entries are dropped before
 dispatch, so a `[]` or `[{}]` default never reaches the API server (`kube/KubeHelperService.java:189-204`). Tasks,
 claims and ConfigMaps are created in `kube.namespace`, or the kubeconfig context's namespace when it is blank; the
 dispatcher refuses to start when neither resolves (`config/KubeClientConfig.java:31-45`).
@@ -266,8 +286,8 @@ dispatcher refuses to start when neither resolves (`config/KubeClientConfig.java
 
 Every task container carries the requests and limits one shared resolver reads from configuration
 (`executor/TaskResourceResolver.java:66-86`), so the sizing is the same on both executors: the Jobs executor sets it
-on the task container (`kube/KubeJobsExecutor.java:229`) and the Tekton executor on the step's `computeResources`
-(`kube/TektonServiceImpl.java:396`).
+on the task container (`kube/KubeJobsExecutor.java:233`) and the Tekton executor on the step's `computeResources`
+(`kube/TektonServiceImpl.java:400`).
 
 | Property | Default | Applied as |
 | --- | --- | --- |

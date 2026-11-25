@@ -516,3 +516,44 @@ describe("WorkflowCard --- cumulative duration", () => {
     expect(screen.getByRole("button", { name: /Run it/ })).toBeDisabled();
   });
 });
+
+// A workflow with nothing between start and end saves, but a submit of it is refused: the card
+// says so instead of offering a run.
+function renderWithTasks(tasks: Workflow["tasks"]) {
+  return renderWithContext(
+    <Route
+      path="/:workspace/workflows"
+      action={action}
+      element={<WorkflowCard {...props} workflow={{ ...workflow, tasks }} quotas={quotas} />}
+    />,
+    { route: appLink.workflows({ workspace: props.workspaceName }) },
+  );
+}
+
+describe("WorkflowCard --- nothing to run", () => {
+  it("cannot run a workflow with only start and end, and says why", async () => {
+    renderWithTasks([
+      { name: "start", type: "start" },
+      { name: "end", type: "end", dependencies: [{ taskRef: "start" }] },
+    ] as Workflow["tasks"]);
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeDisabled();
+    await userEvent.hover(screen.getByTestId("workflow-card-run-nothing"));
+    expect(
+      await screen.findByText(
+        "Nothing to run yet, mate: this workflow has no tasks between start and end. Add a task and give it another go.",
+      ),
+    ).toBeInTheDocument();
+  });
+
+  it("runs a workflow with one task between start and end", () => {
+    renderWithTasks([
+      { name: "start", type: "start" },
+      { name: "work", type: "template", taskRef: "echo", dependencies: [{ taskRef: "start" }] },
+      { name: "end", type: "end", dependencies: [{ taskRef: "work" }] },
+    ] as Workflow["tasks"]);
+
+    expect(screen.getByRole("button", { name: /Run it/ })).toBeEnabled();
+    expect(screen.queryByTestId("workflow-card-run-nothing")).not.toBeInTheDocument();
+  });
+});

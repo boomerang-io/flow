@@ -10,6 +10,7 @@ import io.boomerang.error.BoomerangError;
 import io.boomerang.error.BoomerangException;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.PodStartWatch;
+import io.boomerang.executor.ResultsBudget;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.executor.TaskResourceResolver;
@@ -352,9 +353,12 @@ public class TektonServiceImpl implements TaskExecutor {
             params,
             envVars,
             helperKubeService.createEnvVar("RESULTS_PATH", "/tekton/results"),
-            // Tekton's own results limit: 4096 bytes in its default termination-message mode, or
-            // the cluster's max-result-size under sidecar-logs. Set to match the cluster.
-            helperKubeService.createEnvVar("RESULTS_MAX_BYTES", String.valueOf(tektonResultsMaxBytes)));
+            // Tekton's own results limit (4096 bytes in its default termination-message mode, or
+            // the cluster's max-result-size under sidecar-logs) less the array Tekton wraps the
+            // declared results in, so a task budgets its values.
+            helperKubeService.createEnvVar(
+                "RESULTS_MAX_BYTES",
+                String.valueOf(ResultsBudget.forTektonArray(tektonResultsMaxBytes, results))));
 
     /*
      * Define Task Params and Task Spec Params

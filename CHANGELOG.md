@@ -14,6 +14,28 @@ tag's release notes.
   node behind the latest links to the New version review; a Latest node lists the latest version's fields it doesn't
   set. In the API and YAML a node's `taskVersion` is a number or `"latest"`; left out, the save pins the current
   version as before, and any other value is `400 WORKFLOW_INVALID_TASK_REF`.
+- **Schedules filter by label.** `GET …/schedule/query` takes `labels`, in the form the run and workflow lists
+  take: URL-encoded `key=value` entries, all of which a schedule must carry. It combines with `workflows`,
+  `statuses` and `types`.
+
+### Fixed
+
+- **A workflow with nothing between start and end is refused at submit, and no run is created.** Saving one still
+  works, so work in progress keeps. Submitting it, from the API, a webhook, an event, a schedule, a retry or a
+  run-workflow task, answers `400 WORKFLOW_NOT_RUNNABLE` (code 1225) instead of creating a run that ends `invalid`.
+  A schedule's fire of it is dropped like any refused fire, leaving a cancelled `SubmitRefused` entry on Activity
+  that names the refusal. The webapp's **Run it** is disabled for such a workflow and says why.
+- **A schedule keeps its creation date.** A schedule created through the API or the webapp stored no creation
+  date, so every read showed the time of the read. New schedules now store the time they were created. A schedule
+  created before this fix reads the time of the read until it is edited, enabled, disabled or completed, which
+  stores the time of that change.
+- **A refused child run says why.** A run-workflow or run-scheduled-workflow task whose child run is refused fails
+  with the refusal, such as `QUOTA_EXCEEDED: maximum queued runs`, where its message was empty.
+- **A task is told its real results budget.** `RESULTS_MAX_BYTES` is now the bytes left for result values once the
+  envelope of the task's declared results is taken from the 4096-byte termination message, so a task that fills its
+  budget no longer lands a few bytes over and fails `ResultsTooLarge`. A task with no declared results is told 4094 on
+  Jobs; each declared result takes its name plus 6 bytes on Jobs and plus 31 on Tekton. Escaped characters in a value
+  (`"`, `\`, newlines) still count twice.
 
 ## 5.0.1 (2026-11-25)
 

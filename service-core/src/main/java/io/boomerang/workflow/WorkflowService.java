@@ -1036,7 +1036,8 @@ public class WorkflowService {
           BoomerangError.WORKFLOWRUN_TRIGGER_DISABLED.getReason(), "trigger disabled",
           BoomerangError.WORKFLOW_NOT_ACTIVE.getReason(), "workflow not active",
           BoomerangError.WORKFLOW_REVISION_NOT_FOUND.getReason(), "workflow has no version to run",
-          BoomerangError.WORKFLOW_STORAGE_REMOVED.getReason(), "workflow storage no longer exists");
+          BoomerangError.WORKFLOW_STORAGE_REMOVED.getReason(), "workflow storage no longer exists",
+          BoomerangError.WORKFLOW_NOT_RUNNABLE.getReason(), "no tasks between start and end");
 
   /*
    * Retrieve a workflows changelog from all versions
@@ -1654,6 +1655,18 @@ public class WorkflowService {
           && (task.getTaskRef() == null || task.getTaskRef().isBlank())) {
         throw new BoomerangException(BoomerangError.WORKFLOW_MISSING_TASK_REF, task.getName());
       }
+    }
+  }
+
+  /*
+   * A workflow runs only with a task between start and end: one with start and end alone is
+   * refused at submit, before any run exists. Saving it stays allowed, so work in progress keeps.
+   */
+  static void validateRunnable(List<WorkflowTask> tasks) {
+    if (tasks == null
+        || tasks.stream()
+            .allMatch(t -> TaskType.start.equals(t.getType()) || TaskType.end.equals(t.getType()))) {
+      throw new BoomerangException(BoomerangError.WORKFLOW_NOT_RUNNABLE);
     }
   }
 
@@ -2387,6 +2400,7 @@ public class WorkflowService {
     }
     validateTaskRefsPresent(wfRevision.getTasks());
     validateFinally(wfRevision.getTasks());
+    validateRunnable(wfRevision.getTasks());
 
     final WorkflowRunEntity wfRunEntity = new WorkflowRunEntity();
     wfRunEntity.setWorkflowRevisionRef(wfRevision.getId());
