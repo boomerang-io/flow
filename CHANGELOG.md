@@ -5,6 +5,24 @@ tag's release notes.
 
 ## Unreleased
 
+### Added
+
+- **Schedules filter by label.** `GET …/schedule/query` takes `labels`, in the form the run and workflow lists
+  take: URL-encoded `key=value` entries, all of which a schedule must carry. It combines with `workflows`,
+  `statuses` and `types`.
+
+### Fixed
+
+- **A workflow with nothing between start and end is refused at submit, and no run is created.** Saving one still
+  works, so work in progress keeps. Submitting it, from the API, a webhook, an event, a schedule, a retry or a
+  run-workflow task, answers `400 WORKFLOW_NOT_RUNNABLE` (code 1225) instead of creating a run that ends `invalid`.
+  A schedule's fire of it is dropped like any refused fire, leaving a cancelled `SubmitRefused` entry on Activity
+  that names the refusal. The webapp's **Run it** is disabled for such a workflow and says why.
+- **A schedule keeps its creation date.** A schedule created through the API or the webapp stored no creation
+  date, so every read showed the time of the read. New schedules now store the time they were created. A schedule
+  created before this fix reads the time of the read until it is edited, enabled, disabled or completed, which
+  stores the time of that change.
+
 ## 5.0.1 (2026-11-25)
 
 ### Upgrading

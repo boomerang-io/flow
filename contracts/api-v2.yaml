@@ -7040,6 +7040,16 @@ paths:
           items:
             type: "string"
           type: "array"
+      - description: "List of url encoded labels, all of which a schedule must carry.\
+          \ For example Organization=Boomerang,customKey=test would be encoded as\
+          \ Organization%3DBoomerang,customKey%3Dtest)"
+        in: "query"
+        name: "labels"
+        required: false
+        schema:
+          items:
+            type: "string"
+          type: "array"
       - description: "Result Size. Defaults to every match."
         example: 10
         in: "query"
