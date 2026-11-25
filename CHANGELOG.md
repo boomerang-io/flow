@@ -26,6 +26,11 @@ tag's release notes.
 
 ### Fixed
 
+- **An array param set to a single reference is resolved.** A multiselect or other `array` param set to
+  `$(workflow.params.tools)` or `$(tasks.t.results.r)` now takes the referenced list, parses a JSON array string, or
+  becomes a list of one; it used to reach the task as the reference's text, unchecked. A reference that names nothing
+  fails the task at admission with `ParamUnresolved`, a string written straight onto an array param becomes a list
+  the same way (blank is `[]`), and a list's numbers, booleans and objects are kept instead of failing the task.
 - **A workflow with nothing between start and end is refused at submit, and no run is created.** Saving one still
   works, so work in progress keeps. Submitting it, from the API, a webhook, an event, a schedule, a retry or a
   run-workflow task, answers `400 WORKFLOW_NOT_RUNNABLE` (code 1225) instead of creating a run that ends `invalid`.

@@ -190,24 +190,38 @@ public class ParameterManager {
                 if (resolution.secret()) {
                   p.setType(ParamType.secret);
                 }
-              } else if (ParamType.array.equals(p.getType()) && p.getValue() instanceof List) {
-                // Type safety. If you attempt to convert a string or object (JSON = HashMap) then
-                // this causes an exception
-                ArrayList<String> valueList = (ArrayList<String>) p.getValue();
+              } else if (ParamType.array.equals(p.getType()) && p.getValue() instanceof List<?> list) {
+                // Each string element is resolved as a string; any other element is kept as is.
                 p.setValue(
-                    valueList.stream()
+                    list.stream()
                         .map(
                             v ->
-                                resolveParam(
-                                        ParamType.string,
-                                        v,
-                                        wfRunId,
-                                        paramLayers,
-                                        upstream,
-                                        secretKeys,
-                                        collector(unresolved, optTaskRun, p))
-                                    .value())
+                                v instanceof String element
+                                    ? resolveParam(
+                                            ParamType.string,
+                                            element,
+                                            wfRunId,
+                                            paramLayers,
+                                            upstream,
+                                            secretKeys,
+                                            collector(unresolved, optTaskRun, p))
+                                        .value()
+                                    : v)
                         .collect(Collectors.toList()));
+              } else if (ParamType.array.equals(p.getType()) && p.getValue() instanceof String) {
+                // A string on an array param - one reference such as $(workflow.params.tools), or
+                // text - resolves, then becomes a list: kept if a list, parsed if a JSON array.
+                p.setValue(
+                    toList(
+                        resolveParam(
+                                ParamType.object,
+                                p.getValue(),
+                                wfRunId,
+                                paramLayers,
+                                upstream,
+                                secretKeys,
+                                collector(unresolved, optTaskRun, p))
+                            .value()));
               } else if (ParamType.object.equals(p.getType())) {
                 // Replace Param with Object. Treated as JSON and allows for the extra JSONPath
                 // retrieval.
@@ -235,6 +249,25 @@ public class ParameterManager {
       wfRun.setParams(runParams);
     }
     return nonEmpty(unresolved);
+  }
+
+  // An array param's resolved value as a list: a list as is, a blank string empty, a JSON array
+  // parsed, and anything else the one element of a list.
+  private List<?> toList(Object value) {
+    if (value instanceof List<?> list) {
+      return list;
+    }
+    if (value instanceof String string && string.isBlank()) {
+      return new ArrayList<>();
+    }
+    if (value instanceof String string && string.trim().startsWith("[")) {
+      try {
+        return objectMapper.readValue(string, List.class);
+      } catch (Exception e) {
+        // Not JSON after all: the text is the one element.
+      }
+    }
+    return new ArrayList<>(List.of(value));
   }
 
   // Where a param's unresolved references are recorded: only for a TaskRun's params.
