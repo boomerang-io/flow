@@ -20,6 +20,7 @@ import java.util.LinkedList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
+import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.data.mongodb.core.MongoTemplate;
@@ -35,6 +36,13 @@ import org.springframework.data.mongodb.core.query.Update;
 class WorkflowParamTypeTest extends AbstractEngineIntegrationTest {
 
   private static final String WORKSPACE = "system";
+
+  private static final String TASK_SLUG = "param-type-test-task";
+
+  @BeforeEach
+  void aTaskToRun() {
+    seedGlobalTask(TASK_SLUG);
+  }
 
   @Autowired private WorkflowService workflowService;
   @Autowired private MongoTemplate mongoTemplate;
@@ -112,9 +120,17 @@ class WorkflowParamTypeTest extends AbstractEngineIntegrationTest {
     end.setName("end");
     end.setType(TaskType.end);
     WorkflowTaskDependency afterStart = new WorkflowTaskDependency();
-    afterStart.setTaskRef("start");
+    afterStart.setTaskRef("work");
     end.setDependencies(new LinkedList<>(List.of(afterStart)));
-    workflow.setTasks(new LinkedList<>(List.of(start, end)));
+    // One task between start and end: a workflow with nothing between them is refused at submit.
+    WorkflowTask work = new WorkflowTask();
+    work.setName("work");
+    work.setType(TaskType.template);
+    work.setTaskRef(TASK_SLUG);
+    WorkflowTaskDependency afterStartForWork = new WorkflowTaskDependency();
+    afterStartForWork.setTaskRef("start");
+    work.setDependencies(new LinkedList<>(List.of(afterStartForWork)));
+    workflow.setTasks(new LinkedList<>(List.of(start, work, end)));
     return workflow;
   }
 

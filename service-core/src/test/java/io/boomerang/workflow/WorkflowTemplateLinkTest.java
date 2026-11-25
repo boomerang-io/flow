@@ -13,6 +13,7 @@ import io.boomerang.common.model.Workflow;
 import io.boomerang.common.model.WorkflowRun;
 import io.boomerang.common.model.WorkflowSubmitRequest;
 import io.boomerang.common.model.WorkflowTask;
+import io.boomerang.common.model.WorkflowTaskDependency;
 import io.boomerang.common.model.WorkflowTemplateRef;
 import io.boomerang.core.enums.RelationshipLabel;
 import io.boomerang.core.enums.RelationshipType;
@@ -42,6 +43,8 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 class WorkflowTemplateLinkTest extends AbstractEngineIntegrationTest {
 
+  private static final String TASK_SLUG = "template-link-test-task";
+
   private static final String SYSTEM = "system";
 
   @Autowired private WorkflowService workflowService;
@@ -52,6 +55,7 @@ class WorkflowTemplateLinkTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void aMemberOfAWorkspaceAndOfSystem() {
+    seedGlobalTask(TASK_SLUG);
     // A real workspace, since a create checks its quotas; the system workspace is seeded.
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName("tpl-ws-" + System.nanoTime());
@@ -197,7 +201,15 @@ class WorkflowTemplateLinkTest extends AbstractEngineIntegrationTest {
     WorkflowTask end = new WorkflowTask();
     end.setName("end");
     end.setType(TaskType.end);
-    workflow.setTasks(new LinkedList<>(List.of(start, end)));
+    // One task between start and end: a workflow with nothing between them is refused at submit.
+    WorkflowTask work = new WorkflowTask();
+    work.setName("work");
+    work.setType(TaskType.template);
+    work.setTaskRef(TASK_SLUG);
+    WorkflowTaskDependency afterStartForWork = new WorkflowTaskDependency();
+    afterStartForWork.setTaskRef("start");
+    work.setDependencies(new LinkedList<>(List.of(afterStartForWork)));
+    workflow.setTasks(new LinkedList<>(List.of(start, work, end)));
     return workflow;
   }
 

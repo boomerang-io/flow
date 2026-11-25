@@ -83,7 +83,10 @@ of instances and overlapping sweeps are safe.
 ## Starting a run
 
 A submit always starts its run, or queues it for a slot: the submit route takes no `start` flag and there is no route that starts a run, and a retry, a child run, a fired schedule and a webhook,
-event or GitHub trigger start theirs the same way (`workflow/WorkflowService.java:718-730`, `workflow/WorkflowRunService.java:1143-1154`, `engine/TaskExecutionService.java:1403-1404`). An admitted
+event or GitHub trigger start theirs the same way (`workflow/WorkflowService.java:718-730`, `workflow/WorkflowRunService.java:1143-1154`, `engine/TaskExecutionService.java:1403-1404`). All but a retry
+build their run in one place, which refuses a workflow with nothing between start and end with `400 WORKFLOW_NOT_RUNNABLE` before the run is written; a retry checks the revision it
+re-runs the same way before its clone is written (`workflow/WorkflowService.java:1653-1659,2380`, `workflow/WorkflowRunService.java:1041-1045`). A child run's refusal fails its parent's task,
+and a schedule's fire refused this way is dropped like any refused fire, below. An admitted
 run without a workspace is started by the engine at once. A run that declares a workspace stays `ready/pending` until a dispatcher claims it, provisions its storage and calls `PUT
 /dispatcher/v1/workflowrun/{id}/start` (`workflow/WorkflowRunService.java:856-877`, `dispatcher/DispatcherControllerV1.java:168`, `engine/WorkflowRunStateHelper.java:58-74`). A run admitted with
 nothing to provision whose start was lost with the instance that owed it is started by the `startAdmittedRuns` sweep; one that cannot start, such as a run whose graph names a missing task, ends

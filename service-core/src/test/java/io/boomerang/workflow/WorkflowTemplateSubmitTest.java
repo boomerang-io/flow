@@ -66,6 +66,9 @@ import org.springframework.security.core.context.SecurityContextHolder;
  */
 class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
 
+  private static final String TASK_SLUG = "template-submit-test-task";
+
+
   private static final String SYSTEM = "system";
 
   @Autowired private WorkflowService workflowService;
@@ -82,6 +85,7 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
 
   @BeforeEach
   void aMemberOfAWorkspaceAndOfSystem() {
+    seedGlobalTask(TASK_SLUG);
     WorkspaceRequest request = new WorkspaceRequest();
     request.setName("tpl-submit-" + System.nanoTime());
     request.setDisplayName(request.getName());
@@ -153,16 +157,12 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
     Workflow template = workflowService.create(SYSTEM, definition("task-runs", WorkflowType.template));
     String runId =
         workflowService.submit(workspace, template.getName(), new WorkflowSubmitRequest(), true).getId();
-    awaitEngine("the template's run completed")
-        .untilAsserted(
-            () ->
-                assertThat(workflowRunRepository.findById(runId).orElseThrow().getPhase())
-                    .isEqualTo(RunPhase.completed));
+    // The run's task runs are created as it is queued, before any of them runs.
 
     WorkflowEntity link = linkTo(template.getName());
     String revisionRef = workflowRunRepository.findById(runId).orElseThrow().getWorkflowRevisionRef();
     assertThat(taskRunRepository.findByWorkflowRunRef(runId))
-        .hasSize(2)
+        .hasSize(3)
         .allSatisfy(
             taskRun -> {
               assertThat(taskRun.getWorkflowRef()).as("the run's workflow, the link").isEqualTo(link.getId());
@@ -186,7 +186,8 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
                     Optional.empty())
                 .getContent())
         .extracting(TaskRun::getName)
-        .containsExactlyInAnyOrder("start", "end");
+        .containsExactlyInAnyOrder("start", "work", "end");
+    workflowRunService.cancel(runId);
   }
 
   @Test
@@ -398,9 +399,17 @@ class WorkflowTemplateSubmitTest extends AbstractEngineIntegrationTest {
     end.setName("end");
     end.setType(TaskType.end);
     WorkflowTaskDependency dependency = new WorkflowTaskDependency();
-    dependency.setTaskRef("start");
+    dependency.setTaskRef("work");
     end.setDependencies(new LinkedList<>(List.of(dependency)));
-    workflow.setTasks(new LinkedList<>(List.of(start, end)));
+    // One task between start and end: a workflow with nothing between them is refused at submit.
+    WorkflowTask work = new WorkflowTask();
+    work.setName("work");
+    work.setType(TaskType.template);
+    work.setTaskRef(TASK_SLUG);
+    WorkflowTaskDependency afterStartForWork = new WorkflowTaskDependency();
+    afterStartForWork.setTaskRef("start");
+    work.setDependencies(new LinkedList<>(List.of(afterStartForWork)));
+    workflow.setTasks(new LinkedList<>(List.of(start, work, end)));
     return workflow;
   }
 

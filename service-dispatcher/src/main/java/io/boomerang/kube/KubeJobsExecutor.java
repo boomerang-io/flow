@@ -13,6 +13,7 @@ import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.JobWatcher;
 import io.boomerang.error.TaskExecutionException;
 import io.boomerang.executor.PodStartWatch;
+import io.boomerang.executor.ResultsBudget;
 import io.boomerang.executor.TaskExecutor;
 import io.boomerang.executor.TaskImageResolver;
 import io.boomerang.executor.TaskResourceResolver;
@@ -221,9 +222,12 @@ public class KubeJobsExecutor implements TaskExecutor {
             task.getParams(),
             imageResolver.environment(task),
             helperKubeService.createEnvVar("RESULTS_PATH", "/dev/termination-log"),
-            // The ceiling a task writes to, so it can budget its own payload rather than guess.
+            // The bytes left for result values once the JSON object's envelope for the declared
+            // results is taken from the termination message's ceiling, so a task budgets its values.
             helperKubeService.createEnvVar(
-                "RESULTS_MAX_BYTES", String.valueOf(TERMINATION_MESSAGE_MAX_BYTES))));
+                "RESULTS_MAX_BYTES",
+                String.valueOf(
+                    ResultsBudget.forObject(TERMINATION_MESSAGE_MAX_BYTES, task.getResults())))));
     container.setVolumeMounts(volumeMounts);
     // Null when nothing is configured, so the container carries no resources block at all.
     container.setResources(resourceResolver.requirements());
