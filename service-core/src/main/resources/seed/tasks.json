@@ -1247,6 +1247,20 @@
       "type": "ai"
     },
     {
+      "name": "ai-coding-agent",
+      "status": "active",
+      "verified": true,
+      "labels": {},
+      "annotations": {
+        "boomerang#io/generation": "4",
+        "boomerang#io/kind": "Task"
+      },
+      "creationDate": {
+        "$date": "2026-11-25T00:00:00Z"
+      },
+      "type": "ai"
+    },
+    {
       "name": "add-teams-member",
       "status": "active",
       "verified": true,

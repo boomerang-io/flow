@@ -17,6 +17,12 @@ tag's release notes.
 - **Schedules filter by label.** `GET …/schedule/query` takes `labels`, in the form the run and workflow lists
   take: URL-encoded `key=value` entries, all of which a schedule must carry. It combines with `workflows`,
   `statuses` and `types`.
+- **AI Agent gets workspace tools, and a new AI Coding Agent task, from task-ai 2.2.0.** AI Agent revision 3
+  (`boomerangio/task-ai:2.2.0`) adds **Workspace Tools** (Read, Edit, Write, Bash; none by default), confined to a
+  **Working directory** on the run workspace, with a command time limit and a time limit for the whole loop. **AI
+  Coding Agent** (`ai-coding-agent`, `boomerangio/task-ai-coding:2.2.0`) is the same agent on an image with node, a
+  JDK with Maven and Gradle, Python and Go, so it can edit a checkout and run its build or tests. A change unit adds
+  both where an install lacks them; revisions already held, which workflows may pin, are not changed.
 
 ### Fixed
 

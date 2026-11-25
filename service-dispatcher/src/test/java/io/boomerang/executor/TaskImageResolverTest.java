@@ -104,6 +104,8 @@ class TaskImageResolverTest {
     // The resolver under test carries the property's default prefix, boomerangio/task-ai.
     assertTrue(resolver.allowedAiImage("boomerangio/task-ai:2.0.0"));
     assertTrue(resolver.allowedAiImage("boomerangio/task-ai@sha256:0123abcd"));
+    // The coding agent's image shares the prefix.
+    assertTrue(resolver.allowedAiImage("boomerangio/task-ai-coding:2.2.0"));
     assertFalse(resolver.allowedAiImage("evil:latest"));
     assertFalse(resolver.allowedAiImage("boomerangio/task-flow:3.2.1"));
     assertFalse(resolver.allowedAiImage(""));

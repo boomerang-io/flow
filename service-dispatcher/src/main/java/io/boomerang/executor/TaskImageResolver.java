@@ -63,7 +63,7 @@ public class TaskImageResolver {
   /**
    * Whether an {@code ai} revision may declare this image: it starts with one of
    * {@code flow.dispatcher.ai.image-prefixes}, compared on the string as declared, so a prefix of
-   * {@code boomerangio/task-ai} admits every tag and digest of that image and nothing else. The
+   * {@code boomerangio/task-ai} admits every tag and digest of it and of {@code task-ai-coding}. The
    * dispatcher refuses an {@code ai} task outside the prefixes before it runs, which keeps a
    * dispatcher registered for {@code ai} the egress zone for the Boomerang worker alone unless an
    * operator adds another prefix.
