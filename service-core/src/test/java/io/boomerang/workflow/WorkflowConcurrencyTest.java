@@ -242,8 +242,13 @@ class WorkflowConcurrencyTest extends AbstractEngineIntegrationTest {
     WorkflowRun first = submit(workspace, workflow, true);
     WorkflowRun second = submit(workspace, workflow, true);
 
-    assertEquals(RunStatus.running, run(first.getId()).getStatus());
-    assertEquals(RunStatus.running, run(second.getId()).getStatus());
+    // A submit starts its run asynchronously: neither is held, so both reach running.
+    awaitEngine("both runs to start")
+        .untilAsserted(
+            () -> {
+              assertEquals(RunStatus.running, run(first.getId()).getStatus());
+              assertEquals(RunStatus.running, run(second.getId()).getStatus());
+            });
   }
 
   /** SecurityContextHolder is thread-local, so each burst thread carries its own identity. */
